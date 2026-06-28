@@ -1,0 +1,183 @@
+import { useState } from 'react';
+import { Building2, Shield, Bell, Palette, Key, Globe, Calendar, Mail, FileText, Database, Upload, RefreshCw } from 'lucide-react';
+import Card from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import Tabs from '../../components/ui/Tabs';
+import Badge from '../../components/ui/Badge';
+import Breadcrumb from '../../components/ui/Breadcrumb';
+import DataTable from '../../components/ui/DataTable';
+import { useTheme } from '../../context/ThemeContext';
+import { useData } from '../../context/DataContext';
+import { useToast } from '../../components/ui/Toast';
+
+export default function SettingsPage() {
+  const { theme, toggleTheme } = useTheme();
+  const { departments, auditLogs, data } = useData();
+  const toast = useToast();
+  const [primaryColor, setPrimaryColor] = useState('#FF6A00');
+
+  return (
+    <div className="space-y-5">
+      <Breadcrumb items={[{ label: 'Settings' }]} />
+      <h1 className="text-xl font-bold text-text">Settings</h1>
+      <Tabs tabs={[
+        { id: 'company', label: 'Company', content: (
+          <Card><div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+            <Input label="Company Name" defaultValue="Vikisol Technologies" />
+            <Input label="Website" defaultValue="vikisol.in" />
+            <Input label="Phone" defaultValue="+91 7989595796" />
+            <Input label="Email" defaultValue="hr@vikisol.in" />
+            <Input label="GST No" defaultValue="36AABCV1234A1ZS" />
+            <Input label="CIN" defaultValue="U72200TG2020PTC123456" />
+            <Input label="Address" defaultValue="Hyderabad, Telangana, India" className="col-span-2" />
+            <div className="col-span-2 flex gap-2"><Button onClick={() => toast.success('Company settings saved')}>Save Changes</Button></div>
+          </div></Card>
+        )},
+        { id: 'appearance', label: 'Appearance', content: (
+          <Card><div className="space-y-4 max-w-md">
+            <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl">
+              <div><p className="text-sm font-medium text-text">Dark Mode</p><p className="text-xs text-text-secondary">Toggle dark/light theme</p></div>
+              <button onClick={toggleTheme} className={`w-14 h-7 rounded-full transition-colors relative ${theme === 'dark' ? 'bg-primary' : 'bg-surface-4'}`}>
+                <span className={`absolute top-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${theme === 'dark' ? 'left-7' : 'left-0.5'}`} />
+              </button>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl">
+              <div><p className="text-sm font-medium text-text">Primary Color</p><p className="text-xs text-text-secondary">Brand accent color</p></div>
+              <input type="color" value={primaryColor} onChange={e => { setPrimaryColor(e.target.value); toast.info('Color updated (preview only)'); }} className="w-8 h-8 rounded-lg cursor-pointer border-0" />
+            </div>
+            <div className="p-4 bg-surface-3 rounded-xl">
+              <p className="text-sm font-medium text-text mb-3">Logo Upload</p>
+              <div className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-primary/40">
+                <Upload size={20} className="mx-auto text-text-secondary mb-1" />
+                <p className="text-xs text-text-secondary">Click to upload logo (PNG, SVG)</p>
+              </div>
+            </div>
+          </div></Card>
+        )},
+        { id: 'departments', label: 'Departments', content: (
+          <Card>
+            <div className="space-y-2 max-w-md">
+              {departments.map(d => (
+                <div key={d} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
+                  <span className="text-sm text-text">{d}</span>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => toast.info(`Editing ${d}`)}>Edit</Button>
+                    <Button size="sm" variant="ghost" onClick={() => toast.warning(`Cannot delete department with employees`)}>Delete</Button>
+                  </div>
+                </div>
+              ))}
+              <Button size="sm" variant="secondary" onClick={() => toast.success('Department added')}>+ Add Department</Button>
+            </div>
+          </Card>
+        )},
+        { id: 'roles', label: 'Roles & Permissions', content: (
+          <Card><div className="space-y-2">
+            {['CEO', 'HR Manager', 'Manager', 'Employee', 'Recruiter', 'Finance', 'Admin', 'IT Support'].map(role => (
+              <div key={role} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
+                <div className="flex items-center gap-3"><Shield size={16} className="text-primary" /><span className="text-sm font-medium text-text">{role}</span></div>
+                <Button size="sm" variant="ghost" onClick={() => toast.info(`Configuring ${role} permissions`)}>Configure</Button>
+              </div>
+            ))}
+          </div></Card>
+        )},
+        { id: 'holidays', label: 'Holidays', content: (
+          <Card>
+            <div className="space-y-2">
+              {data.holidays.map(h => (
+                <div key={h.id} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
+                  <div><p className="text-sm text-text">{h.name}</p><p className="text-xs text-text-secondary">{h.date}</p></div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={h.optional ? 'warning' : 'success'}>{h.optional ? 'Optional' : 'Mandatory'}</Badge>
+                    <Button size="sm" variant="ghost" onClick={() => toast.info('Editing holiday')}>Edit</Button>
+                  </div>
+                </div>
+              ))}
+              <Button size="sm" variant="secondary" onClick={() => toast.success('Holiday added')}>+ Add Holiday</Button>
+            </div>
+          </Card>
+        )},
+        { id: 'notifications', label: 'Notifications', content: (
+          <Card><div className="space-y-3 max-w-md">
+            {['Email Notifications', 'Push Notifications', 'Leave Reminders', 'Timesheet Reminders', 'Birthday Reminders', 'Interview Reminders', 'Payroll Alerts', 'System Alerts'].map((n, i) => (
+              <div key={n} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
+                <span className="text-sm text-text">{n}</span>
+                <button onClick={() => toast.success(`${n} toggled`)} className={`w-10 h-5 rounded-full relative ${i < 5 ? 'bg-primary' : 'bg-surface-4'}`}>
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow ${i < 5 ? 'right-0.5' : 'left-0.5'}`} />
+                </button>
+              </div>
+            ))}
+          </div></Card>
+        )},
+        { id: 'security', label: 'Security', content: (
+          <Card><div className="space-y-4 max-w-md">
+            <div className="p-4 bg-surface-3 rounded-xl">
+              <p className="text-sm font-medium text-text mb-1">Multi-Factor Authentication</p>
+              <p className="text-xs text-text-secondary mb-3">Require MFA for all users</p>
+              <Button size="sm" onClick={() => toast.success('MFA enabled for all users')}>Enable MFA</Button>
+            </div>
+            <div className="p-4 bg-surface-3 rounded-xl">
+              <p className="text-sm font-medium text-text mb-1">Password Policy</p>
+              <p className="text-xs text-text-secondary mb-3">Minimum 8 chars, 1 uppercase, 1 number, 1 special</p>
+              <Button size="sm" variant="secondary" onClick={() => toast.info('Password policy configured')}>Configure</Button>
+            </div>
+            <div className="p-4 bg-surface-3 rounded-xl">
+              <p className="text-sm font-medium text-text mb-1">Session Timeout</p>
+              <Input type="number" defaultValue="30" className="mt-2" />
+              <p className="text-xs text-text-secondary mt-1">minutes of inactivity</p>
+            </div>
+          </div></Card>
+        )},
+        { id: 'audit', label: 'Audit Logs', content: (
+          <Card padding={false}>
+            <DataTable columns={[
+              { key: 'action', label: 'Action', render: (v) => <span className="font-medium text-text">{v}</span> },
+              { key: 'user', label: 'User' },
+              { key: 'target', label: 'Target' },
+              { key: 'timestamp', label: 'Time', render: (v) => new Date(v).toLocaleString() },
+              { key: 'ip', label: 'IP Address', render: (v) => <span className="font-mono text-xs">{v}</span> },
+            ]} data={auditLogs} pageSize={10} />
+          </Card>
+        )},
+        { id: 'integrations', label: 'Integrations', content: (
+          <Card><div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              { name: 'Microsoft Outlook', status: 'Connected', desc: 'Email & Calendar sync' },
+              { name: 'Microsoft Teams', status: 'Not Connected', desc: 'Meeting integration' },
+              { name: 'Azure AD', status: 'Connected', desc: 'SSO & directory sync' },
+              { name: 'Slack', status: 'Not Connected', desc: 'Notifications & alerts' },
+              { name: 'Jira', status: 'Connected', desc: 'Project & issue tracking' },
+              { name: 'GitHub', status: 'Connected', desc: 'Code repository' },
+              { name: 'RazorpayX', status: 'Not Connected', desc: 'Payroll processing' },
+              { name: 'Zoom', status: 'Not Connected', desc: 'Video conferencing' },
+            ].map(i => (
+              <div key={i.name} className="flex items-center justify-between p-4 bg-surface-3 rounded-xl">
+                <div><p className="text-sm font-medium text-text">{i.name}</p><p className="text-xs text-text-secondary">{i.desc}</p></div>
+                <Button size="sm" variant={i.status === 'Connected' ? 'secondary' : 'primary'} onClick={() => toast.success(i.status === 'Connected' ? `${i.name} disconnected` : `${i.name} connected`)}>
+                  {i.status === 'Connected' ? 'Disconnect' : 'Connect'}
+                </Button>
+              </div>
+            ))}
+          </div></Card>
+        )},
+        { id: 'backup', label: 'Backup', content: (
+          <Card><div className="space-y-4 max-w-md">
+            <div className="p-4 bg-surface-3 rounded-xl">
+              <p className="text-sm font-medium text-text mb-1">Create Backup</p>
+              <p className="text-xs text-text-secondary mb-3">Export all data as JSON/CSV</p>
+              <div className="flex gap-2">
+                <Button size="sm" icon={Database} onClick={() => toast.success('Backup created successfully')}>Create Backup</Button>
+                <Button size="sm" variant="secondary" icon={RefreshCw} onClick={() => toast.info('Restore from backup')}>Restore</Button>
+              </div>
+            </div>
+            <div className="p-4 bg-surface-3 rounded-xl">
+              <p className="text-sm font-medium text-text mb-1">Auto Backup</p>
+              <p className="text-xs text-text-secondary">Daily at 2:00 AM IST</p>
+              <Badge variant="success" className="mt-2">Enabled</Badge>
+            </div>
+          </div></Card>
+        )},
+      ]} />
+    </div>
+  );
+}
