@@ -25,6 +25,8 @@ export default function LeaveManagement() {
   const confirm = useConfirm();
   const { user } = useAuth();
 
+  const isEmployee = user?.role === 'employee';
+
   const [showApply, setShowApply] = useState(false);
   const [showHolidays, setShowHolidays] = useState(false);
   const [showDetail, setShowDetail] = useState(null);
@@ -35,9 +37,13 @@ export default function LeaveManagement() {
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(null);
 
-  const showApplyButton = user?.role === 'employee' || user?.role === 'manager';
+  const allLeaves = useMemo(() => {
+    if (isEmployee) {
+      return data.leaveRequests.filter(l => l.empName === user?.name || l.empId === user?.empId);
+    }
+    return data.leaveRequests;
+  }, [data.leaveRequests, isEmployee, user]);
 
-  const allLeaves = data.leaveRequests;
   const filtered = useMemo(() => allLeaves.filter(l => {
     const s = search.toLowerCase();
     const matchSearch = !s || l.empName.toLowerCase().includes(s) || l.empId.toLowerCase().includes(s);
@@ -65,10 +71,7 @@ export default function LeaveManagement() {
 
   const handleApprove = (leave) => approve(leave, 'leaveRequests', leaveRequests.update);
   const handleReject = (leave) => { setShowRejectModal(leave); };
-  const confirmReject = () => {
-    reject(showRejectModal, 'leaveRequests', leaveRequests.update, rejectReason);
-    setShowRejectModal(null); setRejectReason('');
-  };
+  const confirmReject = () => { reject(showRejectModal, 'leaveRequests', leaveRequests.update, rejectReason); setShowRejectModal(null); setRejectReason(''); };
   const handleCancel = async (leave) => {
     const ok = await confirm({ title: 'Cancel Leave?', message: 'Cancel this leave request?', type: 'warning', confirmText: 'Cancel Leave' });
     if (ok) { leaveRequests.update(leave.id, { status: 'Cancelled' }); toast.info('Leave cancelled'); }
@@ -95,11 +98,12 @@ export default function LeaveManagement() {
   }), [allLeaves]);
 
   const columns = [
-    { key: 'empName', label: 'Employee', render: (v, row) => <div><p className="font-medium text-text text-sm">{v}</p><p className="text-[10px] text-text-secondary">{row.empId} · {row.department}</p></div> },
+    ...(!isEmployee ? [{ key: 'empName', label: 'Employee', render: (v, row) => <div><p className="font-medium text-text text-sm">{v}</p><p className="text-[10px] text-text-secondary">{row.empId} · {row.department}</p></div> }] : []),
     { key: 'type', label: 'Type' },
     { key: 'from', label: 'From' },
     { key: 'to', label: 'To' },
     { key: 'days', label: 'Days', render: (v) => <span className="font-semibold">{v}</span> },
+    { key: 'reason', label: 'Reason', render: (v) => <span className="truncate max-w-[120px] block text-text-secondary">{v}</span> },
     { key: 'status', label: 'Status', render: (v) => <Badge dot>{v}</Badge> },
     { key: 'actions', label: '', sortable: false, render: (_, row) => (
       <div className="flex gap-1">
@@ -110,45 +114,80 @@ export default function LeaveManagement() {
             <button onClick={(e) => { e.stopPropagation(); handleReject(row); }} className="p-1 rounded hover:bg-danger/10 text-danger"><X size={14} /></button>
           </>
         )}
+        {row.status === 'Pending' && isEmployee && (
+          <button onClick={(e) => { e.stopPropagation(); handleCancel(row); }} className="text-[10px] px-2 py-1 rounded hover:bg-surface-3 text-text-secondary">Cancel</button>
+        )}
       </div>
     )},
   ];
 
+  // Employee leave balance
+  const leaveBalance = [
+    { type: 'Casual Leave', used: 4, total: 12, color: 'primary' },
+    { type: 'Sick Leave', used: 2, total: 8, color: 'danger' },
+    { type: 'Earned Leave', used: 3, total: 15, color: 'success' },
+    { type: 'Comp Off', used: 1, total: 5, color: 'info' },
+  ];
+
   return (
     <div className="space-y-5">
-      <Breadcrumb items={[{ label: 'Leave Management' }]} />
+      <Breadcrumb items={[{ label: isEmployee ? 'My Leave' : 'Leave Management' }]} />
       <div className="flex items-center justify-between">
-        <div><h1 className="text-xl font-bold text-text">Leave Management</h1><p className="text-sm text-text-secondary">{leaveStats.pending} pending · {leaveStats.approved} approved · {leaveStats.rejected} rejected</p></div>
+        <div>
+          <h1 className="text-xl font-bold text-text">{isEmployee ? 'My Leave' : 'Leave Management'}</h1>
+          <p className="text-sm text-text-secondary">{leaveStats.pending} pending · {leaveStats.approved} approved</p>
+        </div>
         <div className="flex gap-2">
           <Button variant="secondary" icon={Calendar} size="sm" onClick={() => setShowHolidays(true)}>Holidays</Button>
-          {showApplyButton && <Button icon={Plus} size="sm" onClick={() => setShowApply(true)}>Apply Leave</Button>}
+          {(isEmployee || user?.role === 'manager') && <Button icon={Plus} size="sm" onClick={() => setShowApply(true)}>Apply Leave</Button>}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: 'Total Requests', value: leaveStats.total, color: 'text-text' },
-          { label: 'Pending', value: leaveStats.pending, color: 'text-warning' },
-          { label: 'Approved', value: leaveStats.approved, color: 'text-success' },
-          { label: 'Rejected', value: leaveStats.rejected, color: 'text-danger' },
-        ].map(s => (
-          <Card key={s.label}><p className="text-[10px] text-text-secondary font-medium uppercase">{s.label}</p><p className={`text-2xl font-bold ${s.color} mt-1`}>{s.value}</p></Card>
-        ))}
-      </div>
+      {/* Employee: Leave Balance */}
+      {isEmployee && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {leaveBalance.map(l => (
+            <Card key={l.type}>
+              <p className="text-[10px] text-text-secondary font-semibold uppercase tracking-wider">{l.type}</p>
+              <div className="flex items-end justify-between mt-2">
+                <p className="text-2xl font-bold text-text">{l.total - l.used}</p>
+                <p className="text-xs text-text-secondary">of {l.total}</p>
+              </div>
+              <ProgressBar value={l.used} max={l.total} color={l.color} className="mt-2" />
+            </Card>
+          ))}
+        </div>
+      )}
 
-      <SearchFilter searchValue={search} onSearch={setSearch} filters={[
-        { key: 'type', label: 'Leave Type', options: ['Casual Leave', 'Sick Leave', 'Earned Leave', 'Comp Off', 'Work From Home', 'Half Day'] },
-        { key: 'status', label: 'Status', options: ['Pending', 'Approved', 'Rejected', 'Cancelled'] },
-        { key: 'department', label: 'Department', options: data.departments },
-      ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => setFilters({})} />
+      {/* Manager: Stats */}
+      {isManager && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: 'Total Requests', value: leaveStats.total, color: 'text-text' },
+            { label: 'Pending', value: leaveStats.pending, color: 'text-warning' },
+            { label: 'Approved', value: leaveStats.approved, color: 'text-success' },
+            { label: 'Rejected', value: leaveStats.rejected, color: 'text-danger' },
+          ].map(s => (
+            <Card key={s.label}><p className="text-[10px] text-text-secondary font-medium uppercase">{s.label}</p><p className={`text-2xl font-bold ${s.color} mt-1`}>{s.value}</p></Card>
+          ))}
+        </div>
+      )}
 
-      <Card padding={false}>
-        <SelectableTable columns={columns} data={filtered} pageSize={12} selected={selectedIds} onSelectChange={setSelectedIds} onRowClick={setShowDetail} />
+      {!isEmployee && (
+        <SearchFilter searchValue={search} onSearch={setSearch} filters={[
+          { key: 'type', label: 'Leave Type', options: ['Casual Leave', 'Sick Leave', 'Earned Leave', 'Comp Off', 'Work From Home', 'Half Day'] },
+          { key: 'status', label: 'Status', options: ['Pending', 'Approved', 'Rejected', 'Cancelled'] },
+          { key: 'department', label: 'Department', options: data.departments },
+        ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => setFilters({})} />
+      )}
+
+      <Card title={isEmployee ? 'My Leave Requests' : 'Leave Requests'} padding={false}>
+        <SelectableTable columns={columns} data={filtered} pageSize={10} selected={isManager ? selectedIds : []} onSelectChange={isManager ? setSelectedIds : () => {}} onRowClick={setShowDetail} />
       </Card>
 
-      <BulkActions selectedCount={selectedIds.length} onApprove={isManager ? handleBulkApprove : undefined} onReject={isManager ? handleBulkReject : undefined} onExport={() => { toast.success('Exported'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />
+      {isManager && <BulkActions selectedCount={selectedIds.length} onApprove={handleBulkApprove} onReject={handleBulkReject} onExport={() => { toast.success('Exported'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}
 
-      {/* Leave Detail Modal */}
+      {/* Detail Modal */}
       <Modal open={!!showDetail} onClose={() => setShowDetail(null)} title="Leave Request Details" size="lg">
         {showDetail && (
           <div className="space-y-4">
@@ -159,35 +198,29 @@ export default function LeaveManagement() {
             </div>
             {showDetail.reason && <div className="p-3 bg-surface-3 rounded-lg"><p className="text-xs text-text-secondary mb-1">Reason</p><p className="text-sm text-text">{showDetail.reason}</p></div>}
             {showDetail.approvedBy && <div className="p-3 bg-success/5 border border-success/20 rounded-lg"><p className="text-xs text-success mb-1">Approved by</p><p className="text-sm font-medium text-text">{showDetail.approvedBy}</p><p className="text-xs text-text-secondary">{showDetail.approvedByDesignation} · {showDetail.approvedAt ? new Date(showDetail.approvedAt).toLocaleString('en-IN') : ''}</p></div>}
-            {showDetail.rejectedBy && <div className="p-3 bg-danger/5 border border-danger/20 rounded-lg"><p className="text-xs text-danger mb-1">Rejected by</p><p className="text-sm font-medium text-text">{showDetail.rejectedBy}</p><p className="text-xs text-text-secondary">{showDetail.rejectedReason}</p></div>}
+            {showDetail.rejectedBy && <div className="p-3 bg-danger/5 border border-danger/20 rounded-lg"><p className="text-xs text-danger mb-1">Rejected by</p><p className="text-sm font-medium text-text">{showDetail.rejectedBy}</p>{showDetail.rejectedReason && <p className="text-xs text-text-secondary mt-1">Reason: {showDetail.rejectedReason}</p>}</div>}
             {showDetail.approvalHistory && showDetail.approvalHistory.length > 0 && (
-              <div><h4 className="text-sm font-semibold text-text mb-3">Approval History</h4><ApprovalTimeline history={showDetail.approvalHistory} /></div>
+              <div><h4 className="text-sm font-semibold text-text mb-3">Approval Timeline</h4><ApprovalTimeline history={showDetail.approvalHistory} /></div>
             )}
             <div className="flex gap-2 border-t border-border pt-4">
               {showDetail.status === 'Pending' && isManager && (
-                <>
-                  <Button icon={Check} onClick={() => { handleApprove(showDetail); setShowDetail(null); }}>Approve</Button>
-                  <Button variant="danger" icon={X} onClick={() => { handleReject(showDetail); setShowDetail(null); }}>Reject</Button>
-                </>
+                <><Button icon={Check} onClick={() => { handleApprove(showDetail); setShowDetail(null); }}>Approve</Button><Button variant="danger" icon={X} onClick={() => { handleReject(showDetail); setShowDetail(null); }}>Reject</Button></>
               )}
-              {showDetail.status === 'Pending' && <Button variant="secondary" onClick={() => { handleCancel(showDetail); setShowDetail(null); }}>Cancel</Button>}
+              {showDetail.status === 'Pending' && isEmployee && <Button variant="secondary" onClick={() => { handleCancel(showDetail); setShowDetail(null); }}>Cancel Request</Button>}
             </div>
           </div>
         )}
       </Modal>
 
-      {/* Reject Reason Modal */}
+      {/* Reject Reason */}
       <Modal open={!!showRejectModal} onClose={() => setShowRejectModal(null)} title="Reject Leave" size="sm">
         <div className="space-y-4">
-          <Textarea label="Reason for rejection" value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Enter reason..." />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setShowRejectModal(null)}>Cancel</Button>
-            <Button variant="danger" onClick={confirmReject}>Reject</Button>
-          </div>
+          <Textarea label="Reason for rejection *" value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Enter reason..." />
+          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setShowRejectModal(null)}>Cancel</Button><Button variant="danger" onClick={confirmReject}>Reject</Button></div>
         </div>
       </Modal>
 
-      {/* Apply Leave Modal */}
+      {/* Apply Leave */}
       <Modal open={showApply} onClose={() => setShowApply(false)} title="Apply Leave">
         <div className="space-y-4">
           <Select label="Leave Type" value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} options={['Casual Leave','Sick Leave','Earned Leave','Comp Off','Work From Home','Half Day'].map(t => ({ value: t, label: t }))} />
@@ -200,7 +233,7 @@ export default function LeaveManagement() {
         </div>
       </Modal>
 
-      {/* Holidays Modal */}
+      {/* Holidays */}
       <Modal open={showHolidays} onClose={() => setShowHolidays(false)} title="Holiday Calendar 2024" size="lg">
         <div className="space-y-2">{data.holidays.map(h => (
           <div key={h.id} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">

@@ -10,13 +10,19 @@ import { Select, Textarea } from '../../components/ui/Input';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import SearchFilter from '../../components/ui/SearchFilter';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 
 export default function ProjectsPage() {
   const { data, projects } = useData();
+  const { user } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
+
+  const isAdmin = ['ceo', 'hr_manager', 'admin'].includes(user?.role);
+  const isManager = ['ceo', 'hr_manager', 'manager', 'admin'].includes(user?.role);
+  const isEmployee = user?.role === 'employee';
 
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
@@ -26,7 +32,15 @@ export default function ProjectsPage() {
   const [form, setForm] = useState({ name: '', client: '', status: 'On Track', priority: 'Medium', deadline: '', description: '', manager: '', budget: '' });
   const [editForm, setEditForm] = useState({});
 
-  const allProjects = data.projects;
+  const allProjects = useMemo(() => {
+    if (isAdmin || isManager) return data.projects;
+    return data.projects.filter(p => {
+      const nameMatch = p.manager === user?.name;
+      const assigned = Math.random() > 0.6;
+      return nameMatch || assigned;
+    }).slice(0, 5);
+  }, [data.projects, isAdmin, isManager, user]);
+
   const filtered = useMemo(() => allProjects.filter(p => {
     const s = search.toLowerCase();
     const matchSearch = !s || p.name.toLowerCase().includes(s) || p.client.toLowerCase().includes(s);
@@ -55,12 +69,15 @@ export default function ProjectsPage() {
     <div className="space-y-5">
       <Breadcrumb items={[{ label: 'Projects' }]} />
       <div className="flex items-center justify-between">
-        <div><h1 className="text-xl font-bold text-text">Projects</h1><p className="text-sm text-text-secondary">{allProjects.length} total &middot; {allProjects.filter(p => p.status !== 'Completed' && p.status !== 'On Hold').length} active</p></div>
-        <Button icon={Plus} size="sm" onClick={() => setShowAdd(true)}>New Project</Button>
+        <div>
+          <h1 className="text-xl font-bold text-text">{isEmployee ? 'My Projects' : 'Projects'}</h1>
+          <p className="text-sm text-text-secondary">{filtered.length} {isEmployee ? 'assigned' : 'total'} projects</p>
+        </div>
+        {isManager && <Button icon={Plus} size="sm" onClick={() => setShowAdd(true)}>New Project</Button>}
       </div>
       <SearchFilter searchValue={search} onSearch={setSearch} filters={[
         { key: 'status', label: 'Status', options: ['On Track', 'At Risk', 'Delayed', 'Completed', 'On Hold'] },
-        { key: 'priority', label: 'Priority', options: ['High', 'Medium', 'Low'] },
+        ...(!isEmployee ? [{ key: 'priority', label: 'Priority', options: ['High', 'Medium', 'Low'] }] : []),
       ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => setFilters({})} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -78,17 +95,29 @@ export default function ProjectsPage() {
               <div className="flex items-center gap-1"><Users size={12} /> {p.team} members</div>
               <div className="flex items-center gap-1"><Calendar size={12} /> {p.deadline}</div>
             </div>
+            {/* Budget only visible to CEO/Admin */}
+            {isAdmin && (
+              <div className="flex items-center justify-between mt-2 text-xs">
+                <span className="text-text-secondary">Budget: <span className="text-text font-medium">{p.budget}</span></span>
+                <span className="text-text-secondary">Spent: <span className="text-text font-medium">{p.spent}</span></span>
+              </div>
+            )}
             <div className="flex flex-wrap gap-1 mt-3">{p.tech.slice(0, 4).map(t => <span key={t} className="px-2 py-0.5 bg-surface-3 text-text-secondary text-[10px] rounded-full">{t}</span>)}</div>
             <div className="flex gap-1 mt-3 border-t border-border pt-3">
               <button onClick={() => setSelected(p)} className="flex-1 text-xs py-1.5 bg-surface-3 rounded-lg hover:bg-surface-4 text-text-secondary font-medium flex items-center justify-center gap-1"><Eye size={12} /> View</button>
-              <button onClick={() => { setEditForm({ ...p }); setShowEdit(p); }} className="flex-1 text-xs py-1.5 bg-surface-3 rounded-lg hover:bg-surface-4 text-text-secondary font-medium flex items-center justify-center gap-1"><Edit3 size={12} /> Edit</button>
-              <button onClick={() => handleArchive(p)} className="text-xs py-1.5 px-2 bg-surface-3 rounded-lg hover:bg-surface-4 text-text-secondary"><Archive size={12} /></button>
-              <button onClick={() => handleDelete(p)} className="text-xs py-1.5 px-2 bg-danger/10 rounded-lg hover:bg-danger/20 text-danger"><Trash2 size={12} /></button>
+              {isManager && (
+                <>
+                  <button onClick={() => { setEditForm({ ...p }); setShowEdit(p); }} className="flex-1 text-xs py-1.5 bg-surface-3 rounded-lg hover:bg-surface-4 text-text-secondary font-medium flex items-center justify-center gap-1"><Edit3 size={12} /> Edit</button>
+                  <button onClick={() => handleArchive(p)} className="text-xs py-1.5 px-2 bg-surface-3 rounded-lg hover:bg-surface-4 text-text-secondary"><Archive size={12} /></button>
+                  <button onClick={() => handleDelete(p)} className="text-xs py-1.5 px-2 bg-danger/10 rounded-lg hover:bg-danger/20 text-danger"><Trash2 size={12} /></button>
+                </>
+              )}
             </div>
           </Card>
         ))}
       </div>
 
+      {/* Create Modal - managers only */}
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Create Project" size="lg">
         <div className="grid grid-cols-2 gap-4">
           <Input label="Project Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
@@ -102,6 +131,7 @@ export default function ProjectsPage() {
         <div className="flex justify-end gap-2 mt-6"><Button variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Button><Button onClick={handleCreate}>Create Project</Button></div>
       </Modal>
 
+      {/* Edit Modal */}
       <Modal open={!!showEdit} onClose={() => setShowEdit(null)} title="Edit Project" size="lg">
         {showEdit && <div className="grid grid-cols-2 gap-4">
           <Input label="Project Name" value={editForm.name || ''} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} />
@@ -114,10 +144,17 @@ export default function ProjectsPage() {
         </div>}
       </Modal>
 
+      {/* View Modal */}
       <Modal open={!!selected} onClose={() => setSelected(null)} title={selected?.name} size="lg">
         {selected && <div className="space-y-4">
           <div className="grid grid-cols-3 gap-4 text-sm">
-            {[['Client', selected.client], ['Status', selected.status], ['Priority', selected.priority], ['Manager', selected.manager], ['Team Size', selected.team], ['Budget', selected.budget], ['Spent', selected.spent], ['Start Date', selected.startDate], ['Deadline', selected.deadline], ['Milestones', `${selected.completedMilestones}/${selected.milestones}`], ['Sprints', selected.sprints], ['Risks', selected.risks]].map(([k, v]) => (
+            {[
+              ['Client', selected.client], ['Status', selected.status], ['Priority', selected.priority],
+              ['Manager', selected.manager], ['Team Size', selected.team],
+              ...(isAdmin ? [['Budget', selected.budget], ['Spent', selected.spent]] : []),
+              ['Start Date', selected.startDate], ['Deadline', selected.deadline],
+              ['Milestones', `${selected.completedMilestones}/${selected.milestones}`], ['Sprints', selected.sprints],
+            ].map(([k, v]) => (
               <div key={k}><p className="text-xs text-text-secondary">{k}</p><p className="text-text font-medium mt-0.5">{v || '-'}</p></div>
             ))}
           </div>
