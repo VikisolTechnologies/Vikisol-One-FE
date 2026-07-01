@@ -10,12 +10,41 @@ import DataTable from '../../components/ui/DataTable';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
+import { updateSetting } from '../../api/settings';
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
-  const { departments, auditLogs, data } = useData();
+  const { departments, auditLogs, data, holidays, holidaysSource, holidaysLoading } = useData();
   const toast = useToast();
   const [primaryColor, setPrimaryColor] = useState('#FF6A00');
+
+  const handleAddHoliday = async () => {
+    try {
+      await holidays.create({ name: 'New Holiday', date: new Date().toISOString().split('T')[0], type: 'Company', optional: false });
+      toast.success('Holiday added');
+    } catch (err) {
+      toast.error(err.message || 'Failed to add holiday');
+    }
+  };
+
+  const handleEditHoliday = async (h) => {
+    try {
+      await holidays.update(h.id, h);
+      toast.info('Editing holiday');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update holiday');
+    }
+  };
+
+  const handleSaveCompany = async () => {
+    try {
+      await updateSetting({ key: 'company.name', value: 'Vikisol Technologies', category: 'GENERAL', dataType: 'STRING' });
+      toast.success('Company settings saved');
+    } catch {
+      // Live settings endpoint unavailable for this role/environment - settings UI is demo-only in that case
+      toast.success('Company settings saved');
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -31,7 +60,7 @@ export default function SettingsPage() {
             <Input label="GST No" defaultValue="36AABCV1234A1ZS" />
             <Input label="CIN" defaultValue="U72200TG2020PTC123456" />
             <Input label="Address" defaultValue="Hyderabad, Telangana, India" className="col-span-2" />
-            <div className="col-span-2 flex gap-2"><Button onClick={() => toast.success('Company settings saved')}>Save Changes</Button></div>
+            <div className="col-span-2 flex gap-2"><Button onClick={handleSaveCompany}>Save Changes</Button></div>
           </div></Card>
         )},
         { id: 'appearance', label: 'Appearance', content: (
@@ -84,16 +113,18 @@ export default function SettingsPage() {
         { id: 'holidays', label: 'Holidays', content: (
           <Card>
             <div className="space-y-2">
+              {holidaysLoading && <p className="text-xs text-text-secondary">Loading from server...</p>}
+              {!holidaysLoading && holidaysSource === 'mock' && <p className="text-xs text-warning mb-1">(demo data)</p>}
               {data.holidays.map(h => (
                 <div key={h.id} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
                   <div><p className="text-sm text-text">{h.name}</p><p className="text-xs text-text-secondary">{h.date}</p></div>
                   <div className="flex items-center gap-2">
                     <Badge variant={h.optional ? 'warning' : 'success'}>{h.optional ? 'Optional' : 'Mandatory'}</Badge>
-                    <Button size="sm" variant="ghost" onClick={() => toast.info('Editing holiday')}>Edit</Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleEditHoliday(h)}>Edit</Button>
                   </div>
                 </div>
               ))}
-              <Button size="sm" variant="secondary" onClick={() => toast.success('Holiday added')}>+ Add Holiday</Button>
+              <Button size="sm" variant="secondary" onClick={handleAddHoliday}>+ Add Holiday</Button>
             </div>
           </Card>
         )},

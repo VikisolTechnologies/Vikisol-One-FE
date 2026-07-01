@@ -14,10 +14,14 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    const result = login(email, password);
+    setSubmitting(true);
+    const result = await login(email, password);
+    setSubmitting(false);
     if (result.success) navigate('/');
     else setError(result.error);
   };
@@ -90,8 +94,8 @@ export default function Login() {
 
               {error && <p className="text-sm text-danger bg-danger/10 rounded-lg px-3 py-2">{error}</p>}
 
-              <button type="submit" className="w-full bg-primary hover:bg-primary-dark text-white py-3 rounded-lg font-semibold text-sm transition-all shadow-lg shadow-primary/20 active:scale-[0.98]">
-                Sign In
+              <button type="submit" disabled={submitting} className="w-full bg-primary hover:bg-primary-dark text-white py-3 rounded-lg font-semibold text-sm transition-all shadow-lg shadow-primary/20 active:scale-[0.98] disabled:opacity-60">
+                {submitting ? 'Signing in...' : 'Sign In'}
               </button>
 
               <div className="relative my-4">
@@ -116,13 +120,13 @@ export default function Login() {
             <p className="text-xs font-semibold text-text mb-2">Demo Logins:</p>
             <div className="space-y-1 text-xs text-text-secondary">
               {[
-                ['CEO', 'syam@vikisol.in', 'ceo123'],
-                ['HR Manager', 'hr@vikisol.in', 'hr123'],
-                ['Manager', 'rohit@vikisol.in', 'mgr123'],
-                ['Employee', 'aarav@vikisol.in', 'emp123'],
-                ['Recruiter', 'recruiter@vikisol.in', 'rec123'],
-                ['Finance', 'finance@vikisol.in', 'fin123'],
-                ['Admin', 'admin@vikisol.in', 'admin123'],
+                ['CEO', 'ceo@vikisol.in', 'Ceo@123'],
+                ['HR Manager', 'hr@vikisol.in', 'Hr@123'],
+                ['Manager', 'manager@vikisol.in', 'Manager@123'],
+                ['Employee', 'employee@vikisol.in', 'Employee@123'],
+                ['Recruiter', 'recruiter@vikisol.in', 'Recruiter@123'],
+                ['Finance', 'finance@vikisol.in', 'Finance@123'],
+                ['Admin', 'admin@vikisol.in', 'Admin@123'],
               ].map(([role, email, pwd]) => (
                 <button key={role} onClick={() => { setEmail(email); setPassword(pwd); }} className="w-full text-left hover:text-primary transition-colors flex justify-between">
                   <span className="font-medium">{role}</span>

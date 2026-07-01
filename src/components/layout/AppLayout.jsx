@@ -5,9 +5,10 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 
 export default function AppLayout() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, authLoading } = useAuth();
   const location = useLocation();
 
+  if (authLoading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   return (

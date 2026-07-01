@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Search, Download, Printer, Minus, Plus, Users, Building2, MapPin, FolderKanban, ZoomIn, ZoomOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Card from '../components/ui/Card';
@@ -9,7 +9,9 @@ import Breadcrumb from '../components/ui/Breadcrumb';
 import Modal from '../components/ui/Modal';
 import Tabs from '../components/ui/Tabs';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
+import { getFullOrgChart } from '../api/orgchart';
 
 const hierarchy = [
   { title: 'CEO', level: 0 },
@@ -71,6 +73,7 @@ function OrgNode({ employee, children, expanded, onToggle, onSelect, depth = 0 }
 
 export default function OrgChart() {
   const { data } = useData();
+  const { isAuthenticated } = useAuth() || {};
   const toast = useToast();
   const [search, setSearch] = useState('');
   const [view, setView] = useState('tree');
@@ -78,6 +81,29 @@ export default function OrgChart() {
   const [selected, setSelected] = useState(null);
   const [groupBy, setGroupBy] = useState('department');
   const [zoom, setZoom] = useState(100);
+  const [orgEmployees, setOrgEmployees] = useState(null); // null = not loaded yet, falls back to data.employees
+  const [orgSource, setOrgSource] = useState('mock'); // 'mock' | 'live'
+  const [orgLoading, setOrgLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    setOrgLoading(true);
+    getFullOrgChart()
+      .then(({ flat }) => {
+        if (flat && flat.length) {
+          setOrgEmployees(flat);
+          setOrgSource('live');
+        } else {
+          setOrgSource('mock');
+        }
+      })
+      .catch(() => {
+        setOrgSource('mock');
+      })
+      .finally(() => setOrgLoading(false));
+  }, [isAuthenticated]);
+
+  const allEmployees = orgSource === 'live' && orgEmployees ? orgEmployees : data.employees;
 
   const toggleNode = (id) => {
     setExpandedNodes(prev => {
@@ -91,10 +117,10 @@ export default function OrgChart() {
   const collapseAll = () => setExpandedNodes(new Set());
 
   const filteredEmployees = useMemo(() => {
-    if (!search) return data.employees;
+    if (!search) return allEmployees;
     const s = search.toLowerCase();
-    return data.employees.filter(e => e.name.toLowerCase().includes(s) || e.designation.toLowerCase().includes(s) || e.department.toLowerCase().includes(s));
-  }, [data.employees, search]);
+    return allEmployees.filter(e => e.name.toLowerCase().includes(s) || e.designation.toLowerCase().includes(s) || e.department.toLowerCase().includes(s));
+  }, [allEmployees, search]);
 
   const grouped = useMemo(() => {
     const groups = {};
@@ -117,7 +143,13 @@ export default function OrgChart() {
     <div className="space-y-5">
       <Breadcrumb items={[{ label: 'Organization Chart' }]} />
       <div className="flex items-center justify-between">
-        <div><h1 className="text-xl font-bold text-text">Organization Structure</h1><p className="text-sm text-text-secondary">{data.employees.length} employees across {data.departments.length} departments</p></div>
+        <div>
+          <h1 className="text-xl font-bold text-text">Organization Structure</h1>
+          <p className="text-sm text-text-secondary">
+            {orgLoading ? 'Loading from server...' : `${allEmployees.length} employees across ${data.departments.length} departments`}
+            {!orgLoading && orgSource === 'mock' && <span className="ml-2 text-warning">(demo data)</span>}
+          </p>
+        </div>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" icon={Download} onClick={() => toast.success('Org chart exported as PDF')}>Export PDF</Button>
           <Button variant="secondary" size="sm" icon={Printer} onClick={() => toast.success('Printing org chart...')}>Print</Button>

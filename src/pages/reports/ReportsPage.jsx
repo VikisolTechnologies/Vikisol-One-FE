@@ -6,6 +6,7 @@ import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import { useToast } from '../../components/ui/Toast';
+import * as reportsApi from '../../api/reports';
 
 const reports = [
   { id: 1, name: 'Attendance Report', description: 'Monthly attendance summary', category: 'Attendance', icon: BarChart3 },
@@ -22,9 +23,15 @@ const reports = [
   { id: 12, name: 'Employee Report', description: 'Employee demographics overview', category: 'HR', icon: FileText },
 ];
 
+// Reports backed by a live endpoint; others remain demo-only previews.
+const LIVE_REPORT_IDS = new Set([1, 2]); // Attendance Report, Payroll Report
+
 export default function ReportsPage() {
   const toast = useToast();
   const [preview, setPreview] = useState(null);
+  const [previewData, setPreviewData] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewSource, setPreviewSource] = useState('mock'); // 'mock' | 'live'
   const [dateRange, setDateRange] = useState({ from: '2024-01-01', to: '2024-05-31' });
   const [filter, setFilter] = useState('All');
 
@@ -34,6 +41,35 @@ export default function ReportsPage() {
   const handleExport = (report, format) => toast.success(`${report.name} exported as ${format}`);
   const handleEmail = (report) => toast.success(`${report.name} sent via email`);
   const handleSchedule = (report) => toast.info(`${report.name} scheduled for weekly generation`);
+
+  const openPreview = async (report) => {
+    setPreview(report);
+    setPreviewData(null);
+    setPreviewSource('mock');
+    if (!LIVE_REPORT_IDS.has(report.id)) return;
+
+    const from = new Date(dateRange.from);
+    const month = from.getMonth() + 1;
+    const year = from.getFullYear();
+
+    setPreviewLoading(true);
+    try {
+      if (report.id === 1) {
+        const data = await reportsApi.getAttendanceReport(month, year);
+        setPreviewData(data);
+        setPreviewSource('live');
+      } else if (report.id === 2) {
+        const data = await reportsApi.getPayrollReport(month, year);
+        setPreviewData(data);
+        setPreviewSource('live');
+      }
+    } catch (err) {
+      toast.error(err.message || `Could not load live ${report.name.toLowerCase()}; showing demo preview`);
+      setPreviewSource('mock');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -59,7 +95,7 @@ export default function ReportsPage() {
               <div><h3 className="text-sm font-semibold text-text">{r.name}</h3><p className="text-xs text-text-secondary mt-0.5">{r.description}</p></div>
             </div>
             <div className="flex gap-1.5 flex-wrap">
-              <Button size="sm" variant="ghost" icon={Eye} onClick={() => setPreview(r)}>Preview</Button>
+              <Button size="sm" variant="ghost" icon={Eye} onClick={() => openPreview(r)}>Preview</Button>
               <Button size="sm" variant="ghost" icon={FileText} onClick={() => handleExport(r, 'PDF')}>PDF</Button>
               <Button size="sm" variant="ghost" icon={FileSpreadsheet} onClick={() => handleExport(r, 'Excel')}>Excel</Button>
               <Button size="sm" variant="ghost" icon={Download} onClick={() => handleExport(r, 'CSV')}>CSV</Button>
@@ -74,16 +110,86 @@ export default function ReportsPage() {
       <Modal open={!!preview} onClose={() => setPreview(null)} title={`${preview?.name} - Preview`} size="xl">
         {preview && (
           <div className="space-y-4">
-            <div className="p-4 bg-surface-3 rounded-xl">
-              <p className="text-xs text-text-secondary mb-1">Report Period</p>
-              <p className="text-sm font-medium text-text">{dateRange.from} to {dateRange.to}</p>
+            <div className="p-4 bg-surface-3 rounded-xl flex items-center justify-between">
+              <div>
+                <p className="text-xs text-text-secondary mb-1">Report Period</p>
+                <p className="text-sm font-medium text-text">{dateRange.from} to {dateRange.to}</p>
+              </div>
+              {LIVE_REPORT_IDS.has(preview.id) && !previewLoading && (
+                <span className={`text-xs ${previewSource === 'live' ? 'text-success' : 'text-warning'}`}>
+                  {previewSource === 'live' ? 'Live data' : '(demo data)'}
+                </span>
+              )}
             </div>
-            <div className="p-12 bg-surface-3 rounded-xl text-center border-2 border-dashed border-border">
-              <preview.icon size={48} className="mx-auto text-text-secondary mb-3" />
-              <p className="text-lg font-semibold text-text">{preview.name}</p>
-              <p className="text-sm text-text-secondary mt-1">{preview.description}</p>
-              <p className="text-xs text-text-secondary mt-4">Report preview with charts and data tables will render here.</p>
-            </div>
+
+            {previewLoading && (
+              <div className="p-12 bg-surface-3 rounded-xl text-center">
+                <p className="text-sm text-text-secondary">Loading report...</p>
+              </div>
+            )}
+
+            {!previewLoading && previewSource === 'live' && preview.id === 1 && (
+              <div className="overflow-x-auto rounded-xl border border-border">
+                <table className="w-full text-sm">
+                  <thead className="bg-surface-3 text-text-secondary text-xs">
+                    <tr>
+                      <th className="text-left p-2.5">Employee</th>
+                      <th className="text-left p-2.5">Present</th>
+                      <th className="text-left p-2.5">Absent</th>
+                      <th className="text-left p-2.5">Half Days</th>
+                      <th className="text-left p-2.5">Leave</th>
+                      <th className="text-left p-2.5">Avg Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(previewData || []).length === 0 && (
+                      <tr><td colSpan={6} className="p-4 text-center text-text-secondary">No attendance data for this period</td></tr>
+                    )}
+                    {(previewData || []).map((row, i) => (
+                      <tr key={i} className="border-t border-border">
+                        <td className="p-2.5 text-text">{row.employeeName} <span className="text-text-secondary text-xs">({row.employeeId})</span></td>
+                        <td className="p-2.5 text-text">{row.presentDays}</td>
+                        <td className="p-2.5 text-text">{row.absentDays}</td>
+                        <td className="p-2.5 text-text">{row.halfDays}</td>
+                        <td className="p-2.5 text-text">{row.leaveDays}</td>
+                        <td className="p-2.5 text-text">{row.avgWorkingHours?.toFixed?.(1) ?? row.avgWorkingHours}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!previewLoading && previewSource === 'live' && preview.id === 2 && previewData && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[['Gross Pay', previewData.totalGrossPay], ['Net Pay', previewData.totalNetPay], ['PF', previewData.totalPF], ['ESI', previewData.totalESI], ['TDS', previewData.totalTDS]].map(([label, val]) => (
+                  <div key={label} className="p-4 bg-surface-3 rounded-xl">
+                    <p className="text-xs text-text-secondary">{label}</p>
+                    <p className="text-lg font-semibold text-text mt-1">₹{Number(val || 0).toLocaleString()}</p>
+                  </div>
+                ))}
+                {Object.keys(previewData.departmentWiseCost || {}).length > 0 && (
+                  <div className="col-span-full p-4 bg-surface-3 rounded-xl">
+                    <p className="text-xs text-text-secondary mb-2">Department-wise Cost</p>
+                    <div className="space-y-1.5">
+                      {Object.entries(previewData.departmentWiseCost).map(([dept, cost]) => (
+                        <div key={dept} className="flex justify-between text-sm"><span className="text-text-secondary">{dept}</span><span className="text-text font-medium">₹{Number(cost).toLocaleString()}</span></div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!previewLoading && previewSource !== 'live' && (
+              <div className="p-12 bg-surface-3 rounded-xl text-center border-2 border-dashed border-border">
+                <preview.icon size={48} className="mx-auto text-text-secondary mb-3" />
+                <p className="text-lg font-semibold text-text">{preview.name}</p>
+                <p className="text-sm text-text-secondary mt-1">{preview.description}</p>
+                <p className="text-xs text-text-secondary mt-4">Report preview with charts and data tables will render here.</p>
+              </div>
+            )}
+
             <div className="flex gap-2 justify-end">
               <Button variant="secondary" icon={FileText} onClick={() => handleExport(preview, 'PDF')}>Download PDF</Button>
               <Button variant="secondary" icon={FileSpreadsheet} onClick={() => handleExport(preview, 'Excel')}>Download Excel</Button>

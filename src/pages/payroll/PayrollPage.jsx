@@ -18,14 +18,16 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useAuth } from '../../context/AuthContext';
 
 export default function PayrollPage() {
-  const { data, payslips: payslipsCrud, stats } = useData();
-  const { generateBulkPayroll, payrollSummary } = usePayroll();
+  const { data, payslips: payslipsCrud, stats, payslipsSource, payslipsLoading } = useData();
+  const { generateBulkPayroll, payrollSummary: mockPayrollSummary } = usePayroll();
   const { isCEO, isHRManager, isManager } = useApproval();
   const toast = useToast();
   const confirm = useConfirm();
   const { user } = useAuth();
 
-  const isEmployee = user?.role === 'employee';
+  const isEmployee = (user?.role || '').toLowerCase() === 'employee';
+  const [runningPayroll, setRunningPayroll] = useState(false);
+  const [liveSummary, setLiveSummary] = useState(null);
 
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
@@ -48,15 +50,35 @@ export default function PayrollPage() {
     return matchSearch && matchDept;
   }), [allPayslips, search, filters]);
 
-  const summary = payrollSummary || { totalPayroll: 0, totalGross: 0, totalDeductions: 0, avgSalary: 0, highestSalary: 0, lowestSalary: 0, employeeCount: 0 };
+  const summary = (payslipsSource === 'live' && liveSummary) || mockPayrollSummary || { totalPayroll: 0, totalGross: 0, totalDeductions: 0, avgSalary: 0, highestSalary: 0, lowestSalary: 0, employeeCount: 0 };
 
   const handleRunPayroll = async () => {
     const ok = await confirm({ title: 'Generate Payroll?', message: `Generate payroll for ${data.employees.filter(e => e.status === 'Active').length} active employees?`, type: 'info', confirmText: 'Generate' });
-    if (ok) {
+    if (!ok) return;
+
+    if (payslipsSource === 'live') {
+      const now = new Date();
+      setRunningPayroll(true);
+      try {
+        const result = await payslipsCrud.create({ month: now.getMonth() + 1, year: now.getFullYear() });
+        setLiveSummary(result);
+        setPayrollStatus('Pending Approval');
+        toast.success('Payroll generated successfully');
+      } catch (err) {
+        toast.error(err.message || 'Failed to run payroll');
+      } finally {
+        setRunningPayroll(false);
+      }
+      return;
+    }
+
+    try {
       const newPayslips = generateBulkPayroll(data.employees, 'June 2026');
       newPayslips.forEach(ps => payslipsCrud.create(ps));
       setPayrollStatus('Pending Approval');
       toast.success(`Payroll generated for ${newPayslips.length} employees`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to run payroll');
     }
   };
 
@@ -89,14 +111,17 @@ export default function PayrollPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-text">{isEmployee ? 'My Payslips' : 'Payroll'}</h1>
-          <p className="text-sm text-text-secondary">{allPayslips.length} payslips {!isEmployee && payrollStatus !== 'Draft' && `· ${payrollStatus}`}</p>
+          <p className="text-sm text-text-secondary">
+            {payslipsLoading ? 'Loading from server...' : `${allPayslips.length} payslips ${!isEmployee && payrollStatus !== 'Draft' ? `· ${payrollStatus}` : ''}`}
+            {!payslipsLoading && payslipsSource === 'mock' && <span className="ml-2 text-warning">(demo data)</span>}
+          </p>
         </div>
         {!isEmployee && (
           <div className="flex gap-2">
             <Button variant="secondary" icon={Download} size="sm" onClick={() => toast.success('Bulk download started')}>Bulk Download</Button>
             {(isCEO || isHRManager) && <Button variant="secondary" icon={Send} size="sm" onClick={() => toast.success(`Emailed ${allPayslips.length} payslips`)}>Bulk Email</Button>}
             {isCEO && <Button variant="secondary" icon={payrollStatus === 'Locked' ? Unlock : Lock} size="sm" onClick={handleLockPayroll}>{payrollStatus === 'Locked' ? 'Unlock' : 'Lock'}</Button>}
-            {(isCEO || isHRManager) && <Button icon={Calculator} size="sm" onClick={handleRunPayroll} disabled={payrollStatus === 'Locked'}>Run Payroll</Button>}
+            {(isCEO || isHRManager) && <Button icon={Calculator} size="sm" onClick={handleRunPayroll} disabled={payrollStatus === 'Locked' || runningPayroll}>{runningPayroll ? 'Running...' : 'Run Payroll'}</Button>}
           </div>
         )}
       </div>

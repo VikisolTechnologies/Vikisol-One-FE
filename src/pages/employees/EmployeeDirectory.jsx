@@ -16,11 +16,18 @@ import ProgressBar from '../../components/ui/ProgressBar';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { getEmployee } from '../../api/employees';
 
 export default function EmployeeDirectory() {
-  const { data, employees, stats } = useData();
+  const { data, employees, stats, lookups, employeesLoading, employeesSource } = useData();
   const toast = useToast();
   const confirm = useConfirm();
+  const deptOptions = employeesSource === 'live' && lookups.departments.length
+    ? lookups.departments.map(d => ({ value: d.id, label: d.name }))
+    : data.departments.map(d => ({ value: d, label: d }));
+  const desigOptions = employeesSource === 'live' && lookups.designations.length
+    ? lookups.designations.map(d => ({ value: d.id, label: d.title }))
+    : null;
 
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
@@ -45,32 +52,90 @@ export default function EmployeeDirectory() {
     });
   }, [allEmps, search, filters]);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!addForm.name || !addForm.email) { toast.error('Name and email are required'); return; }
     const empId = `VKS${String(allEmps.length + 100).padStart(3, '0')}`;
-    employees.create({ ...addForm, empId, id: Date.now(), status: 'Active', joinDate: new Date().toISOString().split('T')[0], ctc: 600000, skills: [], manager: 'Rohit Sharma' });
-    toast.success(`Employee ${addForm.name} created successfully`);
-    setShowAdd(false);
-    setAddForm({ name: '', email: '', department: 'Development', designation: '', location: 'Hyderabad', phone: '', employmentType: 'Full Time' });
+    try {
+      await employees.create({ ...addForm, empId, id: Date.now(), status: 'Active', joinDate: new Date().toISOString().split('T')[0], ctc: 600000, skills: [], manager: 'Rohit Sharma' });
+      toast.success(`Employee ${addForm.name} created successfully`);
+      setShowAdd(false);
+      setAddForm({ name: '', email: '', department: 'Development', designation: '', location: 'Hyderabad', phone: '', employmentType: 'Full Time' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to create employee');
+    }
   };
 
-  const handleEdit = () => {
-    employees.update(showEdit.id, editForm);
-    toast.success(`Employee ${editForm.name || showEdit.name} updated successfully`);
-    setShowEdit(null);
+  const handleEdit = async () => {
+    try {
+      await employees.update(showEdit.id, editForm);
+      toast.success(`Employee ${editForm.name || showEdit.name} updated successfully`);
+      setShowEdit(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to update employee');
+    }
   };
 
   const handleDelete = async (emp) => {
     const ok = await confirm({ title: 'Delete Employee?', message: `Are you sure you want to delete ${emp.name}? This action cannot be undone.`, type: 'danger', confirmText: 'Delete' });
-    if (ok) { employees.remove(emp.id); toast.success(`${emp.name} deleted successfully`); setContextMenu(null); }
+    if (!ok) return;
+    try {
+      await employees.remove(emp.id);
+      toast.success(`${emp.name} deleted successfully`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete employee');
+    } finally {
+      setContextMenu(null);
+    }
   };
 
   const handleSuspend = async (emp) => {
     const ok = await confirm({ title: 'Suspend Employee?', message: `Suspend ${emp.name}? They will lose access to all systems.`, type: 'warning', confirmText: 'Suspend' });
-    if (ok) { employees.update(emp.id, { status: 'Suspended' }); toast.warning(`${emp.name} has been suspended`); setContextMenu(null); }
+    if (!ok) return;
+    try {
+      await employees.update(emp.id, { status: 'Suspended' });
+      toast.warning(`${emp.name} has been suspended`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to suspend employee');
+    } finally {
+      setContextMenu(null);
+    }
   };
 
-  const handleActivate = (emp) => { employees.update(emp.id, { status: 'Active' }); toast.success(`${emp.name} has been activated`); setContextMenu(null); };
+  const openView = async (row) => {
+    setSelectedEmp(row);
+    if (employeesSource === 'live') {
+      try {
+        const full = await getEmployee(row.id);
+        setSelectedEmp(full);
+      } catch {
+        // keep the lightweight row data if the detail fetch fails
+      }
+    }
+  };
+
+  const openEdit = async (row) => {
+    setEditForm({ ...row });
+    setShowEdit(row);
+    if (employeesSource === 'live') {
+      try {
+        const full = await getEmployee(row.id);
+        setEditForm(full);
+      } catch {
+        // keep the lightweight row data if the detail fetch fails
+      }
+    }
+  };
+
+  const handleActivate = async (emp) => {
+    try {
+      await employees.update(emp.id, { status: 'Active' });
+      toast.success(`${emp.name} has been activated`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to activate employee');
+    } finally {
+      setContextMenu(null);
+    }
+  };
   const handleResetPassword = (emp) => { toast.info(`Password reset link sent to ${emp.email}`); setContextMenu(null); };
 
   const handleGenerateLetter = (emp, type) => {
@@ -99,8 +164,8 @@ export default function EmployeeDirectory() {
     { key: 'joinDate', label: 'Joined' },
     { key: 'actions', label: '', sortable: false, render: (_, row) => (
       <div className="flex items-center gap-1 relative">
-        <button onClick={(e) => { e.stopPropagation(); setSelectedEmp(row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><Eye size={14} /></button>
-        <button onClick={(e) => { e.stopPropagation(); setEditForm({ ...row }); setShowEdit(row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><Edit3 size={14} /></button>
+        <button onClick={(e) => { e.stopPropagation(); openView(row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><Eye size={14} /></button>
+        <button onClick={(e) => { e.stopPropagation(); openEdit(row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><Edit3 size={14} /></button>
         <button onClick={(e) => { e.stopPropagation(); setContextMenu(contextMenu?.id === row.id ? null : row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><MoreVertical size={14} /></button>
         {contextMenu?.id === row.id && (
           <div className="absolute right-0 top-full mt-1 w-52 bg-surface-2 border border-border rounded-xl shadow-2xl py-1 z-50" onMouseLeave={() => setContextMenu(null)}>
@@ -127,7 +192,10 @@ export default function EmployeeDirectory() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-text">Employee Directory</h1>
-          <p className="text-sm text-text-secondary">{allEmps.length} employees &middot; {stats.active} active</p>
+          <p className="text-sm text-text-secondary">
+            {employeesLoading ? 'Loading from server...' : `${allEmps.length} employees · ${stats.active} active`}
+            {!employeesLoading && employeesSource === 'mock' && <span className="ml-2 text-warning">(demo data)</span>}
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" icon={Upload} size="sm" onClick={() => toast.info('Bulk upload template downloaded')}>Import</Button>
@@ -141,7 +209,7 @@ export default function EmployeeDirectory() {
         onClearFilters={() => setFilters({})} placeholder="Search by name, ID, email, department..." />
 
       <Card padding={false}>
-        <DataTable columns={columns} data={filtered} pageSize={12} onRowClick={setSelectedEmp} />
+        <DataTable columns={columns} data={filtered} pageSize={12} onRowClick={openView} />
       </Card>
 
       {/* Add Employee Modal */}
@@ -149,8 +217,16 @@ export default function EmployeeDirectory() {
         <div className="grid grid-cols-2 gap-4">
           <Input label="Full Name *" value={addForm.name} onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))} placeholder="Enter full name" />
           <Input label="Email *" type="email" value={addForm.email} onChange={e => setAddForm(p => ({ ...p, email: e.target.value }))} placeholder="email@vikisol.in" />
-          <Select label="Department" value={addForm.department} onChange={e => setAddForm(p => ({ ...p, department: e.target.value }))} options={data.departments.map(d => ({ value: d, label: d }))} />
-          <Input label="Designation" value={addForm.designation} onChange={e => setAddForm(p => ({ ...p, designation: e.target.value }))} placeholder="e.g. Senior Developer" />
+          {employeesSource === 'live' ? (
+            <Select label="Department" value={addForm.departmentId || ''} onChange={e => setAddForm(p => ({ ...p, departmentId: e.target.value }))} options={deptOptions} />
+          ) : (
+            <Select label="Department" value={addForm.department} onChange={e => setAddForm(p => ({ ...p, department: e.target.value }))} options={deptOptions} />
+          )}
+          {desigOptions ? (
+            <Select label="Designation" value={addForm.designationId || ''} onChange={e => setAddForm(p => ({ ...p, designationId: e.target.value }))} options={desigOptions} />
+          ) : (
+            <Input label="Designation" value={addForm.designation} onChange={e => setAddForm(p => ({ ...p, designation: e.target.value }))} placeholder="e.g. Senior Developer" />
+          )}
           <Select label="Location" value={addForm.location} onChange={e => setAddForm(p => ({ ...p, location: e.target.value }))} options={['Hyderabad','Bangalore','Pune','Noida','Chennai','Mumbai','Remote'].map(l => ({ value: l, label: l }))} />
           <Input label="Phone" value={addForm.phone} onChange={e => setAddForm(p => ({ ...p, phone: e.target.value }))} placeholder="+91 XXXXX XXXXX" />
           <Select label="Employment Type" value={addForm.employmentType} onChange={e => setAddForm(p => ({ ...p, employmentType: e.target.value }))} options={[{ value: 'Full Time', label: 'Full Time' }, { value: 'Contract', label: 'Contract' }, { value: 'Intern', label: 'Intern' }]} />
@@ -168,8 +244,16 @@ export default function EmployeeDirectory() {
             <div className="grid grid-cols-2 gap-4">
               <Input label="Full Name" value={editForm.name || ''} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} />
               <Input label="Email" value={editForm.email || ''} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} />
-              <Select label="Department" value={editForm.department || ''} onChange={e => setEditForm(p => ({ ...p, department: e.target.value }))} options={data.departments.map(d => ({ value: d, label: d }))} />
-              <Input label="Designation" value={editForm.designation || ''} onChange={e => setEditForm(p => ({ ...p, designation: e.target.value }))} />
+              {employeesSource === 'live' ? (
+                <Select label="Department" value={editForm.departmentId || ''} onChange={e => setEditForm(p => ({ ...p, departmentId: e.target.value }))} options={deptOptions} />
+              ) : (
+                <Select label="Department" value={editForm.department || ''} onChange={e => setEditForm(p => ({ ...p, department: e.target.value }))} options={deptOptions} />
+              )}
+              {desigOptions ? (
+                <Select label="Designation" value={editForm.designationId || ''} onChange={e => setEditForm(p => ({ ...p, designationId: e.target.value }))} options={desigOptions} />
+              ) : (
+                <Input label="Designation" value={editForm.designation || ''} onChange={e => setEditForm(p => ({ ...p, designation: e.target.value }))} />
+              )}
               <Select label="Location" value={editForm.location || ''} onChange={e => setEditForm(p => ({ ...p, location: e.target.value }))} options={['Hyderabad','Bangalore','Pune','Noida','Chennai','Mumbai','Remote'].map(l => ({ value: l, label: l }))} />
               <Input label="Phone" value={editForm.phone || ''} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} />
               <Select label="Status" value={editForm.status || ''} onChange={e => setEditForm(p => ({ ...p, status: e.target.value }))} options={['Active','On Leave','Notice Period','Suspended'].map(s => ({ value: s, label: s }))} />
@@ -199,7 +283,7 @@ export default function EmployeeDirectory() {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="secondary" icon={Edit3} onClick={() => { setEditForm({ ...selectedEmp }); setShowEdit(selectedEmp); setSelectedEmp(null); }}>Edit</Button>
+                <Button size="sm" variant="secondary" icon={Edit3} onClick={() => { openEdit(selectedEmp); setSelectedEmp(null); }}>Edit</Button>
                 <Button size="sm" variant="secondary" icon={FileText} onClick={() => handleGenerateLetter(selectedEmp, 'Offer Letter')}>Generate Letter</Button>
               </div>
             </div>

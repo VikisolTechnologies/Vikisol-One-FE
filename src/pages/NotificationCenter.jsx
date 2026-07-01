@@ -11,7 +11,7 @@ import { useConfirm } from '../components/ui/ConfirmDialog';
 const typeColors = { leave: 'warning', interview: 'info', payroll: 'success', project: 'primary', asset: 'default', system: 'danger', announcement: 'primary', birthday: 'warning', anniversary: 'success' };
 
 export default function NotificationCenter() {
-  const { data, markNotificationRead, markAllNotificationsRead, notifications } = useData();
+  const { data, markNotificationRead, markAllNotificationsRead, notifications, notificationsSource, notificationsLoading } = useData();
   const toast = useToast();
   const confirm = useConfirm();
   const [filter, setFilter] = useState('All');
@@ -26,10 +26,31 @@ export default function NotificationCenter() {
     return list;
   }, [allNotifs, tab, filter]);
 
-  const handleMarkAllRead = () => { markAllNotificationsRead(); toast.success('All notifications marked as read'); };
+  const handleMarkRead = async (id) => {
+    try {
+      await markNotificationRead(id);
+    } catch (err) {
+      toast.error(err.message || 'Failed to mark notification as read');
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      toast.success('All notifications marked as read');
+    } catch (err) {
+      toast.error(err.message || 'Failed to mark all notifications as read');
+    }
+  };
   const handleDelete = async (notif) => {
     const ok = await confirm({ title: 'Delete Notification?', message: 'Remove this notification?', type: 'danger', confirmText: 'Delete' });
-    if (ok) { notifications.remove(notif.id); toast.success('Notification deleted'); }
+    if (!ok) return;
+    try {
+      await notifications.remove(notif.id);
+      toast.success('Notification deleted');
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete notification');
+    }
   };
 
   const unreadCount = allNotifs.filter(n => !n.read).length;
@@ -39,7 +60,13 @@ export default function NotificationCenter() {
     <div className="space-y-5">
       <Breadcrumb items={[{ label: 'Notifications' }]} />
       <div className="flex items-center justify-between">
-        <div><h1 className="text-xl font-bold text-text">Notification Center</h1><p className="text-sm text-text-secondary">{unreadCount} unread notifications</p></div>
+        <div>
+          <h1 className="text-xl font-bold text-text">Notification Center</h1>
+          <p className="text-sm text-text-secondary">
+            {notificationsLoading ? 'Loading from server...' : `${unreadCount} unread notifications`}
+            {!notificationsLoading && notificationsSource === 'mock' && <span className="ml-2 text-warning">(demo data)</span>}
+          </p>
+        </div>
         <div className="flex gap-2">
           <Button variant="secondary" size="sm" icon={Check} onClick={handleMarkAllRead}>Mark All Read</Button>
         </div>

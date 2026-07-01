@@ -15,7 +15,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 
 export default function AssetsPage() {
-  const { data, assets } = useData();
+  const { data, assets, assetsSource, assetsLoading } = useData();
   const toast = useToast();
   const confirm = useConfirm();
   const [search, setSearch] = useState('');
@@ -33,23 +33,61 @@ export default function AssetsPage() {
     return matchSearch && matchType && matchStatus;
   }), [allAssets, search, filters]);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!form.name || !form.serial) { toast.error('Name and serial number required'); return; }
-    assets.create({ ...form, status: 'Available', assignedTo: null, assignedDate: null, purchaseDate: new Date().toISOString().split('T')[0], location: 'Hyderabad', condition: 'Excellent' });
-    toast.success('Asset added successfully');
-    setShowAdd(false); setForm({ type: 'Laptop', name: '', serial: '', vendor: '', cost: '', warranty: '1 year' });
+    try {
+      await assets.create({ ...form, status: 'Available', assignedTo: null, assignedDate: null, purchaseDate: new Date().toISOString().split('T')[0], location: 'Hyderabad', condition: 'Excellent' });
+      toast.success('Asset added successfully');
+      setShowAdd(false); setForm({ type: 'Laptop', name: '', serial: '', vendor: '', cost: '', warranty: '1 year' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to add asset');
+    }
   };
 
-  const handleAssign = (asset) => { assets.update(asset.id, { status: 'Assigned', assignedTo: 'New Employee', assignedDate: new Date().toISOString().split('T')[0] }); toast.success('Asset assigned'); };
-  const handleUnassign = (asset) => { assets.update(asset.id, { status: 'Available', assignedTo: null, assignedDate: null }); toast.info('Asset unassigned'); };
-  const handleRepair = (asset) => { assets.update(asset.id, { status: 'Under Repair' }); toast.warning('Asset sent for repair'); };
+  const handleAssign = async (asset) => {
+    try {
+      await assets.update(asset.id, { status: 'Assigned', assignedTo: 'New Employee', assignedDate: new Date().toISOString().split('T')[0] });
+      toast.success('Asset assigned');
+    } catch (err) {
+      toast.error(err.message || 'Failed to assign asset');
+    }
+  };
+  const handleUnassign = async (asset) => {
+    try {
+      await assets.update(asset.id, { status: 'Available', assignedTo: null, assignedDate: null });
+      toast.info('Asset unassigned');
+    } catch (err) {
+      toast.error(err.message || 'Failed to return asset');
+    }
+  };
+  const handleRepair = async (asset) => {
+    try {
+      await assets.update(asset.id, { status: 'Under Repair' });
+      toast.warning('Asset sent for repair');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update asset');
+    }
+  };
   const handleDispose = async (asset) => {
     const ok = await confirm({ title: 'Dispose Asset?', message: `Dispose ${asset.name} (${asset.serial})?`, type: 'danger', confirmText: 'Dispose' });
-    if (ok) { assets.update(asset.id, { status: 'Disposed' }); toast.warning('Asset disposed'); }
+    if (!ok) return;
+    try {
+      await assets.update(asset.id, { status: 'Disposed' });
+      toast.warning('Asset disposed');
+    } catch (err) {
+      toast.error(err.message || 'Failed to dispose asset');
+    }
   };
   const handleDelete = async (asset) => {
     const ok = await confirm({ title: 'Delete Asset?', message: `Delete ${asset.name}?`, type: 'danger', confirmText: 'Delete' });
-    if (ok) { assets.remove(asset.id); toast.success('Asset deleted'); setSelected(null); }
+    if (!ok) return;
+    try {
+      await assets.remove(asset.id);
+      toast.success('Asset deleted');
+      setSelected(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete asset');
+    }
   };
 
   const statusCounts = { Assigned: allAssets.filter(a => a.status === 'Assigned').length, Available: allAssets.filter(a => a.status === 'Available').length, 'Under Repair': allAssets.filter(a => a.status === 'Under Repair').length };
@@ -75,7 +113,13 @@ export default function AssetsPage() {
     <div className="space-y-5">
       <Breadcrumb items={[{ label: 'Assets' }]} />
       <div className="flex items-center justify-between">
-        <div><h1 className="text-xl font-bold text-text">Assets</h1><p className="text-sm text-text-secondary">{allAssets.length} total assets</p></div>
+        <div>
+          <h1 className="text-xl font-bold text-text">Assets</h1>
+          <p className="text-sm text-text-secondary">
+            {assetsLoading ? 'Loading from server...' : `${allAssets.length} total assets`}
+            {!assetsLoading && assetsSource === 'mock' && <span className="ml-2 text-warning">(demo data)</span>}
+          </p>
+        </div>
         <Button icon={Plus} size="sm" onClick={() => setShowAdd(true)}>Add Asset</Button>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

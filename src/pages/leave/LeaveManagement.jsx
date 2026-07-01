@@ -19,13 +19,14 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useAuth } from '../../context/AuthContext';
 
 export default function LeaveManagement() {
-  const { data, leaveRequests, holidays } = useData();
+  const { data, leaveRequests, holidays, leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances } = useData();
   const { approve, reject, bulkApprove, bulkReject, isCEO, isManager } = useApproval();
   const toast = useToast();
   const confirm = useConfirm();
   const { user } = useAuth();
 
   const isEmployee = user?.role === 'employee';
+  const isLive = leaveRequestsSource === 'live';
 
   const [showApply, setShowApply] = useState(false);
   const [showHolidays, setShowHolidays] = useState(false);
@@ -33,7 +34,7 @@ export default function LeaveManagement() {
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
   const [selectedIds, setSelectedIds] = useState([]);
-  const [form, setForm] = useState({ type: 'Casual Leave', from: '', to: '', reason: '' });
+  const [form, setForm] = useState({ type: 'Casual Leave', leaveTypeId: '', from: '', to: '', reason: '' });
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(null);
 
@@ -53,41 +54,80 @@ export default function LeaveManagement() {
     return matchSearch && matchType && matchStatus && matchDept;
   }), [allLeaves, search, filters]);
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (!form.from || !form.to) { toast.error('Please select dates'); return; }
     if (!form.reason) { toast.error('Please enter a reason'); return; }
     const days = Math.max(1, Math.ceil((new Date(form.to) - new Date(form.from)) / 86400000) + 1);
-    leaveRequests.create({
-      empName: user.name, empId: user.empId || 'VKS001', department: user.department || 'Management',
-      type: form.type, from: form.from, to: form.to, days, reason: form.reason,
-      status: 'Pending', appliedOn: new Date().toISOString().split('T')[0],
-      approver: 'HR Manager',
-      approvalHistory: [{ id: Date.now(), action: 'Submitted', by: user.name, designation: user.designation, role: user.role, timestamp: new Date().toISOString(), reason: '' }],
-    });
-    toast.success('Leave request submitted');
-    setShowApply(false);
-    setForm({ type: 'Casual Leave', from: '', to: '', reason: '' });
+    try {
+      if (isLive) {
+        await leaveRequests.create(form);
+      } else {
+        leaveRequests.create({
+          empName: user.name, empId: user.empId || 'VKS001', department: user.department || 'Management',
+          type: form.type, from: form.from, to: form.to, days, reason: form.reason,
+          status: 'Pending', appliedOn: new Date().toISOString().split('T')[0],
+          approver: 'HR Manager',
+          approvalHistory: [{ id: Date.now(), action: 'Submitted', by: user.name, designation: user.designation, role: user.role, timestamp: new Date().toISOString(), reason: '' }],
+        });
+      }
+      toast.success('Leave request submitted');
+      setShowApply(false);
+      setForm({ type: 'Casual Leave', leaveTypeId: '', from: '', to: '', reason: '' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to submit leave request');
+    }
   };
 
-  const handleApprove = (leave) => approve(leave, 'leaveRequests', leaveRequests.update);
+  const handleApprove = async (leave) => {
+    try {
+      await approve(leave, 'leaveRequests', leaveRequests.update);
+    } catch (err) {
+      toast.error(err.message || 'Failed to approve leave');
+    }
+  };
   const handleReject = (leave) => { setShowRejectModal(leave); };
-  const confirmReject = () => { reject(showRejectModal, 'leaveRequests', leaveRequests.update, rejectReason); setShowRejectModal(null); setRejectReason(''); };
+  const confirmReject = async () => {
+    try {
+      await reject(showRejectModal, 'leaveRequests', leaveRequests.update, rejectReason);
+    } catch (err) {
+      toast.error(err.message || 'Failed to reject leave');
+    } finally {
+      setShowRejectModal(null);
+      setRejectReason('');
+    }
+  };
   const handleCancel = async (leave) => {
     const ok = await confirm({ title: 'Cancel Leave?', message: 'Cancel this leave request?', type: 'warning', confirmText: 'Cancel Leave' });
-    if (ok) { leaveRequests.update(leave.id, { status: 'Cancelled' }); toast.info('Leave cancelled'); }
+    if (!ok) return;
+    try {
+      await leaveRequests.update(leave.id, { status: 'Cancelled' });
+      toast.info('Leave cancelled');
+    } catch (err) {
+      toast.error(err.message || 'Failed to cancel leave');
+    }
   };
 
-  const handleBulkApprove = () => {
+  const handleBulkApprove = async () => {
     const items = filtered.filter(l => selectedIds.includes(l.id) && l.status === 'Pending');
     if (items.length === 0) { toast.info('No pending leaves selected'); return; }
-    bulkApprove(items, leaveRequests.update);
-    setSelectedIds([]);
+    try {
+      await bulkApprove(items, leaveRequests.update);
+    } catch (err) {
+      toast.error(err.message || 'Failed to bulk approve');
+    } finally {
+      setSelectedIds([]);
+    }
   };
-  const handleBulkReject = () => {
+  const handleBulkReject = async () => {
     const items = filtered.filter(l => selectedIds.includes(l.id) && l.status === 'Pending');
     if (items.length === 0) { toast.info('No pending leaves selected'); return; }
-    bulkReject(items, leaveRequests.update, 'Bulk rejected');
-    setSelectedIds([]);
+    try {
+      await bulkReject(items, leaveRequests.update, 'Bulk rejected');
+    } catch (err) {
+      toast.error(err.message || 'Failed to bulk reject');
+    } finally {
+      setSelectedIds([]);
+    }
   };
 
   const leaveStats = useMemo(() => ({
@@ -121,13 +161,16 @@ export default function LeaveManagement() {
     )},
   ];
 
-  // Employee leave balance
-  const leaveBalance = [
-    { type: 'Casual Leave', used: 4, total: 12, color: 'primary' },
-    { type: 'Sick Leave', used: 2, total: 8, color: 'danger' },
-    { type: 'Earned Leave', used: 3, total: 15, color: 'success' },
-    { type: 'Comp Off', used: 1, total: 5, color: 'info' },
-  ];
+  // Employee leave balance - prefer live balances from the backend, fall back to mock values
+  const balanceColors = ['primary', 'danger', 'success', 'info', 'warning'];
+  const leaveBalance = isLive && leaveBalances.length
+    ? leaveBalances.map((b, i) => ({ type: b.type, used: b.used, total: b.total, color: balanceColors[i % balanceColors.length] }))
+    : [
+        { type: 'Casual Leave', used: 4, total: 12, color: 'primary' },
+        { type: 'Sick Leave', used: 2, total: 8, color: 'danger' },
+        { type: 'Earned Leave', used: 3, total: 15, color: 'success' },
+        { type: 'Comp Off', used: 1, total: 5, color: 'info' },
+      ];
 
   return (
     <div className="space-y-5">
@@ -135,7 +178,10 @@ export default function LeaveManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-text">{isEmployee ? 'My Leave' : 'Leave Management'}</h1>
-          <p className="text-sm text-text-secondary">{leaveStats.pending} pending · {leaveStats.approved} approved</p>
+          <p className="text-sm text-text-secondary">
+            {leaveRequestsLoading ? 'Loading from server...' : `${leaveStats.pending} pending · ${leaveStats.approved} approved`}
+            {!leaveRequestsLoading && !isLive && <span className="ml-2 text-warning">(demo data)</span>}
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" icon={Calendar} size="sm" onClick={() => setShowHolidays(true)}>Holidays</Button>
@@ -223,7 +269,11 @@ export default function LeaveManagement() {
       {/* Apply Leave */}
       <Modal open={showApply} onClose={() => setShowApply(false)} title="Apply Leave">
         <div className="space-y-4">
-          <Select label="Leave Type" value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} options={['Casual Leave','Sick Leave','Earned Leave','Comp Off','Work From Home','Half Day'].map(t => ({ value: t, label: t }))} />
+          {isLive && leaveTypes.length ? (
+            <Select label="Leave Type" value={form.leaveTypeId} onChange={e => setForm(p => ({ ...p, leaveTypeId: e.target.value }))} options={leaveTypes.map(t => ({ value: t.id, label: t.name }))} />
+          ) : (
+            <Select label="Leave Type" value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} options={['Casual Leave','Sick Leave','Earned Leave','Comp Off','Work From Home','Half Day'].map(t => ({ value: t, label: t }))} />
+          )}
           <div className="grid grid-cols-2 gap-4">
             <Input label="From Date *" type="date" value={form.from} onChange={e => setForm(p => ({ ...p, from: e.target.value }))} />
             <Input label="To Date *" type="date" value={form.to} onChange={e => setForm(p => ({ ...p, to: e.target.value }))} />

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Target, Award, TrendingUp, Star, Plus, Edit3, Trash2 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import StatCard from '../../components/ui/StatCard';
@@ -11,52 +11,118 @@ import { Select, Textarea } from '../../components/ui/Input';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { useAuth } from '../../context/AuthContext';
+import * as performanceApi from '../../api/performance';
+
+const MOCK_GOALS = [
+  { id: 1, title: 'Complete React Migration', category: 'Technical', progress: 80, status: 'On Track', due: '2024-06-30', weight: 30 },
+  { id: 2, title: 'Mentor 2 Junior Developers', category: 'Leadership', progress: 50, status: 'On Track', due: '2024-09-30', weight: 20 },
+  { id: 3, title: 'AWS Certification', category: 'Learning', progress: 30, status: 'At Risk', due: '2024-08-15', weight: 15 },
+  { id: 4, title: 'Reduce Bug Count by 40%', category: 'Quality', progress: 65, status: 'On Track', due: '2024-12-31', weight: 25 },
+  { id: 5, title: 'Improve Code Review Turnaround', category: 'Process', progress: 90, status: 'On Track', due: '2024-07-31', weight: 10 },
+];
+
+const MOCK_REVIEWS = [
+  { period: 'H1 2024', rating: 4.2, status: 'In Progress', reviewer: 'Rohit Sharma', comments: 'Strong technical execution. Needs to improve documentation.' },
+  { period: 'H2 2023', rating: 3.8, status: 'Completed', reviewer: 'Rohit Sharma', comments: 'Consistent delivery. Good team collaboration.' },
+  { period: 'H1 2023', rating: 4.0, status: 'Completed', reviewer: 'Priya Sharma', comments: 'Excellent problem-solving. Recommended for promotion.' },
+];
 
 export default function PerformancePage() {
   const toast = useToast();
   const confirm = useConfirm();
-  const [goals, setGoals] = useState([
-    { id: 1, title: 'Complete React Migration', category: 'Technical', progress: 80, status: 'On Track', due: '2024-06-30', weight: 30 },
-    { id: 2, title: 'Mentor 2 Junior Developers', category: 'Leadership', progress: 50, status: 'On Track', due: '2024-09-30', weight: 20 },
-    { id: 3, title: 'AWS Certification', category: 'Learning', progress: 30, status: 'At Risk', due: '2024-08-15', weight: 15 },
-    { id: 4, title: 'Reduce Bug Count by 40%', category: 'Quality', progress: 65, status: 'On Track', due: '2024-12-31', weight: 25 },
-    { id: 5, title: 'Improve Code Review Turnaround', category: 'Process', progress: 90, status: 'On Track', due: '2024-07-31', weight: 10 },
-  ]);
+  const { user, isAuthenticated } = useAuth() || {};
+  const [goals, setGoals] = useState(MOCK_GOALS);
+  const [reviews, setReviews] = useState(MOCK_REVIEWS);
+  const [source, setSource] = useState('mock'); // 'mock' | 'live'
+  const [loading, setLoading] = useState(false);
+  const [activeCycleId, setActiveCycleId] = useState(null);
   const [showAddGoal, setShowAddGoal] = useState(false);
   const [editGoal, setEditGoal] = useState(null);
   const [form, setForm] = useState({ title: '', category: 'Technical', due: '', weight: 20 });
 
-  const reviews = [
-    { period: 'H1 2024', rating: 4.2, status: 'In Progress', reviewer: 'Rohit Sharma', comments: 'Strong technical execution. Needs to improve documentation.' },
-    { period: 'H2 2023', rating: 3.8, status: 'Completed', reviewer: 'Rohit Sharma', comments: 'Consistent delivery. Good team collaboration.' },
-    { period: 'H1 2023', rating: 4.0, status: 'Completed', reviewer: 'Priya Sharma', comments: 'Excellent problem-solving. Recommended for promotion.' },
-  ];
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    setLoading(true);
+    performanceApi.getAllCycles()
+      .then(async (cycles) => {
+        if (!cycles || !cycles.length) {
+          setSource('mock');
+          return;
+        }
+        const cycle = cycles.find(c => c.status === 'ACTIVE') || cycles[0];
+        setActiveCycleId(cycle.id);
+        const [myGoals, myReviews] = await Promise.all([
+          performanceApi.getMyGoals(cycle.id).catch(() => []),
+          performanceApi.getMyReviews().catch(() => []),
+        ]);
+        setGoals(myGoals);
+        setReviews(myReviews);
+        setSource('live');
+      })
+      .catch(() => {
+        setSource('mock');
+      })
+      .finally(() => setLoading(false));
+  }, [isAuthenticated]);
 
-  const handleAddGoal = () => {
+  const handleAddGoal = async () => {
     if (!form.title) { toast.error('Goal title is required'); return; }
+    if (source === 'live') {
+      if (!activeCycleId) { toast.error('No active review cycle found'); return; }
+      try {
+        const created = await performanceApi.createGoal(form, user?.id, activeCycleId);
+        setGoals(prev => [...prev, created]);
+        toast.success('Goal added successfully');
+        setShowAddGoal(false); setForm({ title: '', category: 'Technical', due: '', weight: 20 });
+      } catch (err) {
+        toast.error(err.message || 'Failed to add goal');
+      }
+      return;
+    }
     setGoals(prev => [...prev, { ...form, id: Date.now(), progress: 0, status: 'On Track' }]);
     toast.success('Goal added successfully');
     setShowAddGoal(false); setForm({ title: '', category: 'Technical', due: '', weight: 20 });
   };
 
-  const handleUpdateProgress = (id, progress) => {
-    setGoals(prev => prev.map(g => g.id === id ? { ...g, progress: Math.min(100, Math.max(0, progress)) } : g));
+  const handleUpdateProgress = async (id, progress) => {
+    const clamped = Math.min(100, Math.max(0, progress));
+    if (source === 'live') {
+      const goal = goals.find(g => g.id === id);
+      if (!goal) return;
+      try {
+        const updated = await performanceApi.updateGoal(id, { ...goal, progress: clamped }, goal.employeeId, goal.reviewCycleId);
+        setGoals(prev => prev.map(g => g.id === id ? updated : g));
+        toast.success('Progress updated');
+      } catch (err) {
+        toast.error(err.message || 'Failed to update progress');
+      }
+      return;
+    }
+    setGoals(prev => prev.map(g => g.id === id ? { ...g, progress: clamped } : g));
     toast.success('Progress updated');
   };
 
   const handleDeleteGoal = async (id) => {
     const ok = await confirm({ title: 'Delete Goal?', message: 'Remove this goal from your objectives?', type: 'danger', confirmText: 'Delete' });
-    if (ok) { setGoals(prev => prev.filter(g => g.id !== id)); toast.success('Goal deleted'); }
+    if (!ok) return;
+    // No delete endpoint on the backend for goals - this remains a local/demo-only action.
+    setGoals(prev => prev.filter(g => g.id !== id));
+    toast.success('Goal deleted');
   };
 
-  const overallRating = 4.2;
-  const avgProgress = Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length);
+  const overallRating = reviews.length ? (reviews[0].rating || 4.2) : 4.2;
+  const avgProgress = goals.length ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length) : 0;
 
   return (
     <div className="space-y-5">
       <Breadcrumb items={[{ label: 'Performance' }]} />
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-text">Performance</h1>
+        <div>
+          <h1 className="text-xl font-bold text-text">Performance</h1>
+          {!loading && source === 'mock' && <p className="text-xs text-warning">(demo data)</p>}
+          {loading && <p className="text-xs text-text-secondary">Loading from server...</p>}
+        </div>
         <Button icon={Plus} size="sm" onClick={() => setShowAddGoal(true)}>Add Goal</Button>
       </div>
 
@@ -129,7 +195,23 @@ export default function PerformancePage() {
           <Select label="Status" value={editGoal.status} onChange={e => setEditGoal(p => ({ ...p, status: e.target.value }))} options={['On Track','At Risk','Completed','Deferred'].map(v => ({ value: v, label: v }))} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditGoal(null)}>Cancel</Button>
-            <Button onClick={() => { setGoals(prev => prev.map(g => g.id === editGoal.id ? editGoal : g)); toast.success('Goal updated'); setEditGoal(null); }}>Save</Button>
+            <Button onClick={async () => {
+              if (source === 'live') {
+                try {
+                  const updated = await performanceApi.updateGoal(editGoal.id, editGoal, editGoal.employeeId, editGoal.reviewCycleId);
+                  setGoals(prev => prev.map(g => g.id === editGoal.id ? updated : g));
+                  toast.success('Goal updated');
+                } catch (err) {
+                  toast.error(err.message || 'Failed to update goal');
+                } finally {
+                  setEditGoal(null);
+                }
+                return;
+              }
+              setGoals(prev => prev.map(g => g.id === editGoal.id ? editGoal : g));
+              toast.success('Goal updated');
+              setEditGoal(null);
+            }}>Save</Button>
           </div>
         </div>}
       </Modal>

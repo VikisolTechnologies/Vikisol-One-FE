@@ -16,14 +16,15 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 const categories = ['All', 'Employment', 'Legal', 'Compensation', 'Benefits', 'Policy', 'Performance', 'Disciplinary', 'Training', 'General'];
 
 export default function DocumentsPage() {
-  const { data, documents } = useData();
+  const { data, documents, documentsSource, documentsLoading } = useData();
   const toast = useToast();
   const confirm = useConfirm();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('All');
   const [showUpload, setShowUpload] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [form, setForm] = useState({ name: '', category: 'Employment', employee: '', empId: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({ name: '', category: 'Employment', employee: '', empId: '', employeeId: '', file: null });
 
   const allDocs = data.documents;
   const filtered = useMemo(() => allDocs.filter(d => {
@@ -33,20 +34,57 @@ export default function DocumentsPage() {
     return matchSearch && matchCat;
   }), [allDocs, search, filter]);
 
-  const handleUpload = () => {
+  const resetForm = () => setForm({ name: '', category: 'Employment', employee: '', empId: '', employeeId: '', file: null });
+
+  const handleUpload = async () => {
     if (!form.name) { toast.error('Document name is required'); return; }
-    documents.create({ ...form, type: 'PDF', date: new Date().toISOString().split('T')[0], size: `${Math.floor(Math.random() * 2000 + 100)} KB`, uploadedBy: 'Admin', status: 'Active', version: 'v1.0', signed: false });
-    toast.success(`Document "${form.name}" uploaded`);
-    setShowUpload(false); setForm({ name: '', category: 'Employment', employee: '', empId: '' });
+    if (documentsSource === 'live' && !form.employeeId) { toast.error('Employee ID is required to upload to the server'); return; }
+    setSubmitting(true);
+    try {
+      if (documentsSource === 'live') {
+        await documents.create({ employeeId: form.employeeId, title: form.name, category: form.category, file: form.file });
+      } else {
+        documents.create({ ...form, type: 'PDF', date: new Date().toISOString().split('T')[0], size: `${Math.floor(Math.random() * 2000 + 100)} KB`, uploadedBy: 'Admin', status: 'Active', version: 'v1.0', signed: false });
+      }
+      toast.success(`Document "${form.name}" uploaded`);
+      setShowUpload(false); resetForm();
+    } catch (err) {
+      toast.error(err.message || 'Failed to upload document');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDelete = async (doc) => {
     const ok = await confirm({ title: 'Delete Document?', message: `Delete "${doc.name}"?`, type: 'danger', confirmText: 'Delete' });
-    if (ok) { documents.remove(doc.id); toast.success('Document deleted'); setSelected(null); }
+    if (!ok) return;
+    try {
+      await documents.remove(doc.id);
+      toast.success('Document deleted');
+      setSelected(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete document');
+    }
   };
 
-  const handleArchive = (doc) => { documents.update(doc.id, { status: 'Archived' }); toast.info('Document archived'); };
-  const handleSign = (doc) => { documents.update(doc.id, { signed: true }); toast.success('Document digitally signed'); };
+  const handleArchive = async (doc) => {
+    if (documentsSource === 'live') {
+      // Live module has no archive endpoint; verify is the closest equivalent action.
+      toast.info('Archiving is not supported by the server; this module only supports verify/delete');
+      return;
+    }
+    documents.update(doc.id, { status: 'Archived' });
+    toast.info('Document archived');
+  };
+
+  const handleSign = async (doc) => {
+    try {
+      await documents.update(doc.id, documentsSource === 'live' ? undefined : { signed: true });
+      toast.success(documentsSource === 'live' ? 'Document verified' : 'Document digitally signed');
+    } catch (err) {
+      toast.error(err.message || 'Failed to verify document');
+    }
+  };
 
   const columns = [
     { key: 'name', label: 'Document', render: (v) => <div className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg bg-danger/10 flex items-center justify-center"><FileText size={14} className="text-danger" /></div><span className="font-medium text-text">{v}</span></div> },
@@ -69,7 +107,13 @@ export default function DocumentsPage() {
     <div className="space-y-5">
       <Breadcrumb items={[{ label: 'Documents' }]} />
       <div className="flex items-center justify-between">
-        <div><h1 className="text-xl font-bold text-text">Documents</h1><p className="text-sm text-text-secondary">{allDocs.length} documents</p></div>
+        <div>
+          <h1 className="text-xl font-bold text-text">Documents</h1>
+          <p className="text-sm text-text-secondary">
+            {documentsLoading ? 'Loading from server...' : `${allDocs.length} documents`}
+            {!documentsLoading && documentsSource === 'mock' && <span className="ml-2 text-warning">(demo data)</span>}
+          </p>
+        </div>
         <Button icon={Upload} size="sm" onClick={() => setShowUpload(true)}>Upload Document</Button>
       </div>
 

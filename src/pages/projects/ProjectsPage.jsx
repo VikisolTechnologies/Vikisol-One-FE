@@ -15,7 +15,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 
 export default function ProjectsPage() {
-  const { data, projects } = useData();
+  const { data, projects, projectsSource, projectsLoading } = useData();
   const { user } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
@@ -49,21 +49,46 @@ export default function ProjectsPage() {
     return matchSearch && matchStatus && matchPriority;
   }), [allProjects, search, filters]);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!form.name) { toast.error('Project name is required'); return; }
-    projects.create({ ...form, progress: 0, team: 0, tech: [], startDate: new Date().toISOString().split('T')[0], milestones: 0, completedMilestones: 0, risks: 0, sprints: 0, spent: '₹0', repository: '' });
-    toast.success(`Project "${form.name}" created`);
-    setShowAdd(false); setForm({ name: '', client: '', status: 'On Track', priority: 'Medium', deadline: '', description: '', manager: '', budget: '' });
+    try {
+      await projects.create({ ...form, progress: 0, team: 0, tech: [], startDate: new Date().toISOString().split('T')[0], milestones: 0, completedMilestones: 0, risks: 0, sprints: 0, spent: '₹0', repository: '' });
+      toast.success(`Project "${form.name}" created`);
+      setShowAdd(false); setForm({ name: '', client: '', status: 'On Track', priority: 'Medium', deadline: '', description: '', manager: '', budget: '' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to create project');
+    }
   };
 
-  const handleEdit = () => { projects.update(showEdit.id, editForm); toast.success('Project updated'); setShowEdit(null); };
+  const handleEdit = async () => {
+    try {
+      await projects.update(showEdit.id, editForm);
+      toast.success('Project updated');
+      setShowEdit(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to update project');
+    }
+  };
 
   const handleDelete = async (p) => {
     const ok = await confirm({ title: 'Delete Project?', message: `Delete "${p.name}"? This cannot be undone.`, type: 'danger', confirmText: 'Delete' });
-    if (ok) { projects.remove(p.id); toast.success('Project deleted'); }
+    if (!ok) return;
+    try {
+      await projects.remove(p.id);
+      toast.success('Project deleted');
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete project');
+    }
   };
 
-  const handleArchive = (p) => { projects.update(p.id, { status: 'On Hold' }); toast.info(`"${p.name}" archived`); };
+  const handleArchive = async (p) => {
+    try {
+      await projects.update(p.id, { status: 'On Hold' });
+      toast.info(`"${p.name}" archived`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to archive project');
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -71,7 +96,10 @@ export default function ProjectsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-text">{isEmployee ? 'My Projects' : 'Projects'}</h1>
-          <p className="text-sm text-text-secondary">{filtered.length} {isEmployee ? 'assigned' : 'total'} projects</p>
+          <p className="text-sm text-text-secondary">
+            {projectsLoading ? 'Loading from server...' : `${filtered.length} ${isEmployee ? 'assigned' : 'total'} projects`}
+            {!projectsLoading && projectsSource === 'mock' && <span className="ml-2 text-warning">(demo data)</span>}
+          </p>
         </div>
         {isManager && <Button icon={Plus} size="sm" onClick={() => setShowAdd(true)}>New Project</Button>}
       </div>

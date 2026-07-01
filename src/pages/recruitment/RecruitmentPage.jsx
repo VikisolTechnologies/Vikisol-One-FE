@@ -19,7 +19,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 const stages = ['Applied', 'Screening', 'Technical', 'Manager', 'HR', 'Offered', 'Hired', 'Rejected'];
 
 export default function RecruitmentPage() {
-  const { data, candidates } = useData();
+  const { data, candidates, candidatesSource, candidatesLoading } = useData();
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -41,32 +41,56 @@ export default function RecruitmentPage() {
     });
   }, [allCandidates, search, filters]);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!form.name || !form.email || !form.role) { toast.error('Name, email and role are required'); return; }
-    candidates.create({ ...form, stage: 'Applied', score: Math.floor(Math.random() * 40 + 60), appliedDate: new Date().toISOString().split('T')[0], skills: [], status: 'Active', location: 'Hyderabad', noticePeriod: '30 days', currentCompany: '-', interviewer: '-', feedback: null, resume: 'resume.pdf' });
-    toast.success(`Candidate ${form.name} added successfully`);
-    setShowAdd(false);
-    setForm({ name: '', email: '', role: '', experience: '', currentCTC: '', expectedCTC: '', source: 'LinkedIn', phone: '' });
+    try {
+      await candidates.create({ ...form, stage: 'Applied', score: Math.floor(Math.random() * 40 + 60), appliedDate: new Date().toISOString().split('T')[0], skills: [], status: 'Active', location: 'Hyderabad', noticePeriod: '30 days', currentCompany: '-', interviewer: '-', feedback: null, resume: 'resume.pdf' });
+      toast.success(`Candidate ${form.name} added successfully`);
+      setShowAdd(false);
+      setForm({ name: '', email: '', role: '', experience: '', currentCTC: '', expectedCTC: '', source: 'LinkedIn', phone: '' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to add candidate');
+    }
   };
 
-  const moveStage = (candidate, newStage) => {
-    candidates.update(candidate.id, { stage: newStage });
-    toast.success(`${candidate.name} moved to ${newStage}`);
+  const moveStage = async (candidate, newStage) => {
+    try {
+      await candidates.update(candidate.id, { stage: newStage });
+      toast.success(`${candidate.name} moved to ${newStage}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to update candidate stage');
+    }
   };
 
   const handleReject = async (candidate) => {
     const ok = await confirm({ title: 'Reject Candidate?', message: `Reject ${candidate.name}?`, type: 'danger', confirmText: 'Reject' });
-    if (ok) { candidates.update(candidate.id, { stage: 'Rejected', status: 'Rejected' }); toast.warning(`${candidate.name} has been rejected`); }
+    if (!ok) return;
+    try {
+      await candidates.update(candidate.id, { stage: 'Rejected', status: 'Rejected' });
+      toast.warning(`${candidate.name} has been rejected`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to reject candidate');
+    }
   };
 
   const handleDelete = async (candidate) => {
     const ok = await confirm({ title: 'Delete Candidate?', message: `Delete ${candidate.name} from the pipeline?`, type: 'danger', confirmText: 'Delete' });
-    if (ok) { candidates.remove(candidate.id); toast.success('Candidate deleted'); }
+    if (!ok) return;
+    try {
+      await candidates.remove(candidate.id);
+      toast.success('Candidate deleted');
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete candidate');
+    }
   };
 
-  const handleGenerateOffer = (candidate) => {
-    candidates.update(candidate.id, { stage: 'Offered', status: 'Offered' });
-    toast.success(`Offer letter generated for ${candidate.name}`);
+  const handleGenerateOffer = async (candidate) => {
+    try {
+      await candidates.update(candidate.id, { stage: 'Offered', status: 'Offered' });
+      toast.success(`Offer letter generated for ${candidate.name}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to generate offer');
+    }
   };
 
   const handleScheduleInterview = (candidate) => {

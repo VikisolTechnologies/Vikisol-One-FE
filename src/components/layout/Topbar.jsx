@@ -136,7 +136,7 @@ export default function Topbar() {
               </div>
               <div className="max-h-72 overflow-y-auto">
                 {unreadNotifs.slice(0, 6).map(n => (
-                  <div key={n.id} onClick={() => markNotificationRead(n.id)} className="px-4 py-3 hover:bg-surface-3 cursor-pointer border-b border-border/50 flex items-start gap-3 transition-colors">
+                  <div key={n.id} onClick={() => { Promise.resolve(markNotificationRead(n.id)).catch(() => {}); }} className="px-4 py-3 hover:bg-surface-3 cursor-pointer border-b border-border/50 flex items-start gap-3 transition-colors">
                     <div className="w-2 h-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />
                     <div><p className="text-sm text-text">{n.message}</p><p className="text-[10px] text-text-secondary mt-0.5">{n.time}</p></div>
                   </div>

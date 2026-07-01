@@ -19,7 +19,7 @@ import { useAuth } from '../../context/AuthContext';
 const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function TimesheetPage() {
-  const { data, timesheets } = useData();
+  const { data, timesheets, timesheetsSource, timesheetsLoading } = useData();
   const { approve, reject, bulkApprove, bulkReject, isManager, isCEO } = useApproval();
   const toast = useToast();
   const confirm = useConfirm();
@@ -56,7 +56,18 @@ export default function TimesheetPage() {
   const handleSubmit = async () => {
     if (grandTotal === 0) { toast.error('Cannot submit empty timesheet'); return; }
     const ok = await confirm({ title: 'Submit Timesheet?', message: `Submit ${grandTotal} hours for this week? Your manager will be notified for approval.`, type: 'info', confirmText: 'Submit' });
-    if (ok) { setMyStatus('Submitted'); toast.success('Timesheet submitted for manager approval'); }
+    if (!ok) return;
+    try {
+      if (timesheetsSource === 'live') {
+        // The backend models one entry per day/project; submit any of our own draft entries for this period.
+        const myDraftIds = data.timesheets.filter(t => t.empId === user?.id && t.status === 'Draft').map(t => t.id);
+        if (myDraftIds.length > 0) await timesheets.submit(myDraftIds);
+      }
+      setMyStatus('Submitted');
+      toast.success('Timesheet submitted for manager approval');
+    } catch (err) {
+      toast.error(err.message || 'Failed to submit timesheet');
+    }
   };
   const handleRecall = async () => {
     const ok = await confirm({ title: 'Recall Timesheet?', message: 'Recall this timesheet to make changes?', type: 'warning', confirmText: 'Recall' });
@@ -77,21 +88,45 @@ export default function TimesheetPage() {
     return matchSearch && matchStatus && matchDept;
   }), [teamTimesheets, search, filters]);
 
-  const handleApprove = (ts) => { approve(ts, 'timesheets', timesheets.update); };
+  const handleApprove = async (ts) => {
+    try {
+      await approve(ts, 'timesheets', timesheets.update);
+    } catch (err) {
+      toast.error(err.message || 'Failed to approve timesheet');
+    }
+  };
   const handleReject = (ts) => { setShowRejectModal(ts); };
-  const confirmReject = () => { reject(showRejectModal, 'timesheets', timesheets.update, rejectReason); setShowRejectModal(null); setRejectReason(''); };
+  const confirmReject = async () => {
+    try {
+      await reject(showRejectModal, 'timesheets', timesheets.update, rejectReason);
+    } catch (err) {
+      toast.error(err.message || 'Failed to reject timesheet');
+    } finally {
+      setShowRejectModal(null); setRejectReason('');
+    }
+  };
 
-  const handleBulkApprove = () => {
+  const handleBulkApprove = async () => {
     const items = filteredTeam.filter(t => selectedIds.includes(t.id) && (t.status === 'Submitted' || t.status === 'Pending'));
     if (items.length === 0) { toast.info('No pending timesheets selected'); return; }
-    bulkApprove(items, timesheets.update);
-    setSelectedIds([]);
+    try {
+      await bulkApprove(items, timesheets.update);
+    } catch (err) {
+      toast.error(err.message || 'Failed to approve timesheets');
+    } finally {
+      setSelectedIds([]);
+    }
   };
-  const handleBulkReject = () => {
+  const handleBulkReject = async () => {
     const items = filteredTeam.filter(t => selectedIds.includes(t.id) && (t.status === 'Submitted' || t.status === 'Pending'));
     if (items.length === 0) return;
-    bulkReject(items, timesheets.update, 'Bulk rejected');
-    setSelectedIds([]);
+    try {
+      await bulkReject(items, timesheets.update, 'Bulk rejected');
+    } catch (err) {
+      toast.error(err.message || 'Failed to reject timesheets');
+    } finally {
+      setSelectedIds([]);
+    }
   };
 
   const teamColumns = [
@@ -192,6 +227,10 @@ export default function TimesheetPage() {
   if (isManager) {
     tabs.push({ id: 'team', label: `Team Timesheets ${pendingCount > 0 ? `(${pendingCount} pending)` : ''}`, content: (
       <div className="space-y-5">
+        <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
+          {timesheetsLoading ? <span>Loading from server...</span> : null}
+          {!timesheetsLoading && timesheetsSource === 'mock' && <span className="text-warning">(demo data)</span>}
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label: 'Submitted', value: teamTimesheets.filter(t => t.status === 'Submitted').length, color: 'text-warning' },

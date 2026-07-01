@@ -17,7 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { Ticket, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
 export default function TicketsPage() {
-  const { data, tickets } = useData();
+  const { data, tickets, ticketsSource, ticketsLoading } = useData();
   const toast = useToast();
   const confirm = useConfirm();
   const { user } = useAuth();
@@ -39,20 +39,50 @@ export default function TicketsPage() {
     return matchSearch && matchCat && matchStatus && matchPriority;
   }), [allTickets, search, filters]);
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!form.title) { toast.error('Title is required'); return; }
-    tickets.create({ ...form, id: `TKT-${String(allTickets.length + 1).padStart(4, '0')}`, status: 'Open', raisedBy: user.name, raisedByEmpId: user.empId || 'VKS001', raisedByDept: user.department || 'Management', assignee: 'IT Support Team', date: new Date().toISOString().split('T')[0], comments: 0, attachments: 0, sla: '24 hours', resolution: null });
-    toast.success('Ticket raised successfully');
-    setShowNew(false); setForm({ title: '', category: 'Software', priority: 'Medium', description: '' });
+    try {
+      await tickets.create({ ...form, id: `TKT-${String(allTickets.length + 1).padStart(4, '0')}`, status: 'Open', raisedBy: user?.name, raisedByEmpId: user?.empId || 'VKS001', raisedByDept: user?.department || 'Management', assignee: 'IT Support Team', date: new Date().toISOString().split('T')[0], comments: 0, attachments: 0, sla: '24 hours', resolution: null });
+      toast.success('Ticket raised successfully');
+      setShowNew(false); setForm({ title: '', category: 'Software', priority: 'Medium', description: '' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to raise ticket');
+    }
   };
 
-  const handleStatusChange = (ticket, status) => { tickets.update(ticket.id, { status }); toast.success(`Ticket ${ticket.id} marked as ${status}`); if (selected?.id === ticket.id) setSelected({ ...selected, status }); };
+  const handleStatusChange = async (ticket, status) => {
+    try {
+      await tickets.update(ticket.id, { status });
+      toast.success(`Ticket ${ticket.id} marked as ${status}`);
+      if (selected?.id === ticket.id) setSelected({ ...selected, status });
+    } catch (err) {
+      toast.error(err.message || 'Failed to update ticket status');
+    }
+  };
   const handleDelete = async (ticket) => {
     const ok = await confirm({ title: 'Delete Ticket?', message: `Delete ${ticket.id}?`, type: 'danger', confirmText: 'Delete' });
-    if (ok) { tickets.remove(ticket.id); toast.success('Ticket deleted'); setSelected(null); }
+    if (!ok) return;
+    try {
+      await tickets.remove(ticket.id);
+      toast.success('Ticket deleted');
+      setSelected(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete ticket');
+    }
   };
 
-  const handleAddComment = () => { if (!comment.trim()) return; toast.success('Comment added'); setComment(''); };
+  const handleAddComment = async () => {
+    if (!comment.trim()) return;
+    try {
+      if (ticketsSource === 'live' && selected) {
+        await tickets.addComment(selected.id, comment);
+      }
+      toast.success('Comment added');
+      setComment('');
+    } catch (err) {
+      toast.error(err.message || 'Failed to add comment');
+    }
+  };
 
   const statusCounts = useMemo(() => ({
     Open: allTickets.filter(t => t.status === 'Open').length,
@@ -81,7 +111,13 @@ export default function TicketsPage() {
     <div className="space-y-5">
       <Breadcrumb items={[{ label: 'Helpdesk Tickets' }]} />
       <div className="flex items-center justify-between">
-        <div><h1 className="text-xl font-bold text-text">Helpdesk Tickets</h1><p className="text-sm text-text-secondary">{allTickets.length} total tickets</p></div>
+        <div>
+          <h1 className="text-xl font-bold text-text">Helpdesk Tickets</h1>
+          <p className="text-sm text-text-secondary">
+            {ticketsLoading ? 'Loading from server...' : `${allTickets.length} total tickets`}
+            {!ticketsLoading && ticketsSource === 'mock' && <span className="ml-2 text-warning">(demo data)</span>}
+          </p>
+        </div>
         <Button icon={Plus} size="sm" onClick={() => setShowNew(true)}>Raise Ticket</Button>
       </div>
 

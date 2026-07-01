@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Clock, UserCheck, UserX, Timer, MapPin } from 'lucide-react';
 import StatCard from '../../components/ui/StatCard';
 import Card from '../../components/ui/Card';
@@ -7,8 +7,10 @@ import DataTable from '../../components/ui/DataTable';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import Button from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
+import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { getMyAttendance } from '../../api/attendance';
 
 const ATTENDANCE_DATA = [
   { date: 'Mon', present: 210, absent: 15, late: 12, wfh: 8 },
@@ -39,21 +41,57 @@ const myWeekLog = [
 export default function AttendancePage() {
   const { user } = useAuth();
   const toast = useToast();
+  const { attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut } = useData();
   const isManager = ['ceo', 'hr_manager', 'manager', 'admin'].includes(user?.role);
   const isEmployee = user?.role === 'employee';
+  const isLive = attendanceSource === 'live';
 
   const [punchedIn, setPunchedIn] = useState(true);
   const [punchInTime] = useState('09:10 AM');
   const [workingHours, setWorkingHours] = useState('7h 22m');
+  const [punchBusy, setPunchBusy] = useState(false);
+  const [liveWeekLog, setLiveWeekLog] = useState(null);
 
-  const handlePunch = () => {
-    if (punchedIn) {
-      setPunchedIn(false);
-      const now = new Date();
-      toast.success(`Punched out at ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`);
-    } else {
-      setPunchedIn(true);
-      toast.success(`Punched in at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`);
+  // Live: punched-in state derives from today's attendance record (no check-out time yet)
+  const liveIsPunchedIn = !!todayAttendance && !!todayAttendance.checkInTime && todayAttendance.checkInTime !== '-' && (!todayAttendance.checkOutTime || todayAttendance.checkOutTime === '-');
+
+  useEffect(() => {
+    if (!isLive) return;
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 6);
+    const toISO = (d) => d.toISOString().split('T')[0];
+    getMyAttendance(toISO(start), toISO(end))
+      .then(setLiveWeekLog)
+      .catch(() => setLiveWeekLog(null));
+  }, [isLive, todayAttendance]);
+
+  const handlePunch = async () => {
+    if (!isLive) {
+      // Mock fallback behaviour
+      if (punchedIn) {
+        setPunchedIn(false);
+        const now = new Date();
+        toast.success(`Punched out at ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`);
+      } else {
+        setPunchedIn(true);
+        toast.success(`Punched in at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`);
+      }
+      return;
+    }
+    setPunchBusy(true);
+    try {
+      if (liveIsPunchedIn) {
+        await attendanceCheckOut({});
+        toast.success('Checked out successfully');
+      } else {
+        await attendanceCheckIn({});
+        toast.success('Checked in successfully');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to record attendance');
+    } finally {
+      setPunchBusy(false);
     }
   };
 
@@ -76,35 +114,52 @@ export default function AttendancePage() {
     { key: 'status', label: 'Status', render: (v) => <Badge dot>{v}</Badge> },
   ];
 
+  const displayPunchedIn = isLive ? liveIsPunchedIn : punchedIn;
+  const displayPunchInTime = isLive ? (todayAttendance?.punchIn || '--:--') : punchInTime;
+  const displayWorkingHours = isLive ? (todayAttendance?.hours || '-') : workingHours;
+
+  const weekSummary = useMemo(() => {
+    const log = isLive && liveWeekLog ? liveWeekLog : myWeekLog;
+    return {
+      present: log.filter(l => l.status === 'Present').length,
+      late: log.filter(l => l.status === 'Late').length,
+      absent: log.filter(l => l.status === 'Absent').length,
+      wfh: log.filter(l => l.mode === 'WFH').length,
+    };
+  }, [isLive, liveWeekLog]);
+
   return (
     <div className="space-y-5">
       <Breadcrumb items={[{ label: 'Attendance' }]} />
-      <h1 className="text-xl font-bold text-text">{isEmployee ? 'My Attendance' : 'Attendance'}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-text">{isEmployee ? 'My Attendance' : 'Attendance'}</h1>
+        {!attendanceLoading && !isLive && <span className="text-sm text-warning">(demo data)</span>}
+      </div>
 
       {/* Employee: Punch In/Out Card */}
       {isEmployee && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="md:col-span-1">
             <div className="text-center py-4">
-              <div className={`w-28 h-28 rounded-full border-4 ${punchedIn ? 'border-success' : 'border-surface-4'} mx-auto flex items-center justify-center mb-3 transition-colors`}>
+              <div className={`w-28 h-28 rounded-full border-4 ${displayPunchedIn ? 'border-success' : 'border-surface-4'} mx-auto flex items-center justify-center mb-3 transition-colors`}>
                 <div>
-                  <p className="text-lg font-bold text-text">{punchedIn ? punchInTime : '--:--'}</p>
-                  <p className="text-[10px] text-text-secondary">{punchedIn ? 'Punched In' : 'Not Punched In'}</p>
+                  <p className="text-lg font-bold text-text">{displayPunchedIn ? displayPunchInTime : '--:--'}</p>
+                  <p className="text-[10px] text-text-secondary">{displayPunchedIn ? 'Punched In' : 'Not Punched In'}</p>
                 </div>
               </div>
-              {punchedIn && <p className="text-sm text-text-secondary mb-1">Working: <span className="text-text font-semibold">{workingHours}</span></p>}
-              <button onClick={handlePunch} className={`mt-3 px-8 py-2.5 rounded-xl text-sm font-semibold transition-all text-white shadow-lg ${punchedIn ? 'bg-danger hover:bg-danger/80 shadow-danger/20' : 'bg-success hover:bg-success/80 shadow-success/20'}`}>
-                {punchedIn ? 'Punch Out' : 'Punch In'}
+              {displayPunchedIn && <p className="text-sm text-text-secondary mb-1">Working: <span className="text-text font-semibold">{displayWorkingHours}</span></p>}
+              <button disabled={punchBusy} onClick={handlePunch} className={`mt-3 px-8 py-2.5 rounded-xl text-sm font-semibold transition-all text-white shadow-lg disabled:opacity-60 ${displayPunchedIn ? 'bg-danger hover:bg-danger/80 shadow-danger/20' : 'bg-success hover:bg-success/80 shadow-success/20'}`}>
+                {punchBusy ? 'Please wait...' : displayPunchedIn ? 'Punch Out' : 'Punch In'}
               </button>
             </div>
           </Card>
           <Card className="md:col-span-2" title="This Week's Summary">
             <div className="grid grid-cols-4 gap-3">
               {[
-                { label: 'Present', value: 5, color: 'text-success' },
-                { label: 'Late', value: 1, color: 'text-warning' },
-                { label: 'Absent', value: 0, color: 'text-danger' },
-                { label: 'WFH', value: 1, color: 'text-info' },
+                { label: 'Present', value: weekSummary.present, color: 'text-success' },
+                { label: 'Late', value: weekSummary.late, color: 'text-warning' },
+                { label: 'Absent', value: weekSummary.absent, color: 'text-danger' },
+                { label: 'WFH', value: weekSummary.wfh, color: 'text-info' },
               ].map(s => (
                 <div key={s.label} className="text-center p-3 bg-surface-3 rounded-xl">
                   <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -147,7 +202,7 @@ export default function AttendancePage() {
       {/* Employee: My attendance log */}
       {isEmployee && (
         <Card title="My Attendance Log" padding={false}>
-          <DataTable columns={myColumns} data={myWeekLog} />
+          <DataTable columns={myColumns} data={isLive && liveWeekLog ? liveWeekLog : myWeekLog} />
         </Card>
       )}
 
