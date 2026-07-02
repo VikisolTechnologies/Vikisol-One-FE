@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useData } from '../../context/DataContext';
 import { ROLE_PERMISSIONS } from '../../data/mock';
 import { LayoutDashboard, Users, UserPlus, FolderKanban, Clock, CalendarDays, IndianRupee, Ticket, Monitor, TrendingUp, BarChart3, FileText, Settings, HelpCircle, ChevronLeft, LogOut, GitBranch, Network, UserCheck } from 'lucide-react';
 
@@ -31,10 +32,12 @@ const sections = [
 
 export default function Sidebar({ collapsed, onToggleCollapse }) {
   const { user, logout } = useAuth();
+  const { visibleModules } = useData() || {};
   const navigate = useNavigate();
   const location = useLocation();
 
-  const perms = ROLE_PERMISSIONS[user?.role?.toLowerCase()] || [];
+  // CEO-configured live permissions when available, falling back to the built-in defaults
+  const perms = visibleModules || ROLE_PERMISSIONS[user?.role?.toLowerCase()] || [];
   const isActive = (id) => {
     const path = location.pathname.split('/')[1] || 'dashboard';
     return path === id;

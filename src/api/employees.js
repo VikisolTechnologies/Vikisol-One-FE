@@ -34,6 +34,7 @@ export function adaptEmployee(e) {
     manager: e.reportingManagerName || '',
     reportingManagerId: e.reportingManagerId,
     isActive: e.isActive,
+    accountRole: e.accountRole || null,
     emergencyContact: e.emergencyContactName
       ? { name: e.emergencyContactName, phone: e.emergencyContactPhone, relation: e.emergencyContactRelation }
       : null,
@@ -107,4 +108,9 @@ export async function issueHike(id, { newAnnualCtc, effectiveDate, reason }) {
 // Records a resignation and emails an acknowledgement letter.
 export async function recordResignation(id, { lastWorkingDate, reason }) {
   return adaptEmployee(await api.post(`/employees/${id}/resign`, { lastWorkingDate, reason }));
+}
+
+// Promotes/changes an employee's application login role (CEO only). role is e.g. 'MANAGER', 'HR_MANAGER'.
+export async function changeAccountRole(id, role) {
+  return adaptEmployee(await api.put(`/employees/${id}/account-role?role=${role}`));
 }

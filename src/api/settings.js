@@ -75,3 +75,18 @@ export async function updateHoliday(id, form) {
 export async function deleteHoliday(id) {
   return api.del(`/settings/holidays/${id}`);
 }
+
+// ---- Role Permissions (CEO controls what each role can see) ----
+
+export async function getRolePermissionMatrix() {
+  return api.get('/settings/role-permissions');
+}
+
+export async function updateRolePermissionMatrix(entries) {
+  // entries: [{ role, module, canView }, ...]
+  return api.put('/settings/role-permissions', entries);
+}
+
+export async function getMyVisibleModules() {
+  return api.get('/settings/role-permissions/me');
+}

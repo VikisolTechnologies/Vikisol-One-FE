@@ -78,7 +78,13 @@ export function DataProvider({ children }) {
   const [jobPostings, setJobPostings] = useState([]);
   const [documentsSource, setDocumentsSource] = useState('mock'); // 'mock' | 'live'
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [visibleModules, setVisibleModules] = useState(null); // null = not loaded yet, fall back to mock ROLE_PERMISSIONS
   const { isAuthenticated } = useAuth() || {};
+
+  useEffect(() => {
+    if (!isAuthenticated) { setVisibleModules(null); return; }
+    settingsApi.getMyVisibleModules().then(setVisibleModules).catch(() => setVisibleModules(null));
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -717,7 +723,7 @@ export function DataProvider({ children }) {
     holidaysSource, holidaysLoading, notificationsSource, notificationsLoading, unreadCount,
     projectsSource, projectsLoading, timesheetsSource, timesheetsLoading,
     documentsSource, documentsLoading,
-    candidatesSource, candidatesLoading, jobPostings,
+    candidatesSource, candidatesLoading, jobPostings, visibleModules,
   }), [data, stats, employees, leaveRequests, timesheets, tickets, candidates, projects, assets, payslips, documents, announcements, notifications, holidays, markNotificationRead, markAllNotificationsRead, employeesSource, employeesLoading, lookups, leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances, attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut, ticketsSource, ticketsLoading, assetsSource, assetsLoading, payslipsSource, payslipsLoading, holidaysSource, holidaysLoading, notificationsSource, notificationsLoading, unreadCount, projectsSource, projectsLoading, timesheetsSource, timesheetsLoading, documentsSource, documentsLoading, candidatesSource, candidatesLoading, jobPostings]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

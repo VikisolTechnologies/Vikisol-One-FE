@@ -14,14 +14,20 @@ import Breadcrumb from '../../components/ui/Breadcrumb';
 import SearchFilter from '../../components/ui/SearchFilter';
 import ProgressBar from '../../components/ui/ProgressBar';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { getEmployee } from '../../api/employees';
+import { getEmployee, changeAccountRole } from '../../api/employees';
+
+const APP_ROLES = ['CEO', 'ADMIN', 'HR_MANAGER', 'MANAGER', 'RECRUITER', 'FINANCE', 'EMPLOYEE'];
 
 export default function EmployeeDirectory() {
   const { data, employees, stats, lookups, employeesLoading, employeesSource } = useData();
+  const { user } = useAuth();
+  const isCEO = user?.role === 'ceo';
   const toast = useToast();
   const confirm = useConfirm();
+  const [roleChangeBusy, setRoleChangeBusy] = useState(false);
   const deptOptions = employeesSource === 'live' && lookups.departments.length
     ? lookups.departments.map(d => ({ value: d.id, label: d.name }))
     : data.departments.map(d => ({ value: d, label: d }));
@@ -143,6 +149,20 @@ export default function EmployeeDirectory() {
     }
   };
   const handleResetPassword = (emp) => { toast.info(`Password reset link sent to ${emp.email}`); setContextMenu(null); };
+
+  const handleChangeAccountRole = async (emp, role) => {
+    if (employeesSource !== 'live') { toast.error('Connect to the live backend to change account roles'); return; }
+    setRoleChangeBusy(true);
+    try {
+      const updated = await changeAccountRole(emp.id, role);
+      setSelectedEmp(updated);
+      toast.success(`${emp.name}'s account role changed to ${role.replace('_', ' ')}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to change account role');
+    } finally {
+      setRoleChangeBusy(false);
+    }
+  };
 
   const handleGenerateLetter = (emp, type) => {
     toast.success(`${type} generated for ${emp.name}`);
@@ -365,6 +385,17 @@ export default function EmployeeDirectory() {
                     <p className="text-xs text-text-secondary mb-2">Skills</p>
                     <div className="flex flex-wrap gap-1.5">{selectedEmp.skills?.map(s => <span key={s} className="px-2.5 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium">{s}</span>)}</div>
                   </div>
+                  {isCEO && employeesSource === 'live' && (
+                    <div className="col-span-3 p-3 bg-surface-3 rounded-lg">
+                      <p className="text-xs text-text-secondary font-semibold mb-2">Application Login Role</p>
+                      <div className="flex items-center gap-2">
+                        <Select value={selectedEmp.accountRole || 'EMPLOYEE'} disabled={roleChangeBusy}
+                          onChange={e => handleChangeAccountRole(selectedEmp, e.target.value)}
+                          options={APP_ROLES.map(r => ({ value: r, label: r.replace('_', ' ') }))} className="w-56" />
+                        {!selectedEmp.accountRole && <span className="text-xs text-warning">No login account yet</span>}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )},
               { id: 'bank', label: 'Bank & Tax', content: (

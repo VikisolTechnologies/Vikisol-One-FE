@@ -11,8 +11,86 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
-import { updateSetting } from '../../api/settings';
+import { updateSetting, getRolePermissionMatrix, updateRolePermissionMatrix } from '../../api/settings';
 import { getCtcBreakupTemplate, updateCtcBreakupTemplate } from '../../api/payroll';
+
+const MODULE_LABELS = {
+  dashboard: 'Dashboard', employees: 'Employees', recruitment: 'Recruitment', projects: 'Projects',
+  resources: 'Resources', attendance: 'Attendance', leave: 'Leave', payroll: 'Payroll',
+  timesheets: 'Timesheets', tickets: 'Tickets', assets: 'Assets', performance: 'Performance',
+  'org-chart': 'Org Chart', reports: 'Reports', documents: 'Documents', settings: 'Settings',
+};
+const ROLE_LABELS = {
+  CEO: 'CEO', ADMIN: 'Admin', HR_MANAGER: 'HR Manager', MANAGER: 'Manager',
+  EMPLOYEE: 'Employee', RECRUITER: 'Recruiter', FINANCE: 'Finance',
+};
+
+function RolePermissionsSettings() {
+  const toast = useToast();
+  const [matrix, setMatrix] = useState(null); // [{role, module, canView}]
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getRolePermissionMatrix().then(setMatrix).catch(() => toast.error('Could not load role permissions'));
+  }, []);
+
+  const toggle = (role, module) => {
+    if (role === 'CEO') return; // CEO always has full access, not editable
+    setMatrix(prev => prev.map(e => (e.role === role && e.module === module) ? { ...e, canView: !e.canView } : e));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updated = await updateRolePermissionMatrix(matrix);
+      setMatrix(updated);
+      toast.success('Role permissions updated');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update role permissions');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!matrix) return <Card><p className="text-sm text-text-secondary">Loading...</p></Card>;
+
+  const roles = [...new Set(matrix.map(e => e.role))];
+  const modules = [...new Set(matrix.map(e => e.module))];
+  const isChecked = (role, module) => matrix.find(e => e.role === role && e.module === module)?.canView;
+
+  return (
+    <Card>
+      <div className="mb-4">
+        <p className="text-sm font-medium text-text">Control what each role can see</p>
+        <p className="text-xs text-text-secondary mt-1">Toggle which modules appear in the sidebar for each role. CEO always has full access.</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border">
+              <th className="text-left py-2 pr-4 text-xs font-semibold text-text-secondary uppercase">Module</th>
+              {roles.map(r => <th key={r} className="text-center py-2 px-2 text-xs font-semibold text-text-secondary uppercase">{ROLE_LABELS[r] || r}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {modules.map(m => (
+              <tr key={m} className="border-b border-border/50">
+                <td className="py-2 pr-4 text-text">{MODULE_LABELS[m] || m}</td>
+                {roles.map(r => (
+                  <td key={r} className="text-center py-2 px-2">
+                    <input type="checkbox" checked={!!isChecked(r, m)} disabled={r === 'CEO'}
+                      onChange={() => toggle(r, m)} className="w-4 h-4 accent-primary disabled:opacity-40" />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Button className="mt-4" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Permissions'}</Button>
+    </Card>
+  );
+}
 
 const CTC_COMPONENTS = [
   { key: 'BASIC_PCT', label: 'Basic Salary' },
@@ -86,6 +164,8 @@ function CtcBreakupSettings() {
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const { departments, auditLogs, data, holidays, holidaysSource, holidaysLoading } = useData();
+  const { user } = useAuth();
+  const isCEO = user?.role === 'ceo';
   const toast = useToast();
   const [primaryColor, setPrimaryColor] = useState('#FF6A00');
 
@@ -172,6 +252,7 @@ export default function SettingsPage() {
           </Card>
         )},
         { id: 'ctc-breakup', label: 'CTC Breakup', content: <CtcBreakupSettings /> },
+        ...(isCEO ? [{ id: 'role-permissions', label: 'Role Permissions', content: <RolePermissionsSettings /> }] : []),
         { id: 'roles', label: 'Roles & Permissions', content: (
           <Card><div className="space-y-2">
             {['CEO', 'HR Manager', 'Manager', 'Employee', 'Recruiter', 'Finance', 'Admin', 'IT Support'].map(role => (
