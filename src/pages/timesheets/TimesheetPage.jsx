@@ -28,6 +28,14 @@ function computeHours(checkIn, checkOut) {
   return mins > 0 ? Math.round((mins / 60) * 100) / 100 : 0;
 }
 
+// Formats decimal hours as HH:MM (e.g. 7.5 -> "07:30") instead of "0h"/"7.5h" decimal notation
+function formatHoursHM(decimalHours) {
+  const totalMinutes = Math.round((decimalHours || 0) * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
 export default function TimesheetPage() {
   const { data, timesheets, timesheetsSource, timesheetsLoading } = useData();
   const { approve, reject, bulkApprove, bulkReject, isManager, isCEO } = useApproval();
@@ -61,11 +69,16 @@ export default function TimesheetPage() {
     });
   }, [weekRange]);
 
-  const defaultProjectId = data.projects[0]?.id || '';
+  // Only active projects can be logged against; empty projectId ('') means Bench (non-billable)
+  const activeProjects = useMemo(() => data.projects.filter(p => p.isActive !== false), [data.projects]);
+  const projectOptions = useMemo(() => [
+    { value: '', label: 'Bench (Non-Billable)' },
+    ...activeProjects.map(p => ({ value: p.id, label: p.code ? `${p.code} — ${p.name}` : p.name })),
+  ], [activeProjects]);
 
   // Employee's own timesheet - one punch-based row per day of the current week
   const [myWeekRows, setMyWeekRows] = useState(() => weekDates.map(date => ({
-    date, id: null, projectId: defaultProjectId, checkInTime: '', checkOutTime: '', reason: '', workLocation: 'Office', status: 'Draft', dirty: false,
+    date, id: null, projectId: '', checkInTime: '', checkOutTime: '', reason: '', workLocation: 'Office', status: 'Draft', dirty: false,
   })));
   const [savingRow, setSavingRow] = useState(null);
   const [submittingWeek, setSubmittingWeek] = useState(false);
@@ -75,9 +88,9 @@ export default function TimesheetPage() {
     setMyWeekRows(prev => weekDates.map((date, i) => {
       const existing = data.timesheets.find(t => t.date === date && t.status !== 'Rejected');
       if (existing) {
-        return { date, id: existing.id, projectId: existing.projectId || defaultProjectId, checkInTime: existing.checkInTime || '', checkOutTime: existing.checkOutTime || '', reason: existing.reason || '', workLocation: existing.workLocation || 'Office', status: existing.status, dirty: false };
+        return { date, id: existing.id, projectId: existing.projectId || '', checkInTime: existing.checkInTime || '', checkOutTime: existing.checkOutTime || '', reason: existing.reason || '', workLocation: existing.workLocation || 'Office', status: existing.status, dirty: false };
       }
-      return prev[i]?.dirty ? prev[i] : { date, id: null, projectId: defaultProjectId, checkInTime: '', checkOutTime: '', reason: '', workLocation: 'Office', status: 'Draft', dirty: false };
+      return prev[i]?.dirty ? prev[i] : { date, id: null, projectId: '', checkInTime: '', checkOutTime: '', reason: '', workLocation: 'Office', status: 'Draft', dirty: false };
     }));
   }, [data.timesheets, weekDates, defaultProjectId]);
 
@@ -87,9 +100,17 @@ export default function TimesheetPage() {
 
   const grandTotal = myWeekRows.reduce((sum, r) => sum + computeHours(r.checkInTime, r.checkOutTime), 0);
 
+  const handleCopyToWeek = (sourceRow) => {
+    setMyWeekRows(prev => prev.map(r => {
+      if (r.date === sourceRow.date) return r;
+      if (r.status !== 'Draft' && r.status !== 'Rejected') return r;
+      return { ...r, projectId: sourceRow.projectId, checkInTime: sourceRow.checkInTime, checkOutTime: sourceRow.checkOutTime, workLocation: sourceRow.workLocation, reason: sourceRow.reason, dirty: true };
+    }));
+    toast.success(`Copied ${new Date(sourceRow.date).toLocaleDateString('en-GB', { weekday: 'short' })}'s entry to the rest of the week`);
+  };
+
   const handleSaveRow = async (row) => {
     if (!row.checkInTime || !row.checkOutTime) { toast.error('Punch in and punch out are required'); return; }
-    if (!row.projectId) { toast.error('Select a project'); return; }
     setSavingRow(row.date);
     try {
       const payload = { projectId: row.projectId, date: row.date, checkInTime: row.checkInTime, checkOutTime: row.checkOutTime, reason: row.reason, workLocation: row.workLocation };
@@ -203,7 +224,7 @@ export default function TimesheetPage() {
     { key: 'empName', label: 'Employee', render: (v, row) => <div><p className="font-medium text-text text-sm">{v}</p><p className="text-[10px] text-text-secondary">{row.empId} · {row.department}</p></div> },
     { key: 'project', label: 'Project' },
     { key: 'task', label: 'Task' },
-    { key: 'total', label: 'Hours', render: (v) => <span className="font-semibold text-primary">{v}h</span> },
+    { key: 'total', label: 'Hours', render: (v) => <span className="font-semibold text-primary">{formatHoursHM(v)}</span> },
     { key: 'weekStart', label: 'Week' },
     { key: 'status', label: 'Status', render: (v) => <Badge dot>{v}</Badge> },
     { key: 'actions', label: '', sortable: false, render: (_, row) => (
@@ -236,7 +257,7 @@ export default function TimesheetPage() {
                 {weekRange.start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} - {weekRange.end.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
               </span>
             </div>
-            <p className="text-xs text-text-secondary mt-1">Total this week: <span className="text-text font-semibold">{grandTotal.toFixed(1)}h</span></p>
+            <p className="text-xs text-text-secondary mt-1">Total this week: <span className="text-text font-semibold">{formatHoursHM(grandTotal)}</span></p>
           </div>
           <Button icon={Send} size="sm" onClick={handleSubmitWeek} disabled={submittingWeek || weekAllSubmittedOrApproved}>
             {submittingWeek ? 'Submitting...' : 'Submit Week for Approval'}
@@ -261,12 +282,14 @@ export default function TimesheetPage() {
                 {myWeekRows.map((row, i) => {
                   const editable = row.status === 'Draft' || row.status === 'Rejected';
                   const hrs = computeHours(row.checkInTime, row.checkOutTime);
+                  const billable = !!row.projectId;
                   return (
                     <tr key={row.date} className="border-b border-border/50">
                       <td className="py-2 px-3"><p className="font-medium text-text">{days[i]}</p><p className="text-[10px] text-text-secondary">{row.date}</p></td>
                       <td className="py-2 px-3">
                         <Select value={row.projectId} disabled={!editable} onChange={e => updateRow(row.date, 'projectId', e.target.value)}
-                          options={data.projects.map(p => ({ value: p.id, label: p.name }))} className="w-40" />
+                          options={projectOptions} className="w-48" />
+                        <Badge variant={billable ? 'success' : 'default'} className="mt-1">{billable ? 'Billable' : 'Non-Billable'}</Badge>
                       </td>
                       <td className="py-2 px-3"><input type="time" value={row.checkInTime} disabled={!editable} onChange={e => updateRow(row.date, 'checkInTime', e.target.value)} className="bg-surface-3 border border-border rounded-lg px-2 py-1.5 text-sm text-text disabled:opacity-50" /></td>
                       <td className="py-2 px-3"><input type="time" value={row.checkOutTime} disabled={!editable} onChange={e => updateRow(row.date, 'checkOutTime', e.target.value)} className="bg-surface-3 border border-border rounded-lg px-2 py-1.5 text-sm text-text disabled:opacity-50" /></td>
@@ -275,10 +298,17 @@ export default function TimesheetPage() {
                           options={WORK_LOCATIONS.map(l => ({ value: l, label: l }))} className="w-32" />
                       </td>
                       <td className="py-2 px-3"><Input value={row.reason} disabled={!editable} onChange={e => updateRow(row.date, 'reason', e.target.value)} placeholder="Optional" className="w-36" /></td>
-                      <td className="py-2 px-3 text-center font-semibold text-text">{hrs}h</td>
+                      <td className="py-2 px-3 text-center font-semibold text-text">{formatHoursHM(hrs)}</td>
                       <td className="py-2 px-3 text-center"><Badge variant={statusColors[row.status]}>{row.status}</Badge></td>
                       <td className="py-2 px-3">
-                        {editable && <Button size="sm" variant="secondary" icon={Save} onClick={() => handleSaveRow(row)} disabled={savingRow === row.date}>{savingRow === row.date ? '...' : 'Save'}</Button>}
+                        {editable && (
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="secondary" icon={Save} onClick={() => handleSaveRow(row)} disabled={savingRow === row.date}>{savingRow === row.date ? '...' : 'Save'}</Button>
+                            {row.checkInTime && row.checkOutTime && (
+                              <Button size="sm" variant="secondary" onClick={() => handleCopyToWeek(row)} title="Copy this entry to the rest of the week">Copy to Week</Button>
+                            )}
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

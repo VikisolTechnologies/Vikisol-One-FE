@@ -16,6 +16,13 @@ import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { getProjectMembers, addProjectMember, removeProjectMember } from '../../api/projects';
 
+const PROJECT_COLORS = ['#FF6A00', '#58A6FF', '#A371F7', '#2EA043', '#D29922', '#F85149', '#3FB950', '#DB61A2', '#39C5CF', '#FF8C33'];
+function projectColor(id) {
+  let hash = 0;
+  for (let i = 0; i < String(id).length; i++) hash = (hash * 31 + String(id).charCodeAt(i)) >>> 0;
+  return PROJECT_COLORS[hash % PROJECT_COLORS.length];
+}
+
 export default function ProjectsPage() {
   const { data, projects, projectsSource, projectsLoading } = useData();
   const { user } = useAuth();
@@ -146,11 +153,13 @@ export default function ProjectsPage() {
       ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => setFilters({})} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(p => (
-          <Card key={p.id} hoverable>
+        {filtered.map(p => {
+          const color = projectColor(p.id);
+          return (
+          <Card key={p.id} hoverable className="border-t-[3px]" style={{ borderTopColor: color }}>
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"><FolderKanban size={16} className="text-primary" /></div>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: `${color}22` }}><FolderKanban size={16} style={{ color }} /></div>
                 <div className="min-w-0"><h3 className="text-sm font-semibold text-text truncate">{p.name}</h3><p className="text-xs text-text-secondary">{p.client}</p></div>
               </div>
               <Badge>{p.status}</Badge>
@@ -179,7 +188,7 @@ export default function ProjectsPage() {
               )}
             </div>
           </Card>
-        ))}
+        );})}
       </div>
 
       {/* Create Modal - managers only */}

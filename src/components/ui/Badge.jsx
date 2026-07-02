@@ -14,10 +14,10 @@ const statusMap = {
   Low: 'info', Draft: 'info',
 };
 
-export default function Badge({ children, variant, dot = false }) {
+export default function Badge({ children, variant, dot = false, className = '' }) {
   const v = variant || statusMap[children] || 'default';
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${variants[v]}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${variants[v]} ${className}`}>
       {dot && <span className={`w-1.5 h-1.5 rounded-full bg-current`} />}
       {children}
     </span>

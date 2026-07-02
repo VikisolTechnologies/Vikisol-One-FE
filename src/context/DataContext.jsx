@@ -112,24 +112,26 @@ export function DataProvider({ children }) {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    setLeaveRequestsLoading(true);
+    // Leave types are needed to apply for leave at all, and are open to every authenticated role -
+    // fetch them independently so a failure fetching the request lists below (e.g. transient error)
+    // can never silently leave the Apply Leave form without real leave-type IDs to submit.
     const year = new Date().getFullYear();
+    leaveApi.getLeaveTypes().then(setLeaveTypes).catch(() => setLeaveTypes([]));
+    leaveApi.getMyBalances(year).then(setLeaveBalances).catch(() => setLeaveBalances([]));
+
+    setLeaveRequestsLoading(true);
     // Try the broadest views first (team/pending), fall back to own requests only, then to mock.
     Promise.all([
       leaveApi.getMyLeaveRequests({ size: 200 }),
       leaveApi.getTeamLeaveRequests({ size: 200 }).catch(() => null),
       leaveApi.getPendingApprovals({ size: 200 }).catch(() => null),
-      leaveApi.getLeaveTypes().catch(() => []),
-      leaveApi.getMyBalances(year).catch(() => []),
     ])
-      .then(([mine, team, pending, types, balances]) => {
+      .then(([mine, team, pending]) => {
         const byId = new Map();
         (mine.items || []).forEach(l => byId.set(l.id, l));
         (team?.items || []).forEach(l => byId.set(l.id, l));
         (pending?.items || []).forEach(l => byId.set(l.id, l));
         setData(prev => ({ ...prev, leaveRequests: Array.from(byId.values()) }));
-        setLeaveTypes(types);
-        setLeaveBalances(balances);
         setLeaveRequestsSource('live');
       })
       .catch(() => {

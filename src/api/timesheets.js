@@ -20,8 +20,9 @@ export function adaptEntry(e) {
     empId: e.employeeId,
     empName: e.employeeName,
     department: '',
-    project: e.projectName || '',
-    projectId: e.projectId,
+    project: e.projectName || 'Bench',
+    projectId: e.projectId || '',
+    billable: !!e.billable,
     task: e.taskTitle || '',
     taskId: e.taskId,
     weekStart: e.date,
@@ -39,9 +40,10 @@ export function adaptEntry(e) {
   };
 }
 
+// projectId of '' or falsy means Bench (non-billable, no project)
 export async function createEntry({ projectId, taskId, date, hours, description, checkInTime, checkOutTime, reason, workLocation } = {}) {
   return adaptEntry(await api.post('/timesheets', {
-    projectId, taskId: taskId || null, date, hours: hours ?? null, description: description || null,
+    projectId: projectId || null, taskId: taskId || null, date, hours: hours ?? null, description: description || null,
     checkInTime: checkInTime || null, checkOutTime: checkOutTime || null, reason: reason || null,
     workLocation: LOCATION_TO_BE[workLocation] || 'OFFICE',
   }));
@@ -49,7 +51,7 @@ export async function createEntry({ projectId, taskId, date, hours, description,
 
 export async function updateEntry(id, { projectId, taskId, date, hours, description, checkInTime, checkOutTime, reason, workLocation } = {}) {
   return adaptEntry(await api.put(`/timesheets/${id}`, {
-    projectId, taskId: taskId || null, date, hours: hours ?? null, description: description || null,
+    projectId: projectId || null, taskId: taskId || null, date, hours: hours ?? null, description: description || null,
     checkInTime: checkInTime || null, checkOutTime: checkOutTime || null, reason: reason || null,
     workLocation: LOCATION_TO_BE[workLocation] || 'OFFICE',
   }));

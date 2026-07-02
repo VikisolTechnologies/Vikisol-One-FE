@@ -54,7 +54,13 @@ export default function LeaveManagement() {
     return matchSearch && matchType && matchStatus && matchDept;
   }), [allLeaves, search, filters]);
 
+  const openApplyModal = () => {
+    setForm({ type: 'Casual Leave', leaveTypeId: leaveTypes.length ? leaveTypes[0].id : '', from: '', to: '', reason: '' });
+    setShowApply(true);
+  };
+
   const handleApply = async () => {
+    if (leaveTypes.length && !form.leaveTypeId) { toast.error('Please select a leave type'); return; }
     if (!form.from || !form.to) { toast.error('Please select dates'); return; }
     if (!form.reason) { toast.error('Please enter a reason'); return; }
     const days = Math.max(1, Math.ceil((new Date(form.to) - new Date(form.from)) / 86400000) + 1);
@@ -185,7 +191,7 @@ export default function LeaveManagement() {
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" icon={Calendar} size="sm" onClick={() => setShowHolidays(true)}>Holidays</Button>
-          {(isEmployee || user?.role === 'manager') && <Button icon={Plus} size="sm" onClick={() => setShowApply(true)}>Apply Leave</Button>}
+          {(isEmployee || user?.role === 'manager') && <Button icon={Plus} size="sm" onClick={openApplyModal}>Apply Leave</Button>}
         </div>
       </div>
 
@@ -269,8 +275,8 @@ export default function LeaveManagement() {
       {/* Apply Leave */}
       <Modal open={showApply} onClose={() => setShowApply(false)} title="Apply Leave">
         <div className="space-y-4">
-          {isLive && leaveTypes.length ? (
-            <Select label="Leave Type" value={form.leaveTypeId} onChange={e => setForm(p => ({ ...p, leaveTypeId: e.target.value }))} options={leaveTypes.map(t => ({ value: t.id, label: t.name }))} />
+          {leaveTypes.length ? (
+            <Select label="Leave Type *" value={form.leaveTypeId} onChange={e => setForm(p => ({ ...p, leaveTypeId: e.target.value }))} options={leaveTypes.map(t => ({ value: t.id, label: t.name }))} placeholder="Select leave type" />
           ) : (
             <Select label="Leave Type" value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} options={['Casual Leave','Sick Leave','Earned Leave','Comp Off','Work From Home','Half Day'].map(t => ({ value: t, label: t }))} />
           )}
