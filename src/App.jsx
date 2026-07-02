@@ -14,6 +14,7 @@ import LeaveManagement from './pages/leave/LeaveManagement';
 import AttendancePage from './pages/attendance/AttendancePage';
 import PayrollPage from './pages/payroll/PayrollPage';
 import RecruitmentPage from './pages/recruitment/RecruitmentPage';
+import NewHiresPage from './pages/recruitment/NewHiresPage';
 import TimesheetPage from './pages/timesheets/TimesheetPage';
 import ProjectsPage from './pages/projects/ProjectsPage';
 import TicketsPage from './pages/tickets/TicketsPage';
@@ -47,6 +48,7 @@ export default function App() {
                         <Route path="/attendance" element={<AttendancePage />} />
                         <Route path="/payroll" element={<PayrollPage />} />
                         <Route path="/recruitment" element={<RecruitmentPage />} />
+                        <Route path="/new-hires" element={<NewHiresPage />} />
                         <Route path="/timesheets" element={<TimesheetPage />} />
                         <Route path="/projects" element={<ProjectsPage />} />
                         <Route path="/tickets" element={<TicketsPage />} />

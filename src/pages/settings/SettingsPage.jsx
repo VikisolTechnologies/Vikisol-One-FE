@@ -15,7 +15,7 @@ import { updateSetting, getRolePermissionMatrix, updateRolePermissionMatrix } fr
 import { getCtcBreakupTemplate, updateCtcBreakupTemplate } from '../../api/payroll';
 
 const MODULE_LABELS = {
-  dashboard: 'Dashboard', employees: 'Employees', recruitment: 'Recruitment', projects: 'Projects',
+  dashboard: 'Dashboard', employees: 'Employees', recruitment: 'Recruitment', 'new-hires': 'New Hires', projects: 'Projects',
   resources: 'Resources', attendance: 'Attendance', leave: 'Leave', payroll: 'Payroll',
   timesheets: 'Timesheets', tickets: 'Tickets', assets: 'Assets', performance: 'Performance',
   'org-chart': 'Org Chart', reports: 'Reports', documents: 'Documents', settings: 'Settings',

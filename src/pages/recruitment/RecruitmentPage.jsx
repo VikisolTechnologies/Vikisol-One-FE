@@ -44,25 +44,30 @@ export default function RecruitmentPage() {
   }, [offerForm.offeredCtc]);
 
   const openOfferModal = (candidate) => {
-    setOfferForm({ designationId: '', departmentId: '', offeredCtc: candidate.expectedSalary || '', dateOfJoining: '' });
+    setOfferForm({
+      designationId: candidate.offeredDesignationId || '',
+      departmentId: candidate.offeredDepartmentId || '',
+      offeredCtc: candidate.offeredCtc || candidate.expectedSalary || '',
+      dateOfJoining: candidate.offeredDateOfJoining || '',
+    });
     setOfferBreakup(null);
     setOfferCandidate(candidate);
   };
 
-  const handleSelectCandidate = async () => {
-    if (candidatesSource !== 'live') { toast.error('Connect to the live backend to select candidates and send offers'); return; }
+  const handleProposeSelection = async () => {
+    if (candidatesSource !== 'live') { toast.error('Connect to the live backend to submit offer proposals'); return; }
     if (!offerForm.designationId || !offerForm.departmentId || !offerForm.offeredCtc || !offerForm.dateOfJoining) {
       toast.error('Designation, department, CTC and date of joining are required');
       return;
     }
     setOfferSubmitting(true);
     try {
-      const result = await candidates.select(offerCandidate.id, offerForm);
-      toast.success(`${offerCandidate.name} selected — Employee ID ${result.employeeId} generated, offer email sent`);
+      await candidates.proposeSelection(offerCandidate.id, offerForm);
+      toast.success(`${offerCandidate.name}'s offer proposal submitted for manager approval`);
       setOfferCandidate(null);
       setSelected(null);
     } catch (err) {
-      toast.error(err.message || 'Failed to select candidate');
+      toast.error(err.message || 'Failed to submit offer proposal');
     } finally {
       setOfferSubmitting(false);
     }
@@ -187,9 +192,11 @@ export default function RecruitmentPage() {
                       <div key={c.id} className="bg-surface-2 border border-border rounded-xl p-4 hover:border-primary/30 transition-colors">
                         <div className="flex items-center gap-3 mb-2"><Avatar name={c.name} size="sm" /><div className="min-w-0 flex-1"><p className="text-sm font-medium text-text truncate">{c.name}</p><p className="text-xs text-text-secondary">{c.role}</p></div></div>
                         <div className="flex items-center gap-2 mb-2"><ProgressBar value={c.score} max={100} size="sm" color={c.score >= 80 ? 'success' : 'warning'} /><span className="text-xs font-semibold">{c.score}%</span></div>
+                        {c.status === 'PENDING_APPROVAL' && <div className="mb-2 text-[10px] px-2 py-1 bg-warning/10 text-warning rounded-lg font-medium">Awaiting manager approval</div>}
+                        {c.status === 'REVISION_REQUESTED' && <div className="mb-2 text-[10px] px-2 py-1 bg-danger/10 text-danger rounded-lg"><p className="font-medium">Manager requested changes:</p><p className="mt-0.5">{c.managerRemarks}</p></div>}
                         <div className="flex gap-1">
-                          {nextStage && nextStage !== 'Hired' && nextStage !== 'Rejected' && <button onClick={() => moveStage(c, nextStage)} className="flex-1 text-[10px] py-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 font-medium">→ {nextStage}</button>}
-                          {c.stage === 'HR' && !c.convertedEmployeeId && <button onClick={() => openOfferModal(c)} className="flex-1 text-[10px] py-1.5 bg-success/10 text-success rounded-lg hover:bg-success/20 font-medium">Select</button>}
+                          {nextStage && nextStage !== 'Hired' && nextStage !== 'Rejected' && !c.convertedEmployeeId && c.status !== 'PENDING_APPROVAL' && <button onClick={() => moveStage(c, nextStage)} className="flex-1 text-[10px] py-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 font-medium">→ {nextStage}</button>}
+                          {c.stage === 'HR' && !c.convertedEmployeeId && c.status !== 'PENDING_APPROVAL' && <button onClick={() => openOfferModal(c)} className="flex-1 text-[10px] py-1.5 bg-success/10 text-success rounded-lg hover:bg-success/20 font-medium">{c.status === 'REVISION_REQUESTED' ? 'Resubmit' : 'Submit for Approval'}</button>}
                           {c.convertedEmployeeId && <span className="flex-1 text-[10px] py-1.5 text-center bg-surface-3 text-text-secondary rounded-lg font-medium">{c.convertedEmployeeId}</span>}
                           <button onClick={() => handleReject(c)} className="text-[10px] py-1.5 px-2 bg-danger/10 text-danger rounded-lg hover:bg-danger/20">✕</button>
                           <button onClick={() => setSelected(c)} className="text-[10px] py-1.5 px-2 bg-surface-3 text-text-secondary rounded-lg hover:bg-surface-4">View</button>
@@ -227,10 +234,19 @@ export default function RecruitmentPage() {
               <div className="flex flex-col gap-2">
                 <Button size="sm" icon={Calendar} onClick={() => { handleScheduleInterview(selected); setSelected(null); }}>Schedule Interview</Button>
                 <Button size="sm" variant="secondary" icon={Mail} onClick={() => { toast.info(`Email sent to ${selected.name}`); }}>Send Email</Button>
-                {selected.stage === 'HR' && !selected.convertedEmployeeId && <Button size="sm" variant="secondary" icon={FileText} onClick={() => openOfferModal(selected)}>Select & Send Offer</Button>}
+                {selected.stage === 'HR' && !selected.convertedEmployeeId && selected.status !== 'PENDING_APPROVAL' && (
+                  <Button size="sm" variant="secondary" icon={FileText} onClick={() => openOfferModal(selected)}>{selected.status === 'REVISION_REQUESTED' ? 'Resubmit Proposal' : 'Submit for Approval'}</Button>
+                )}
+                {selected.status === 'PENDING_APPROVAL' && <Badge variant="warning">Awaiting manager approval</Badge>}
                 {selected.convertedEmployeeId && <Badge variant="success">Employee {selected.convertedEmployeeId}</Badge>}
               </div>
             </div>
+            {selected.status === 'REVISION_REQUESTED' && selected.managerRemarks && (
+              <div className="p-3 bg-danger/5 border border-danger/20 rounded-xl">
+                <p className="text-xs text-danger font-semibold">Manager requested changes</p>
+                <p className="text-xs text-text-secondary mt-0.5">{selected.managerRemarks}</p>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-4 text-sm">
               {[['Experience', selected.experience], ['Current CTC', selected.currentCTC], ['Expected CTC', selected.expectedCTC], ['Notice Period', selected.noticePeriod], ['Current Company', selected.currentCompany], ['Location', selected.location], ['Applied Date', selected.appliedDate], ['Score', `${selected.score}%`], ['Interviewer', selected.interviewer]].map(([k, v]) => (
                 <div key={k}><p className="text-xs text-text-secondary">{k}</p><p className="text-text font-medium mt-0.5">{v || '-'}</p></div>
@@ -247,13 +263,19 @@ export default function RecruitmentPage() {
         )}
       </Modal>
 
-      <Modal open={!!offerCandidate} onClose={() => setOfferCandidate(null)} title="Select Candidate & Send Offer" size="lg">
+      <Modal open={!!offerCandidate} onClose={() => setOfferCandidate(null)} title="Submit Offer Proposal for Approval" size="lg">
         {offerCandidate && (
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-3 bg-surface-3 rounded-xl">
               <Avatar name={offerCandidate.name} size="md" />
               <div><p className="font-medium text-text">{offerCandidate.name}</p><p className="text-xs text-text-secondary">{offerCandidate.email}</p></div>
             </div>
+            {offerCandidate.status === 'REVISION_REQUESTED' && offerCandidate.managerRemarks && (
+              <div className="p-3 bg-danger/5 border border-danger/20 rounded-xl">
+                <p className="text-xs text-danger font-semibold">Manager requested changes</p>
+                <p className="text-xs text-text-secondary mt-0.5">{offerCandidate.managerRemarks}</p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <Select label="Designation *" value={offerForm.designationId} onChange={e => setOfferForm(p => ({ ...p, designationId: e.target.value }))}
                 options={(lookups.designations || []).map(d => ({ value: d.id, label: d.title }))} placeholder="Select designation" />
@@ -270,8 +292,8 @@ export default function RecruitmentPage() {
                 ))}
               </div>
             )}
-            <p className="text-xs text-text-secondary">Selecting this candidate will generate their Employee ID and email a congratulations/offer letter with this breakup to {offerCandidate.email}.</p>
-            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOfferCandidate(null)}>Cancel</Button><Button onClick={handleSelectCandidate} disabled={offerSubmitting}>{offerSubmitting ? 'Sending...' : 'Select & Send Offer'}</Button></div>
+            <p className="text-xs text-text-secondary">This submits the proposal to a manager for approval. Nothing is emailed to {offerCandidate.email} until the manager approves it.</p>
+            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOfferCandidate(null)}>Cancel</Button><Button onClick={handleProposeSelection} disabled={offerSubmitting}>{offerSubmitting ? 'Submitting...' : 'Submit for Approval'}</Button></div>
           </div>
         )}
       </Modal>

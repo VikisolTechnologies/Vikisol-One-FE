@@ -7,6 +7,9 @@ const STATUS_TO_FE = {
   REJECTED: 'Rejected',
 };
 
+const LOCATION_TO_FE = { OFFICE: 'Office', REMOTE: 'Remote', CLIENT_LOCATION: 'Client Location' };
+const LOCATION_TO_BE = { Office: 'OFFICE', Remote: 'REMOTE', 'Client Location': 'CLIENT_LOCATION' };
+
 // Maps backend TimesheetEntryResponse -> shape the mock-driven TimesheetPage.jsx UI expects
 // (see generateTimesheets in src/data/generator.js for the mock shape). Each backend entry is a
 // single day/project/hours row rather than a weekly grid, so the FE list view treats one entry as one row.
@@ -25,6 +28,10 @@ export function adaptEntry(e) {
     date: e.date,
     hours: [e.hours || 0],
     total: e.hours || 0,
+    checkInTime: e.checkInTime || '',
+    checkOutTime: e.checkOutTime || '',
+    reason: e.reason || '',
+    workLocation: LOCATION_TO_FE[e.workLocation] || 'Office',
     status: STATUS_TO_FE[e.status] || e.status,
     description: e.description || '',
     approvedBy: e.approvedById,
@@ -32,12 +39,20 @@ export function adaptEntry(e) {
   };
 }
 
-export async function createEntry({ projectId, taskId, date, hours, description } = {}) {
-  return adaptEntry(await api.post('/timesheets', { projectId, taskId: taskId || null, date, hours, description: description || null }));
+export async function createEntry({ projectId, taskId, date, hours, description, checkInTime, checkOutTime, reason, workLocation } = {}) {
+  return adaptEntry(await api.post('/timesheets', {
+    projectId, taskId: taskId || null, date, hours: hours ?? null, description: description || null,
+    checkInTime: checkInTime || null, checkOutTime: checkOutTime || null, reason: reason || null,
+    workLocation: LOCATION_TO_BE[workLocation] || 'OFFICE',
+  }));
 }
 
-export async function updateEntry(id, { projectId, taskId, date, hours, description } = {}) {
-  return adaptEntry(await api.put(`/timesheets/${id}`, { projectId, taskId: taskId || null, date, hours, description: description || null }));
+export async function updateEntry(id, { projectId, taskId, date, hours, description, checkInTime, checkOutTime, reason, workLocation } = {}) {
+  return adaptEntry(await api.put(`/timesheets/${id}`, {
+    projectId, taskId: taskId || null, date, hours: hours ?? null, description: description || null,
+    checkInTime: checkInTime || null, checkOutTime: checkOutTime || null, reason: reason || null,
+    workLocation: LOCATION_TO_BE[workLocation] || 'OFFICE',
+  }));
 }
 
 export async function submitEntries(entryIds) {

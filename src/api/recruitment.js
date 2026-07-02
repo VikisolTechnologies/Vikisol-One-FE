@@ -10,6 +10,8 @@ const STAGE_TO_FE = {
   SHORTLISTED: 'Technical',
   INTERVIEW_SCHEDULED: 'Manager',
   INTERVIEWED: 'HR',
+  PENDING_APPROVAL: 'HR',
+  REVISION_REQUESTED: 'HR',
   SELECTED: 'HR',
   OFFER_MADE: 'Offered',
   OFFER_ACCEPTED: 'Offered',
@@ -75,9 +77,13 @@ export function adaptCandidate(c) {
     feedback: c.notes || null,
     resume: c.resumeUrl || 'resume.pdf',
     offeredCtc: c.offeredCtc,
+    offeredDesignationId: c.offeredDesignationId,
     offeredDesignationTitle: c.offeredDesignationTitle,
+    offeredDepartmentId: c.offeredDepartmentId,
+    offeredDepartmentName: c.offeredDepartmentName,
     offeredDateOfJoining: c.offeredDateOfJoining,
     convertedEmployeeId: c.convertedEmployeeId || null,
+    managerRemarks: c.managerRemarks || null,
   };
 }
 
@@ -132,15 +138,26 @@ export async function updateCandidateStatus(id, feStage) {
   return adaptCandidate(await api.put(`/recruitment/candidates/${id}/status?status=${status}`));
 }
 
-// Marks the candidate SELECTED, creates their Employee record + employee ID using the
-// CEO's standard CTC breakup, and emails the offer/congratulations letter.
-export async function selectCandidate(id, { designationId, departmentId, offeredCtc, dateOfJoining }) {
-  return api.post(`/recruitment/candidates/${id}/select`, {
+// Recruiter proposes CTC/designation/department/joining date for manager approval.
+// Does NOT send an offer letter by itself - a manager must approve first.
+export async function proposeSelection(id, { designationId, departmentId, offeredCtc, dateOfJoining }) {
+  return adaptCandidate(await api.post(`/recruitment/candidates/${id}/propose-selection`, {
     designationId,
     departmentId,
     offeredCtc: Number(offeredCtc),
     dateOfJoining,
-  });
+  }));
+}
+
+// Manager approves a pending proposal: creates the Employee record + employee ID using the
+// CEO's standard CTC breakup, and emails the offer/congratulations letter.
+export async function approveSelection(id) {
+  return api.post(`/recruitment/candidates/${id}/approve-selection`);
+}
+
+// Manager sends the proposal back to the recruiter with remarks.
+export async function requestRevision(id, remarks) {
+  return adaptCandidate(await api.post(`/recruitment/candidates/${id}/request-revision`, { remarks }));
 }
 
 // ─── Job Postings ───

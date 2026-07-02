@@ -411,7 +411,18 @@ export function DataProvider({ children }) {
     } else if (updates.status === 'Rejected') {
       updated = await timesheetsApi.rejectEntry(id);
     } else {
-      updated = { ...data.timesheets.find(t => t.id === id), ...updates };
+      const merged = { ...data.timesheets.find(t => t.id === id), ...updates };
+      updated = await timesheetsApi.updateEntry(id, {
+        projectId: merged.projectId,
+        taskId: merged.taskId,
+        date: merged.date,
+        hours: merged.total ?? (Array.isArray(merged.hours) ? merged.hours[0] : merged.hours),
+        description: merged.description,
+        checkInTime: merged.checkInTime,
+        checkOutTime: merged.checkOutTime,
+        reason: merged.reason,
+        workLocation: merged.workLocation,
+      });
     }
     setData(prev => ({ ...prev, timesheets: prev.timesheets.map(t => t.id === id ? updated : t) }));
     return updated;
@@ -508,11 +519,21 @@ export function DataProvider({ children }) {
         await recruitmentApi.deleteCandidate(id);
         setData(prev => ({ ...prev, candidates: prev.candidates.filter(c => c.id !== id) }));
       },
-      select: async (id, offer) => {
-        const result = await recruitmentApi.selectCandidate(id, offer);
+      proposeSelection: async (id, offer) => {
+        const updated = await recruitmentApi.proposeSelection(id, offer);
+        setData(prev => ({ ...prev, candidates: prev.candidates.map(c => c.id === id ? updated : c) }));
+        return updated;
+      },
+      approveSelection: async (id) => {
+        const result = await recruitmentApi.approveSelection(id);
         const refreshed = await recruitmentApi.getCandidate(id);
         setData(prev => ({ ...prev, candidates: prev.candidates.map(c => c.id === id ? refreshed : c) }));
         return result;
+      },
+      requestRevision: async (id, remarks) => {
+        const updated = await recruitmentApi.requestRevision(id, remarks);
+        setData(prev => ({ ...prev, candidates: prev.candidates.map(c => c.id === id ? updated : c) }));
+        return updated;
       },
     };
   }, [candidatesSource, mockCandidatesCrud, data.candidates]);

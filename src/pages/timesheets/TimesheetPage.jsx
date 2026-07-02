@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
-import { Check, X, ChevronLeft, ChevronRight, Save, Send, Eye } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Check, X, Save, Send, Eye } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import Input, { Select } from '../../components/ui/Input';
 import SelectableTable from '../../components/ui/SelectableTable';
 import BulkActions from '../../components/ui/BulkActions';
 import Breadcrumb from '../../components/ui/Breadcrumb';
@@ -17,6 +18,15 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useAuth } from '../../context/AuthContext';
 
 const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WORK_LOCATIONS = ['Office', 'Remote', 'Client Location'];
+
+function computeHours(checkIn, checkOut) {
+  if (!checkIn || !checkOut) return 0;
+  const [inH, inM] = checkIn.split(':').map(Number);
+  const [outH, outM] = checkOut.split(':').map(Number);
+  const mins = (outH * 60 + outM) - (inH * 60 + inM);
+  return mins > 0 ? Math.round((mins / 60) * 100) / 100 : 0;
+}
 
 export default function TimesheetPage() {
   const { data, timesheets, timesheetsSource, timesheetsLoading } = useData();
@@ -34,56 +44,7 @@ export default function TimesheetPage() {
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(null);
 
-  // Employee's own timesheet
-  const [myStatus, setMyStatus] = useState('Draft');
-  const [myProjects, setMyProjects] = useState([
-    { name: 'Vikisol Website Redesign', task: 'UI Development', hours: [8, 8, 8, 8, 8, 4, 0], total: 44 },
-    { name: 'Mobile App Development', task: 'API Integration', hours: [0, 0, 0, 0, 0, 4, 0], total: 4 },
-  ]);
-
-  const updateHour = (pi, di, val) => {
-    if (myStatus === 'Approved' || myStatus === 'Submitted') return;
-    setMyProjects(prev => prev.map((p, i) => {
-      if (i !== pi) return p;
-      const hours = [...p.hours]; hours[di] = Math.max(0, Math.min(24, parseInt(val) || 0));
-      return { ...p, hours, total: hours.reduce((a, b) => a + b, 0) };
-    }));
-  };
-
-  const grandTotal = myProjects.reduce((sum, p) => sum + p.total, 0);
-
-  const handleSaveDraft = () => { setMyStatus('Draft'); toast.info('Timesheet saved as draft'); };
-  const handleSubmit = async () => {
-    if (grandTotal === 0) { toast.error('Cannot submit empty timesheet'); return; }
-    const ok = await confirm({ title: 'Submit Timesheet?', message: `Submit ${grandTotal} hours for this week? Your manager will be notified for approval.`, type: 'info', confirmText: 'Submit' });
-    if (!ok) return;
-    try {
-      if (timesheetsSource === 'live') {
-        // The backend models one entry per day/project. For a plain employee, data.timesheets is
-        // already scoped to just their own entries (the team endpoint 403s and falls back to
-        // getMyEntries), so no extra employee-id filtering is needed here - it used to compare
-        // t.empId (an Employee UUID) against user.id (the auth User UUID), which could never match.
-        const myDraftIds = data.timesheets.filter(t => t.status === 'Draft').map(t => t.id);
-        if (myDraftIds.length > 0) await timesheets.submit(myDraftIds);
-      }
-      setMyStatus('Submitted');
-      toast.success('Timesheet submitted for manager approval');
-    } catch (err) {
-      toast.error(err.message || 'Failed to submit timesheet');
-    }
-  };
-  const handleRecall = async () => {
-    const ok = await confirm({ title: 'Recall Timesheet?', message: 'Recall this timesheet to make changes?', type: 'warning', confirmText: 'Recall' });
-    if (ok) { setMyStatus('Draft'); toast.info('Timesheet recalled. You can edit and resubmit.'); }
-  };
-
-  // Team timesheets (for managers)
-  const teamTimesheets = useMemo(() => {
-    if (isEmployee) return [];
-    return data.timesheets;
-  }, [data.timesheets, isEmployee]);
-
-  // This week's Mon-Sun range, and which direct reports have/haven't raised a timesheet for it
+  // This week's Mon-Sun range (also reused by the manager compliance view below)
   const weekRange = useMemo(() => {
     const now = new Date();
     const dow = now.getDay(); // 0=Sun..6=Sat
@@ -92,6 +53,84 @@ export default function TimesheetPage() {
     const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
     return { start: monday, end: sunday };
   }, []);
+
+  const weekDates = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(weekRange.start); d.setDate(weekRange.start.getDate() + i);
+      return d.toISOString().split('T')[0];
+    });
+  }, [weekRange]);
+
+  const defaultProjectId = data.projects[0]?.id || '';
+
+  // Employee's own timesheet - one punch-based row per day of the current week
+  const [myWeekRows, setMyWeekRows] = useState(() => weekDates.map(date => ({
+    date, id: null, projectId: defaultProjectId, checkInTime: '', checkOutTime: '', reason: '', workLocation: 'Office', status: 'Draft', dirty: false,
+  })));
+  const [savingRow, setSavingRow] = useState(null);
+  const [submittingWeek, setSubmittingWeek] = useState(false);
+
+  // Re-sync from the real backend entries whenever they load/change, without clobbering unsaved edits
+  useEffect(() => {
+    setMyWeekRows(prev => weekDates.map((date, i) => {
+      const existing = data.timesheets.find(t => t.date === date && t.status !== 'Rejected');
+      if (existing) {
+        return { date, id: existing.id, projectId: existing.projectId || defaultProjectId, checkInTime: existing.checkInTime || '', checkOutTime: existing.checkOutTime || '', reason: existing.reason || '', workLocation: existing.workLocation || 'Office', status: existing.status, dirty: false };
+      }
+      return prev[i]?.dirty ? prev[i] : { date, id: null, projectId: defaultProjectId, checkInTime: '', checkOutTime: '', reason: '', workLocation: 'Office', status: 'Draft', dirty: false };
+    }));
+  }, [data.timesheets, weekDates, defaultProjectId]);
+
+  const updateRow = (date, field, value) => {
+    setMyWeekRows(prev => prev.map(r => r.date === date && (r.status === 'Draft' || r.status === 'Rejected') ? { ...r, [field]: value, dirty: true } : r));
+  };
+
+  const grandTotal = myWeekRows.reduce((sum, r) => sum + computeHours(r.checkInTime, r.checkOutTime), 0);
+
+  const handleSaveRow = async (row) => {
+    if (!row.checkInTime || !row.checkOutTime) { toast.error('Punch in and punch out are required'); return; }
+    if (!row.projectId) { toast.error('Select a project'); return; }
+    setSavingRow(row.date);
+    try {
+      const payload = { projectId: row.projectId, date: row.date, checkInTime: row.checkInTime, checkOutTime: row.checkOutTime, reason: row.reason, workLocation: row.workLocation };
+      if (row.id) await timesheets.update(row.id, payload);
+      else await timesheets.create(payload);
+      toast.success(`Saved ${new Date(row.date).toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to save timesheet entry');
+    } finally {
+      setSavingRow(null);
+    }
+  };
+
+  const handleSubmitWeek = async () => {
+    const readyRows = myWeekRows.filter(r => r.checkInTime && r.checkOutTime);
+    if (readyRows.length === 0) { toast.error('Log at least one day before submitting'); return; }
+    const ok = await confirm({ title: 'Submit Timesheet?', message: `Submit ${grandTotal.toFixed(1)} hours for this week? Your manager will be notified for approval.`, type: 'info', confirmText: 'Submit' });
+    if (!ok) return;
+    setSubmittingWeek(true);
+    try {
+      // Save any unsaved rows first so they exist as entries the backend can submit
+      for (const row of readyRows.filter(r => r.dirty || !r.id)) {
+        const payload = { projectId: row.projectId, date: row.date, checkInTime: row.checkInTime, checkOutTime: row.checkOutTime, reason: row.reason, workLocation: row.workLocation };
+        if (row.id) await timesheets.update(row.id, payload);
+        else await timesheets.create(payload);
+      }
+      const draftIds = data.timesheets.filter(t => t.status === 'Draft' && weekDates.includes(t.date)).map(t => t.id);
+      if (draftIds.length > 0) await timesheets.submit(draftIds);
+      toast.success('Timesheet submitted for manager approval');
+    } catch (err) {
+      toast.error(err.message || 'Failed to submit timesheet');
+    } finally {
+      setSubmittingWeek(false);
+    }
+  };
+
+  // Team timesheets (for managers)
+  const teamTimesheets = useMemo(() => {
+    if (isEmployee) return [];
+    return data.timesheets;
+  }, [data.timesheets, isEmployee]);
 
   const teamRoster = useMemo(() => {
     if (isEmployee) return [];
@@ -182,7 +221,7 @@ export default function TimesheetPage() {
 
   const statusColors = { Draft: 'default', Submitted: 'warning', Approved: 'success', Rejected: 'danger' };
   const pendingCount = teamTimesheets.filter(t => t.status === 'Submitted' || t.status === 'Pending').length;
-  const isLocked = myStatus === 'Submitted' || myStatus === 'Approved';
+  const weekAllSubmittedOrApproved = myWeekRows.every(r => !r.checkInTime || r.status === 'Submitted' || r.status === 'Approved');
 
   const tabs = [];
 
@@ -193,59 +232,57 @@ export default function TimesheetPage() {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <button className="p-1 hover:bg-surface-3 rounded text-text-secondary"><ChevronLeft size={16} /></button>
-              <span className="text-sm text-text font-medium">23 Jun - 29 Jun 2026</span>
-              <button className="p-1 hover:bg-surface-3 rounded text-text-secondary"><ChevronRight size={16} /></button>
+              <span className="text-sm text-text font-medium">
+                {weekRange.start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} - {weekRange.end.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>
             </div>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant={statusColors[myStatus]}>{myStatus}</Badge>
-              {myStatus === 'Submitted' && <span className="text-[10px] text-text-secondary">Waiting for manager approval</span>}
-              {myStatus === 'Approved' && <span className="text-[10px] text-success">Approved by Rohit Sharma</span>}
-            </div>
+            <p className="text-xs text-text-secondary mt-1">Total this week: <span className="text-text font-semibold">{grandTotal.toFixed(1)}h</span></p>
           </div>
-          <div className="flex gap-2">
-            {myStatus === 'Draft' && <Button variant="secondary" icon={Save} size="sm" onClick={handleSaveDraft}>Save Draft</Button>}
-            {myStatus === 'Draft' && <Button icon={Send} size="sm" onClick={handleSubmit}>Submit for Approval</Button>}
-            {myStatus === 'Submitted' && <Button variant="secondary" size="sm" onClick={handleRecall}>Recall</Button>}
-            {myStatus === 'Rejected' && <Button icon={Send} size="sm" onClick={() => { setMyStatus('Draft'); toast.info('You can now edit and resubmit'); }}>Edit & Resubmit</Button>}
-          </div>
+          <Button icon={Send} size="sm" onClick={handleSubmitWeek} disabled={submittingWeek || weekAllSubmittedOrApproved}>
+            {submittingWeek ? 'Submitting...' : 'Submit Week for Approval'}
+          </Button>
         </div>
-
-        {myStatus === 'Rejected' && (
-          <div className="p-3 bg-danger/5 border border-danger/20 rounded-xl">
-            <p className="text-xs text-danger font-semibold">Rejected by Rohit Sharma</p>
-            <p className="text-xs text-text-secondary mt-0.5">Reason: "Please log hours for Internal Project as well"</p>
-          </div>
-        )}
 
         <Card padding={false}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b border-border">
-                <th className="text-left py-3 px-4 text-xs font-semibold text-text-secondary w-64">Project / Task</th>
-                {days.map(d => <th key={d} className="text-center py-3 px-2 text-xs font-semibold text-text-secondary w-16">{d}</th>)}
-                <th className="text-center py-3 px-4 text-xs font-semibold text-text-secondary">Total</th>
+                <th className="text-left py-3 px-3 text-xs font-semibold text-text-secondary">Day</th>
+                <th className="text-left py-3 px-3 text-xs font-semibold text-text-secondary">Project</th>
+                <th className="text-left py-3 px-3 text-xs font-semibold text-text-secondary">Punch In</th>
+                <th className="text-left py-3 px-3 text-xs font-semibold text-text-secondary">Punch Out</th>
+                <th className="text-left py-3 px-3 text-xs font-semibold text-text-secondary">Location</th>
+                <th className="text-left py-3 px-3 text-xs font-semibold text-text-secondary">Reason</th>
+                <th className="text-center py-3 px-3 text-xs font-semibold text-text-secondary">Hours</th>
+                <th className="text-center py-3 px-3 text-xs font-semibold text-text-secondary">Status</th>
+                <th className="py-3 px-3"></th>
               </tr></thead>
               <tbody>
-                {myProjects.map((p, pi) => (
-                  <tr key={pi} className="border-b border-border/50">
-                    <td className="py-3 px-4"><p className="font-medium text-text">{p.name}</p><p className="text-xs text-text-secondary">{p.task}</p></td>
-                    {p.hours.map((h, di) => (
-                      <td key={di} className="py-2 px-1 text-center">
-                        <input type="number" value={h} onChange={e => updateHour(pi, di, e.target.value)}
-                          disabled={isLocked}
-                          className={`w-12 h-9 bg-surface-3 border border-border rounded-lg text-center text-sm text-text focus:outline-none focus:border-primary mx-auto ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          min="0" max="24" />
+                {myWeekRows.map((row, i) => {
+                  const editable = row.status === 'Draft' || row.status === 'Rejected';
+                  const hrs = computeHours(row.checkInTime, row.checkOutTime);
+                  return (
+                    <tr key={row.date} className="border-b border-border/50">
+                      <td className="py-2 px-3"><p className="font-medium text-text">{days[i]}</p><p className="text-[10px] text-text-secondary">{row.date}</p></td>
+                      <td className="py-2 px-3">
+                        <Select value={row.projectId} disabled={!editable} onChange={e => updateRow(row.date, 'projectId', e.target.value)}
+                          options={data.projects.map(p => ({ value: p.id, label: p.name }))} className="w-40" />
                       </td>
-                    ))}
-                    <td className="py-3 px-4 text-center font-semibold text-text">{p.total}h</td>
-                  </tr>
-                ))}
-                <tr className="bg-surface-3/50">
-                  <td className="py-3 px-4 font-semibold text-text">Total</td>
-                  {days.map((_, di) => <td key={di} className="py-3 px-2 text-center font-semibold text-text">{myProjects.reduce((s, p) => s + p.hours[di], 0)}h</td>)}
-                  <td className="py-3 px-4 text-center font-bold text-primary text-lg">{grandTotal}h</td>
-                </tr>
+                      <td className="py-2 px-3"><input type="time" value={row.checkInTime} disabled={!editable} onChange={e => updateRow(row.date, 'checkInTime', e.target.value)} className="bg-surface-3 border border-border rounded-lg px-2 py-1.5 text-sm text-text disabled:opacity-50" /></td>
+                      <td className="py-2 px-3"><input type="time" value={row.checkOutTime} disabled={!editable} onChange={e => updateRow(row.date, 'checkOutTime', e.target.value)} className="bg-surface-3 border border-border rounded-lg px-2 py-1.5 text-sm text-text disabled:opacity-50" /></td>
+                      <td className="py-2 px-3">
+                        <Select value={row.workLocation} disabled={!editable} onChange={e => updateRow(row.date, 'workLocation', e.target.value)}
+                          options={WORK_LOCATIONS.map(l => ({ value: l, label: l }))} className="w-32" />
+                      </td>
+                      <td className="py-2 px-3"><Input value={row.reason} disabled={!editable} onChange={e => updateRow(row.date, 'reason', e.target.value)} placeholder="Optional" className="w-36" /></td>
+                      <td className="py-2 px-3 text-center font-semibold text-text">{hrs}h</td>
+                      <td className="py-2 px-3 text-center"><Badge variant={statusColors[row.status]}>{row.status}</Badge></td>
+                      <td className="py-2 px-3">
+                        {editable && <Button size="sm" variant="secondary" icon={Save} onClick={() => handleSaveRow(row)} disabled={savingRow === row.date}>{savingRow === row.date ? '...' : 'Save'}</Button>}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
