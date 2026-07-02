@@ -88,19 +88,23 @@ export function DataProvider({ children }) {
 
   useEffect(() => {
     if (!isAuthenticated) return;
+    // Department/designation lookups are independently permissioned (any authenticated role can
+    // read them) so they're fetched on their own - previously they were bundled into the same
+    // Promise.all as the employees list, which meant any role that can't list all employees
+    // (e.g. RECRUITER) silently never got lookups.departments/designations populated, even though
+    // those two calls would have succeeded on their own. That left dropdowns like the recruitment
+    // offer form's Designation/Department selects empty for recruiters.
+    Promise.all([getAllDepartments().catch(() => []), getAllDesignations().catch(() => [])])
+      .then(([departments, designations]) => setLookups({ departments, designations }));
+
     setEmployeesLoading(true);
-    Promise.all([
-      employeesApi.getAllEmployees({ size: 500 }),
-      getAllDepartments().catch(() => []),
-      getAllDesignations().catch(() => []),
-    ])
-      .then(([empResult, departments, designations]) => {
+    employeesApi.getAllEmployees({ size: 500 })
+      .then((empResult) => {
         setData(prev => ({ ...prev, employees: empResult.items }));
         setEmployeesSource('live');
-        setLookups({ departments, designations });
       })
       .catch(() => {
-        // Current role can't list all employees (e.g. plain EMPLOYEE) - keep mock data for this module
+        // Current role can't list all employees (e.g. plain EMPLOYEE or RECRUITER) - keep mock data for this module
         setEmployeesSource('mock');
       })
       .finally(() => setEmployeesLoading(false));
