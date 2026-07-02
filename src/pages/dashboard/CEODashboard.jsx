@@ -93,7 +93,7 @@ export default function CEODashboard() {
   ];
 
   const todayLeave = data.employees.filter(e => e.status === 'On Leave').slice(0, 6);
-  const recentJoinees = [...data.employees].sort((a, b) => b.joinDate.localeCompare(a.joinDate)).slice(0, 5);
+  const recentJoinees = [...data.employees].sort((a, b) => (b.joinDate || '').localeCompare(a.joinDate || '')).slice(0, 5);
   const noticePeriod = data.employees.filter(e => e.status === 'Notice Period');
 
   return (
