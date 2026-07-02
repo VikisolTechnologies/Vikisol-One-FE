@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
-import { FolderKanban, Plus, Users, Calendar, Edit3, Trash2, Archive, Eye } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { FolderKanban, Plus, Users, Calendar, Edit3, Trash2, Archive, Eye, UserPlus, X } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import Avatar from '../../components/ui/Avatar';
 import ProgressBar from '../../components/ui/ProgressBar';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
@@ -13,6 +14,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { getProjectMembers, addProjectMember, removeProjectMember } from '../../api/projects';
 
 export default function ProjectsPage() {
   const { data, projects, projectsSource, projectsLoading } = useData();
@@ -31,6 +33,10 @@ export default function ProjectsPage() {
   const [showEdit, setShowEdit] = useState(null);
   const [form, setForm] = useState({ name: '', client: '', status: 'On Track', priority: 'Medium', deadline: '', description: '', manager: '', budget: '' });
   const [editForm, setEditForm] = useState({});
+  const [members, setMembers] = useState(null); // null = not loaded / not live
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [addMemberForm, setAddMemberForm] = useState({ employeeId: '', role: '', allocationPercentage: 100 });
+  const [addingMember, setAddingMember] = useState(false);
 
   const allProjects = useMemo(() => {
     if (isAdmin || isManager) return data.projects;
@@ -87,6 +93,37 @@ export default function ProjectsPage() {
       toast.info(`"${p.name}" archived`);
     } catch (err) {
       toast.error(err.message || 'Failed to archive project');
+    }
+  };
+
+  useEffect(() => {
+    if (!selected || projectsSource !== 'live') { setMembers(null); return; }
+    setMembersLoading(true);
+    getProjectMembers(selected.id).then(setMembers).catch(() => setMembers(null)).finally(() => setMembersLoading(false));
+  }, [selected, projectsSource]);
+
+  const handleAddMember = async () => {
+    if (!addMemberForm.employeeId) { toast.error('Select an employee to add'); return; }
+    setAddingMember(true);
+    try {
+      const added = await addProjectMember(selected.id, addMemberForm);
+      setMembers(prev => [...(prev || []), added]);
+      toast.success(`${added.employeeName} added to ${selected.name}`);
+      setAddMemberForm({ employeeId: '', role: '', allocationPercentage: 100 });
+    } catch (err) {
+      toast.error(err.message || 'Failed to add team member');
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
+  const handleRemoveMember = async (member) => {
+    try {
+      await removeProjectMember(selected.id, member.id);
+      setMembers(prev => (prev || []).filter(m => m.id !== member.id));
+      toast.success(`${member.employeeName} removed from ${selected.name}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove team member');
     }
   };
 
@@ -189,6 +226,34 @@ export default function ProjectsPage() {
           <div><p className="text-xs text-text-secondary mb-2">Progress</p><ProgressBar value={selected.progress} max={100} showLabel size="lg" /></div>
           <div><p className="text-xs text-text-secondary mb-2">Technology Stack</p><div className="flex flex-wrap gap-1.5">{selected.tech.map(t => <span key={t} className="px-2.5 py-1 bg-primary/10 text-primary text-xs rounded-full">{t}</span>)}</div></div>
           {selected.repository && <div><p className="text-xs text-text-secondary">Repository</p><p className="text-sm text-info mt-0.5">{selected.repository}</p></div>}
+
+          {projectsSource === 'live' && (
+            <div className="border-t border-border pt-4">
+              <p className="text-xs text-text-secondary font-semibold uppercase mb-2">Team Members</p>
+              {membersLoading && <p className="text-xs text-text-secondary">Loading...</p>}
+              {!membersLoading && (
+                <div className="space-y-1.5">
+                  {(members || []).length === 0 && <p className="text-xs text-text-secondary">No members assigned yet</p>}
+                  {(members || []).map(m => (
+                    <div key={m.id} className="flex items-center justify-between p-2 bg-surface-3 rounded-lg">
+                      <div className="flex items-center gap-2"><Avatar name={m.employeeName} size="sm" /><div><p className="text-sm text-text">{m.employeeName}</p><p className="text-[10px] text-text-secondary">{m.role || 'Member'} &middot; {m.allocationPercentage}%</p></div></div>
+                      {isManager && <button onClick={() => handleRemoveMember(m)} className="p-1 rounded hover:bg-danger/10 text-danger"><X size={14} /></button>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {isManager && (
+                <div className="flex items-end gap-2 mt-3">
+                  <Select label="Add Employee" className="flex-1" value={addMemberForm.employeeId}
+                    onChange={e => setAddMemberForm(p => ({ ...p, employeeId: e.target.value }))}
+                    placeholder="Select employee" options={data.employees.map(e => ({ value: e.id, label: e.name }))} />
+                  <Input label="Role" className="w-32" value={addMemberForm.role} onChange={e => setAddMemberForm(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Developer" />
+                  <Input label="Allocation %" type="number" className="w-28" value={addMemberForm.allocationPercentage} onChange={e => setAddMemberForm(p => ({ ...p, allocationPercentage: parseInt(e.target.value) || 0 }))} min="0" max="100" />
+                  <Button size="sm" icon={UserPlus} onClick={handleAddMember} disabled={addingMember}>{addingMember ? 'Adding...' : 'Add'}</Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>}
       </Modal>
     </div>

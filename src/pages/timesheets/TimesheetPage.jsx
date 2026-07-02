@@ -59,8 +59,11 @@ export default function TimesheetPage() {
     if (!ok) return;
     try {
       if (timesheetsSource === 'live') {
-        // The backend models one entry per day/project; submit any of our own draft entries for this period.
-        const myDraftIds = data.timesheets.filter(t => t.empId === user?.id && t.status === 'Draft').map(t => t.id);
+        // The backend models one entry per day/project. For a plain employee, data.timesheets is
+        // already scoped to just their own entries (the team endpoint 403s and falls back to
+        // getMyEntries), so no extra employee-id filtering is needed here - it used to compare
+        // t.empId (an Employee UUID) against user.id (the auth User UUID), which could never match.
+        const myDraftIds = data.timesheets.filter(t => t.status === 'Draft').map(t => t.id);
         if (myDraftIds.length > 0) await timesheets.submit(myDraftIds);
       }
       setMyStatus('Submitted');
@@ -79,6 +82,34 @@ export default function TimesheetPage() {
     if (isEmployee) return [];
     return data.timesheets;
   }, [data.timesheets, isEmployee]);
+
+  // This week's Mon-Sun range, and which direct reports have/haven't raised a timesheet for it
+  const weekRange = useMemo(() => {
+    const now = new Date();
+    const dow = now.getDay(); // 0=Sun..6=Sat
+    const monday = new Date(now); monday.setDate(now.getDate() - ((dow + 6) % 7));
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    return { start: monday, end: sunday };
+  }, []);
+
+  const teamRoster = useMemo(() => {
+    if (isEmployee) return [];
+    return data.employees.filter(e => e.manager === user?.name);
+  }, [data.employees, isEmployee, user]);
+
+  const weeklyCompliance = useMemo(() => {
+    if (teamRoster.length === 0) return { raised: [], notRaised: [] };
+    const raisedIds = new Set(
+      teamTimesheets
+        .filter(t => t.status !== 'Draft' && t.weekStart)
+        .filter(t => { const d = new Date(t.weekStart); return d >= weekRange.start && d <= weekRange.end; })
+        .map(t => t.empId)
+    );
+    const raised = teamRoster.filter(e => raisedIds.has(e.id));
+    const notRaised = teamRoster.filter(e => !raisedIds.has(e.id));
+    return { raised, notRaised };
+  }, [teamRoster, teamTimesheets, weekRange]);
 
   const filteredTeam = useMemo(() => teamTimesheets.filter(t => {
     const s = search.toLowerCase();
@@ -231,6 +262,28 @@ export default function TimesheetPage() {
           {timesheetsLoading ? <span>Loading from server...</span> : null}
           {!timesheetsLoading && timesheetsSource === 'mock' && <span className="text-warning">(demo data)</span>}
         </div>
+
+        {teamRoster.length > 0 && (
+          <Card title="This Week's Submission Status" subtitle={`${weekRange.start.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} - ${weekRange.end.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-semibold text-success uppercase mb-2">Raised ({weeklyCompliance.raised.length})</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {weeklyCompliance.raised.length === 0 && <span className="text-xs text-text-secondary">No one yet</span>}
+                  {weeklyCompliance.raised.map(e => <span key={e.id} className="px-2.5 py-1 bg-success/10 text-success text-xs rounded-full font-medium">{e.name}</span>)}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-danger uppercase mb-2">Not Raised ({weeklyCompliance.notRaised.length})</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {weeklyCompliance.notRaised.length === 0 && <span className="text-xs text-text-secondary">Everyone's submitted</span>}
+                  {weeklyCompliance.notRaised.map(e => <span key={e.id} className="px-2.5 py-1 bg-danger/10 text-danger text-xs rounded-full font-medium">{e.name}</span>)}
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { label: 'Submitted', value: teamTimesheets.filter(t => t.status === 'Submitted').length, color: 'text-warning' },

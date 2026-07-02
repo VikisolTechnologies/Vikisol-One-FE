@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { BarChart3, Download, FileSpreadsheet, FileText, TrendingUp, Printer, Mail, Calendar, Eye } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -6,21 +6,26 @@ import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../context/AuthContext';
+import { useData } from '../../context/DataContext';
 import * as reportsApi from '../../api/reports';
 
-const reports = [
-  { id: 1, name: 'Attendance Report', description: 'Monthly attendance summary', category: 'Attendance', icon: BarChart3 },
-  { id: 2, name: 'Payroll Report', description: 'Monthly payroll breakdown', category: 'Payroll', icon: FileSpreadsheet },
-  { id: 3, name: 'Leave Report', description: 'Leave utilization and balance', category: 'Leave', icon: FileText },
-  { id: 4, name: 'Recruitment Report', description: 'Hiring pipeline metrics', category: 'Recruitment', icon: TrendingUp },
-  { id: 5, name: 'Performance Report', description: 'Performance ratings summary', category: 'Performance', icon: BarChart3 },
-  { id: 6, name: 'Timesheet Report', description: 'Weekly/monthly timesheet summary', category: 'Timesheets', icon: FileSpreadsheet },
-  { id: 7, name: 'Attrition Report', description: 'Employee attrition trends', category: 'HR', icon: TrendingUp },
-  { id: 8, name: 'Project Report', description: 'Project status and allocation', category: 'Projects', icon: BarChart3 },
-  { id: 9, name: 'Asset Report', description: 'Asset inventory and allocation', category: 'Assets', icon: FileSpreadsheet },
-  { id: 10, name: 'Department Report', description: 'Department-wise analytics', category: 'HR', icon: BarChart3 },
-  { id: 11, name: 'Revenue Report', description: 'Monthly revenue analysis', category: 'Finance', icon: TrendingUp },
-  { id: 12, name: 'Employee Report', description: 'Employee demographics overview', category: 'HR', icon: FileText },
+// Each report is tagged with the sidebar module it's most relevant to, so we can hide reports
+// that don't matter for a given role (e.g. a Manager doesn't need company Revenue/Recruitment
+// reports) using the same CEO-configurable role-permission data that drives the sidebar.
+const ALL_REPORTS = [
+  { id: 1, name: 'Attendance Report', description: 'Monthly attendance summary', category: 'Attendance', module: 'attendance', icon: BarChart3 },
+  { id: 2, name: 'Payroll Report', description: 'Monthly payroll breakdown', category: 'Payroll', module: 'payroll', icon: FileSpreadsheet },
+  { id: 3, name: 'Leave Report', description: 'Leave utilization and balance', category: 'Leave', module: 'leave', icon: FileText },
+  { id: 4, name: 'Recruitment Report', description: 'Hiring pipeline metrics', category: 'Recruitment', module: 'recruitment', icon: TrendingUp },
+  { id: 5, name: 'Performance Report', description: 'Performance ratings summary', category: 'Performance', module: 'performance', icon: BarChart3 },
+  { id: 6, name: 'Timesheet Report', description: 'Weekly/monthly timesheet summary', category: 'Timesheets', module: 'timesheets', icon: FileSpreadsheet },
+  { id: 7, name: 'Attrition Report', description: 'Employee attrition trends', category: 'HR', module: 'employees', icon: TrendingUp },
+  { id: 8, name: 'Project Report', description: 'Project status and allocation', category: 'Projects', module: 'projects', icon: BarChart3 },
+  { id: 9, name: 'Asset Report', description: 'Asset inventory and allocation', category: 'Assets', module: 'assets', icon: FileSpreadsheet },
+  { id: 10, name: 'Department Report', description: 'Department-wise analytics', category: 'HR', module: 'employees', icon: BarChart3 },
+  { id: 11, name: 'Revenue Report', description: 'Monthly revenue analysis', category: 'Finance', module: 'payroll', icon: TrendingUp },
+  { id: 12, name: 'Employee Report', description: 'Employee demographics overview', category: 'HR', module: 'employees', icon: FileText },
 ];
 
 // Reports backed by a live endpoint; others remain demo-only previews.
@@ -28,6 +33,18 @@ const LIVE_REPORT_IDS = new Set([1, 2]); // Attendance Report, Payroll Report
 
 export default function ReportsPage() {
   const toast = useToast();
+  const { user } = useAuth();
+  const { visibleModules } = useData() || {};
+  const isCEOOrAdmin = ['ceo', 'admin'].includes(user?.role);
+
+  // CEO/Admin always see every report; everyone else only sees reports tied to a module their
+  // role has access to (per the Role Permissions settings), so a Manager isn't shown, say, the
+  // company-wide Revenue Report just because the Payroll module happens to be visible to them.
+  const reports = useMemo(() => {
+    if (isCEOOrAdmin) return ALL_REPORTS;
+    if (!visibleModules) return ALL_REPORTS;
+    return ALL_REPORTS.filter(r => visibleModules.includes(r.module));
+  }, [isCEOOrAdmin, visibleModules]);
   const [preview, setPreview] = useState(null);
   const [previewData, setPreviewData] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
