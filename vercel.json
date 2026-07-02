@@ -6,6 +6,6 @@
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "env": {
-    "VITE_API_BASE_URL": "https://api-hrlms.vikisol.in/api"
+    "VITE_API_BASE_URL": "https://vikisol-one-be-production.up.railway.app/api"
   }
 }
