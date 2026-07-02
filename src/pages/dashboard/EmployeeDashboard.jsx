@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, CalendarDays, CheckCircle, Bell, FolderKanban, IndianRupee, TrendingUp, FileText, Send } from 'lucide-react';
 import StatCard from '../../components/ui/StatCard';
@@ -12,33 +12,80 @@ import { useToast } from '../../components/ui/Toast';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
-  const { data } = useData();
+  const { data, attendanceSource, todayAttendance, attendanceCheckIn, attendanceCheckOut, leaveBalances } = useData();
   const navigate = useNavigate();
   const toast = useToast();
 
-  const [punchedIn, setPunchedIn] = useState(true);
-  const [punchInTime] = useState('09:10 AM');
+  const isLiveAttendance = attendanceSource === 'live';
+  const [mockPunchedIn, setMockPunchedIn] = useState(true);
+  const [mockPunchInTime] = useState('09:10 AM');
 
-  const handlePunch = () => {
-    if (punchedIn) {
-      setPunchedIn(false);
-      toast.success(`Punched out at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`);
-    } else {
-      setPunchedIn(true);
-      toast.success(`Punched in at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`);
+  const livePunchedIn = !!todayAttendance && todayAttendance.punchIn !== '-' && (todayAttendance.punchOut === '-' || !todayAttendance.punchOut);
+  const punchedIn = isLiveAttendance ? livePunchedIn : mockPunchedIn;
+  const punchInTime = isLiveAttendance ? (todayAttendance?.punchIn || '--:--') : mockPunchInTime;
+  const workingHours = isLiveAttendance ? (todayAttendance?.hours || '-') : '7h 22m';
+
+  const handlePunch = async () => {
+    if (!isLiveAttendance) {
+      // No live backend session - keep the local demo toggle instead of pretending to persist
+      if (mockPunchedIn) {
+        setMockPunchedIn(false);
+        toast.success(`Punched out at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`);
+      } else {
+        setMockPunchedIn(true);
+        toast.success(`Punched in at ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`);
+      }
+      return;
+    }
+    try {
+      if (punchedIn) {
+        await attendanceCheckOut();
+        toast.success('Punched out');
+      } else {
+        await attendanceCheckIn();
+        toast.success('Punched in');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to record attendance');
     }
   };
 
   const myProjects = data.projects.slice(0, 3);
   const myLeaves = data.leaveRequests.filter(l => l.status === 'Pending').slice(0, 3);
 
+  const balanceColors = ['primary', 'danger', 'success', 'info', 'warning'];
+  const leaveBalanceRows = isLiveAttendance && leaveBalances.length
+    ? leaveBalances.map((b, i) => ({ type: b.type, used: b.used, total: b.total, color: balanceColors[i % balanceColors.length] }))
+    : [{ type: 'Casual Leave', used: 4, total: 12, color: 'primary' }, { type: 'Sick Leave', used: 2, total: 8, color: 'danger' }, { type: 'Earned Leave', used: 3, total: 15, color: 'success' }, { type: 'Comp Off', used: 1, total: 5, color: 'info' }];
+  const totalLeaveLeft = leaveBalanceRows.reduce((s, l) => s + (l.total - l.used), 0);
+
+  const myTimesheets = useMemo(() => data.timesheets.filter(t => t.empId === user?.empId), [data.timesheets, user]);
+  const weekHours = useMemo(() => {
+    const oneWeekAgo = new Date(); oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    return myTimesheets.filter(t => new Date(t.weekStart || t.date) >= oneWeekAgo).reduce((s, t) => s + (t.total || 0), 0);
+  }, [myTimesheets]);
+  const monthHours = useMemo(() => {
+    const now = new Date();
+    return myTimesheets.filter(t => { const d = new Date(t.weekStart || t.date); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); }).reduce((s, t) => s + (t.total || 0), 0);
+  }, [myTimesheets]);
+  const timesheetCompliance = useMemo(() => {
+    if (myTimesheets.length === 0) return 0;
+    const approved = myTimesheets.filter(t => t.status === 'Approved' || t.status === 'Submitted').length;
+    return Math.round((approved / myTimesheets.length) * 100);
+  }, [myTimesheets]);
+
+  const lastPayslip = useMemo(() => {
+    const mine = data.payslips.filter(p => p.empId === user?.empId || !p.empId);
+    return [...mine].sort((a, b) => (b.year - a.year) || ((b.monthNum || 0) - (a.monthNum || 0)))[0];
+  }, [data.payslips, user]);
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="cursor-pointer" onClick={() => navigate('/attendance')}><StatCard icon={Clock} label="Today's Hours" value="7h 22m" change="In Progress" color="primary" delay={0} /></div>
-        <div className="cursor-pointer" onClick={() => navigate('/leave')}><StatCard icon={CalendarDays} label="Leave Balance" value="18" change="3 pending" color="success" delay={1} /></div>
-        <div className="cursor-pointer" onClick={() => navigate('/projects')}><StatCard icon={FolderKanban} label="My Projects" value={myProjects.length} change="2 tasks due" color="info" delay={2} /></div>
-        <div className="cursor-pointer" onClick={() => navigate('/payroll')}><StatCard icon={IndianRupee} label="Last Salary" value="₹78,750" change="May 2024" color="primary" delay={3} /></div>
+        <div className="cursor-pointer" onClick={() => navigate('/attendance')}><StatCard icon={Clock} label="Today's Hours" value={workingHours} change={punchedIn ? 'In Progress' : 'Not Punched In'} color="primary" delay={0} /></div>
+        <div className="cursor-pointer" onClick={() => navigate('/leave')}><StatCard icon={CalendarDays} label="Leave Balance" value={totalLeaveLeft} change={`${myLeaves.length} pending`} color="success" delay={1} /></div>
+        <div className="cursor-pointer" onClick={() => navigate('/projects')}><StatCard icon={FolderKanban} label="My Projects" value={myProjects.length} color="info" delay={2} /></div>
+        <div className="cursor-pointer" onClick={() => navigate('/payroll')}><StatCard icon={IndianRupee} label="Last Salary" value={lastPayslip ? `₹${lastPayslip.netPay.toLocaleString('en-IN')}` : '-'} change={lastPayslip?.month || ''} color="primary" delay={3} /></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -51,7 +98,7 @@ export default function EmployeeDashboard() {
                 <p className="text-[10px] text-text-secondary">{punchedIn ? 'Punched In' : 'Not Punched In'}</p>
               </div>
             </div>
-            {punchedIn && <p className="text-sm text-text-secondary">Working: <span className="text-text font-semibold">7h 22m</span></p>}
+            {punchedIn && <p className="text-sm text-text-secondary">Working: <span className="text-text font-semibold">{workingHours}</span></p>}
             <button onClick={handlePunch}
               className={`mt-3 px-8 py-2.5 rounded-xl text-sm font-semibold transition-all text-white shadow-lg ${punchedIn ? 'bg-danger hover:bg-danger/80 shadow-danger/20' : 'bg-success hover:bg-success/80 shadow-success/20'}`}>
               {punchedIn ? 'Punch Out' : 'Punch In'}
@@ -62,7 +109,7 @@ export default function EmployeeDashboard() {
         {/* Leave Balance */}
         <Card title="Leave Balance" action={<button onClick={() => navigate('/leave')} className="text-xs text-primary hover:underline">Apply Leave</button>}>
           <div className="space-y-3">
-            {[{ type: 'Casual Leave', used: 4, total: 12, color: 'primary' }, { type: 'Sick Leave', used: 2, total: 8, color: 'danger' }, { type: 'Earned Leave', used: 3, total: 15, color: 'success' }, { type: 'Comp Off', used: 1, total: 5, color: 'info' }].map(l => (
+            {leaveBalanceRows.map(l => (
               <div key={l.type}><div className="flex justify-between text-xs mb-1"><span className="text-text-secondary">{l.type}</span><span className="text-text font-medium">{l.total - l.used} left</span></div><ProgressBar value={l.used} max={l.total} color={l.color} /></div>
             ))}
           </div>
@@ -115,9 +162,9 @@ export default function EmployeeDashboard() {
               <Button size="sm" className="mt-3 w-full" onClick={() => navigate('/timesheets')}>Fill Timesheet</Button>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="p-2 bg-surface-3 rounded-lg"><p className="text-lg font-bold text-text">44h</p><p className="text-[10px] text-text-secondary">This Week</p></div>
-              <div className="p-2 bg-surface-3 rounded-lg"><p className="text-lg font-bold text-success">176h</p><p className="text-[10px] text-text-secondary">This Month</p></div>
-              <div className="p-2 bg-surface-3 rounded-lg"><p className="text-lg font-bold text-primary">96%</p><p className="text-[10px] text-text-secondary">Compliance</p></div>
+              <div className="p-2 bg-surface-3 rounded-lg"><p className="text-lg font-bold text-text">{weekHours}h</p><p className="text-[10px] text-text-secondary">This Week</p></div>
+              <div className="p-2 bg-surface-3 rounded-lg"><p className="text-lg font-bold text-success">{monthHours}h</p><p className="text-[10px] text-text-secondary">This Month</p></div>
+              <div className="p-2 bg-surface-3 rounded-lg"><p className="text-lg font-bold text-primary">{timesheetCompliance}%</p><p className="text-[10px] text-text-secondary">Compliance</p></div>
             </div>
           </div>
         </Card>

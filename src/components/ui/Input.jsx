@@ -14,11 +14,12 @@ export default function Input({ label, icon: Icon, error, className = '', ...pro
   );
 }
 
-export function Select({ label, options, className = '', ...props }) {
+export function Select({ label, options, className = '', placeholder, ...props }) {
   return (
     <div className={`space-y-1.5 ${className}`}>
       {label && <label className="text-xs font-medium text-text-secondary">{label}</label>}
       <select className="w-full bg-surface-3 border border-border rounded-lg py-2.5 px-3 text-sm text-text focus:outline-none focus:border-primary transition-all appearance-none" {...props}>
+        {placeholder && <option value="">{placeholder}</option>}
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>

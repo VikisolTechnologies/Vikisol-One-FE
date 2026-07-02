@@ -11,22 +11,53 @@ import { useState, useMemo } from 'react';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 
-const revenueData = [
-  { month: 'Jan', revenue: 8.5, employees: 230 }, { month: 'Feb', revenue: 9.2, employees: 234 },
-  { month: 'Mar', revenue: 10.1, employees: 238 }, { month: 'Apr', revenue: 11.3, employees: 242 },
-  { month: 'May', revenue: 12.45, employees: 245 }, { month: 'Jun', revenue: 13.2, employees: 250 },
-];
+const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-const attritionData = [
-  { month: 'Jan', joined: 8, left: 3 }, { month: 'Feb', joined: 6, left: 2 },
-  { month: 'Mar', joined: 10, left: 4 }, { month: 'Apr', joined: 7, left: 1 },
-  { month: 'May', joined: 12, left: 3 }, { month: 'Jun', joined: 5, left: 2 },
-];
+// Builds the trailing N calendar months ending this month, e.g. [{year,month,label}, ...]
+function lastNMonths(n) {
+  const now = new Date();
+  const months = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ year: d.getFullYear(), month: d.getMonth(), label: MONTH_LABELS[d.getMonth()] });
+  }
+  return months;
+}
 
 export default function CEODashboard() {
   const navigate = useNavigate();
   const { data, stats } = useData();
   const [quickActions, setQuickActions] = useState(false);
+
+  // Real headcount growth + payroll cost trend, computed from actual employee join dates and payslips
+  const revenueData = useMemo(() => {
+    const months = lastNMonths(6);
+    return months.map(({ year, month, label }) => {
+      const monthEnd = new Date(year, month + 1, 0);
+      const headcount = data.employees.filter(e => e.joinDate && new Date(e.joinDate) <= monthEnd).length;
+      const payrollCost = data.payslips
+        .filter(p => p.monthNum != null ? (p.monthNum - 1 === month && p.year === year) : (p.month || '').startsWith(label))
+        .reduce((sum, p) => sum + (p.netPay || 0), 0);
+      return { month: label, revenue: +(payrollCost / 10000000).toFixed(2), employees: headcount };
+    });
+  }, [data.employees, data.payslips]);
+
+  const attritionData = useMemo(() => {
+    const months = lastNMonths(6);
+    return months.map(({ year, month, label }) => {
+      const joined = data.employees.filter(e => {
+        if (!e.joinDate) return false;
+        const d = new Date(e.joinDate);
+        return d.getFullYear() === year && d.getMonth() === month;
+      }).length;
+      const left = data.employees.filter(e => {
+        if (!e.exitDate || (e.status !== 'Resigned' && e.status !== 'Terminated')) return false;
+        const d = new Date(e.exitDate);
+        return d.getFullYear() === year && d.getMonth() === month;
+      }).length;
+      return { month: label, joined, left };
+    });
+  }, [data.employees]);
 
   const deptData = useMemo(() => {
     const counts = data.employees.reduce((acc, e) => { acc[e.department] = (acc[e.department] || 0) + 1; return acc; }, {});
@@ -40,6 +71,19 @@ export default function CEODashboard() {
 
   const benchCount = useMemo(() => Math.floor(data.employees.filter(e => e.status === 'Active').length * 0.08), [data.employees]);
   const billableCount = useMemo(() => Math.floor(data.employees.filter(e => e.status === 'Active').length * 0.72), [data.employees]);
+
+  const companySnapshot = useMemo(() => {
+    const attritionYtd = attritionData.reduce((s, d) => s + d.left, 0);
+    const totalNow = stats.total || 1;
+    const attritionRate = ((attritionYtd / totalNow) * 100).toFixed(1);
+    const offeredOrBeyond = data.candidates.filter(c => ['Offered', 'Hired'].includes(c.stage)).length;
+    const hired = data.candidates.filter(c => c.stage === 'Hired').length;
+    const offerAcceptanceRate = offeredOrBeyond > 0 ? Math.round((hired / offeredOrBeyond) * 100) : 0;
+    return [
+      { label: 'Attrition Rate (YTD)', value: `${attritionRate}%`, color: 'warning' },
+      { label: 'Offer Acceptance Rate', value: `${offerAcceptanceRate}%`, color: 'success' },
+    ];
+  }, [attritionData, data.candidates, stats.total]);
 
   const pendingApprovals = [
     { label: 'Leave Requests', count: stats.pendingLeaves, path: '/leave', icon: CalendarDays },
@@ -91,7 +135,7 @@ export default function CEODashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Revenue & Growth */}
-        <Card title="Revenue & Employee Growth" className="lg:col-span-2" action={<button onClick={() => navigate('/reports')} className="text-xs text-primary hover:underline">Full Report</button>}>
+        <Card title="Payroll Cost & Employee Growth" className="lg:col-span-2" action={<button onClick={() => navigate('/reports')} className="text-xs text-primary hover:underline">Full Report</button>}>
           <div className="h-52">
             <ResponsiveContainer>
               <AreaChart data={revenueData}>
@@ -103,7 +147,7 @@ export default function CEODashboard() {
                 <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#8B949E' }} axisLine={false} tickLine={false} />
                 <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#8B949E' }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ background: '#161B22', border: '1px solid #30363D', borderRadius: 8, fontSize: 12, color: '#E6EDF3' }} />
-                <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="#FF6A00" strokeWidth={2} fill="url(#revGrad)" name="Revenue (Cr)" />
+                <Area yAxisId="left" type="monotone" dataKey="revenue" stroke="#FF6A00" strokeWidth={2} fill="url(#revGrad)" name="Payroll Cost (Cr)" />
                 <Area yAxisId="right" type="monotone" dataKey="employees" stroke="#58A6FF" strokeWidth={2} fill="url(#empGrad)" name="Headcount" />
               </AreaChart>
             </ResponsiveContainer>
@@ -167,13 +211,7 @@ export default function CEODashboard() {
         {/* Company Overview Stats */}
         <Card title="Company Snapshot">
           <div className="space-y-3">
-            {[
-              { label: 'Avg Productivity', value: '87%', color: 'success' },
-              { label: 'Employee Satisfaction', value: '4.2/5', color: 'primary' },
-              { label: 'Attendance Rate', value: '94%', color: 'info' },
-              { label: 'Attrition Rate (YTD)', value: '6.2%', color: 'warning' },
-              { label: 'Offer Acceptance Rate', value: '82%', color: 'success' },
-            ].map(s => (
+            {companySnapshot.map(s => (
               <div key={s.label} className="flex items-center justify-between">
                 <span className="text-xs text-text-secondary">{s.label}</span>
                 <span className={`text-sm font-semibold text-${s.color}`}>{s.value}</span>

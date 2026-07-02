@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Target, Award, TrendingUp, Star, Plus, Edit3, Trash2 } from 'lucide-react';
+import { Target, Award, Star, Plus, Edit3, Trash2 } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import StatCard from '../../components/ui/StatCard';
 import ProgressBar from '../../components/ui/ProgressBar';
@@ -126,11 +126,10 @@ export default function PerformancePage() {
         <Button icon={Plus} size="sm" onClick={() => setShowAddGoal(true)}>Add Goal</Button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <StatCard icon={Star} label="Current Rating" value={`${overallRating}/5`} color="primary" delay={0} />
         <StatCard icon={Target} label="Goals" value={goals.length} change={`${goals.filter(g => g.status === 'On Track').length} on track`} color="success" delay={1} />
         <StatCard icon={Award} label="Avg Progress" value={`${avgProgress}%`} color="warning" delay={2} />
-        <StatCard icon={TrendingUp} label="Growth Score" value="82%" color="info" delay={3} />
       </div>
 
       <Card title="Goals & Objectives">

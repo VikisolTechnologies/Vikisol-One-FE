@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Filter, Eye, Edit3, Trash2, Mail, Calendar, MoreVertical, UserCheck, XCircle, FileText, Send } from 'lucide-react';
+import { previewCtcBreakup } from '../../api/payroll';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -19,7 +20,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 const stages = ['Applied', 'Screening', 'Technical', 'Manager', 'HR', 'Offered', 'Hired', 'Rejected'];
 
 export default function RecruitmentPage() {
-  const { data, candidates, candidatesSource, candidatesLoading } = useData();
+  const { data, candidates, candidatesSource, candidatesLoading, lookups } = useData();
   const toast = useToast();
   const confirm = useConfirm();
 
@@ -29,6 +30,43 @@ export default function RecruitmentPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', role: '', experience: '', currentCTC: '', expectedCTC: '', source: 'LinkedIn', phone: '' });
+  const [offerCandidate, setOfferCandidate] = useState(null);
+  const [offerForm, setOfferForm] = useState({ designationId: '', departmentId: '', offeredCtc: '', dateOfJoining: '' });
+  const [offerBreakup, setOfferBreakup] = useState(null);
+  const [offerSubmitting, setOfferSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!offerForm.offeredCtc || Number(offerForm.offeredCtc) <= 0) { setOfferBreakup(null); return; }
+    const t = setTimeout(() => {
+      previewCtcBreakup(Number(offerForm.offeredCtc)).then(setOfferBreakup).catch(() => setOfferBreakup(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [offerForm.offeredCtc]);
+
+  const openOfferModal = (candidate) => {
+    setOfferForm({ designationId: '', departmentId: '', offeredCtc: candidate.expectedSalary || '', dateOfJoining: '' });
+    setOfferBreakup(null);
+    setOfferCandidate(candidate);
+  };
+
+  const handleSelectCandidate = async () => {
+    if (candidatesSource !== 'live') { toast.error('Connect to the live backend to select candidates and send offers'); return; }
+    if (!offerForm.designationId || !offerForm.departmentId || !offerForm.offeredCtc || !offerForm.dateOfJoining) {
+      toast.error('Designation, department, CTC and date of joining are required');
+      return;
+    }
+    setOfferSubmitting(true);
+    try {
+      const result = await candidates.select(offerCandidate.id, offerForm);
+      toast.success(`${offerCandidate.name} selected — Employee ID ${result.employeeId} generated, offer email sent`);
+      setOfferCandidate(null);
+      setSelected(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to select candidate');
+    } finally {
+      setOfferSubmitting(false);
+    }
+  };
 
   const allCandidates = data.candidates;
   const filtered = useMemo(() => {
@@ -81,15 +119,6 @@ export default function RecruitmentPage() {
       toast.success('Candidate deleted');
     } catch (err) {
       toast.error(err.message || 'Failed to delete candidate');
-    }
-  };
-
-  const handleGenerateOffer = async (candidate) => {
-    try {
-      await candidates.update(candidate.id, { stage: 'Offered', status: 'Offered' });
-      toast.success(`Offer letter generated for ${candidate.name}`);
-    } catch (err) {
-      toast.error(err.message || 'Failed to generate offer');
     }
   };
 
@@ -160,7 +189,8 @@ export default function RecruitmentPage() {
                         <div className="flex items-center gap-2 mb-2"><ProgressBar value={c.score} max={100} size="sm" color={c.score >= 80 ? 'success' : 'warning'} /><span className="text-xs font-semibold">{c.score}%</span></div>
                         <div className="flex gap-1">
                           {nextStage && nextStage !== 'Hired' && nextStage !== 'Rejected' && <button onClick={() => moveStage(c, nextStage)} className="flex-1 text-[10px] py-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 font-medium">→ {nextStage}</button>}
-                          {c.stage === 'HR' && <button onClick={() => handleGenerateOffer(c)} className="flex-1 text-[10px] py-1.5 bg-success/10 text-success rounded-lg hover:bg-success/20 font-medium">Offer</button>}
+                          {c.stage === 'HR' && !c.convertedEmployeeId && <button onClick={() => openOfferModal(c)} className="flex-1 text-[10px] py-1.5 bg-success/10 text-success rounded-lg hover:bg-success/20 font-medium">Select</button>}
+                          {c.convertedEmployeeId && <span className="flex-1 text-[10px] py-1.5 text-center bg-surface-3 text-text-secondary rounded-lg font-medium">{c.convertedEmployeeId}</span>}
                           <button onClick={() => handleReject(c)} className="text-[10px] py-1.5 px-2 bg-danger/10 text-danger rounded-lg hover:bg-danger/20">✕</button>
                           <button onClick={() => setSelected(c)} className="text-[10px] py-1.5 px-2 bg-surface-3 text-text-secondary rounded-lg hover:bg-surface-4">View</button>
                         </div>
@@ -197,7 +227,8 @@ export default function RecruitmentPage() {
               <div className="flex flex-col gap-2">
                 <Button size="sm" icon={Calendar} onClick={() => { handleScheduleInterview(selected); setSelected(null); }}>Schedule Interview</Button>
                 <Button size="sm" variant="secondary" icon={Mail} onClick={() => { toast.info(`Email sent to ${selected.name}`); }}>Send Email</Button>
-                {selected.stage === 'HR' && <Button size="sm" variant="secondary" icon={FileText} onClick={() => { handleGenerateOffer(selected); setSelected(null); }}>Generate Offer</Button>}
+                {selected.stage === 'HR' && !selected.convertedEmployeeId && <Button size="sm" variant="secondary" icon={FileText} onClick={() => openOfferModal(selected)}>Select & Send Offer</Button>}
+                {selected.convertedEmployeeId && <Badge variant="success">Employee {selected.convertedEmployeeId}</Badge>}
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4 text-sm">
@@ -212,6 +243,35 @@ export default function RecruitmentPage() {
               ))}
               <button onClick={() => { handleReject(selected); setSelected(null); }} className="px-3 py-1.5 text-xs font-medium bg-danger/10 rounded-lg hover:bg-danger/20 text-danger">Reject</button>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!offerCandidate} onClose={() => setOfferCandidate(null)} title="Select Candidate & Send Offer" size="lg">
+        {offerCandidate && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-surface-3 rounded-xl">
+              <Avatar name={offerCandidate.name} size="md" />
+              <div><p className="font-medium text-text">{offerCandidate.name}</p><p className="text-xs text-text-secondary">{offerCandidate.email}</p></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Designation *" value={offerForm.designationId} onChange={e => setOfferForm(p => ({ ...p, designationId: e.target.value }))}
+                options={(lookups.designations || []).map(d => ({ value: d.id, label: d.title }))} placeholder="Select designation" />
+              <Select label="Department *" value={offerForm.departmentId} onChange={e => setOfferForm(p => ({ ...p, departmentId: e.target.value }))}
+                options={(lookups.departments || []).map(d => ({ value: d.id, label: d.name }))} placeholder="Select department" />
+              <Input label="Annual CTC (₹) *" type="number" value={offerForm.offeredCtc} onChange={e => setOfferForm(p => ({ ...p, offeredCtc: e.target.value }))} placeholder="e.g. 1200000" />
+              <Input label="Date of Joining *" type="date" value={offerForm.dateOfJoining} onChange={e => setOfferForm(p => ({ ...p, dateOfJoining: e.target.value }))} />
+            </div>
+            {offerBreakup && (
+              <div className="p-3 bg-surface-3 rounded-lg space-y-1">
+                <p className="text-xs font-semibold text-text-secondary uppercase mb-2">Monthly CTC Breakup (per CEO's standard template)</p>
+                {Object.entries(offerBreakup).filter(([k]) => k !== 'ctc').map(([k, v]) => (
+                  <div key={k} className="flex justify-between text-sm"><span className="text-text-secondary capitalize">{k.replace(/([A-Z])/g, ' $1')}</span><span className="text-text font-medium">₹{Number(v).toLocaleString('en-IN')}</span></div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-text-secondary">Selecting this candidate will generate their Employee ID and email a congratulations/offer letter with this breakup to {offerCandidate.email}.</p>
+            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOfferCandidate(null)}>Cancel</Button><Button onClick={handleSelectCandidate} disabled={offerSubmitting}>{offerSubmitting ? 'Sending...' : 'Select & Send Offer'}</Button></div>
           </div>
         )}
       </Modal>

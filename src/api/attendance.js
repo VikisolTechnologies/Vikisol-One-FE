@@ -78,6 +78,11 @@ export async function getMyAttendance(start, end) {
   return (data || []).map(adaptAttendance);
 }
 
+export async function getTeamAttendance(date) {
+  const data = await api.get('/attendance/team', date ? { date } : undefined);
+  return (data || []).map(adaptAttendance);
+}
+
 export async function getMonthlySummary(employeeId, year, month) {
   return adaptSummary(await api.get(`/attendance/summary/${employeeId}`, { year, month }));
 }

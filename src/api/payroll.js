@@ -115,6 +115,20 @@ export async function updatePayrollConfig(config) {
   return api.put('/payroll/config', config);
 }
 
+// CEO-defined standard CTC breakup template — used to compute every offer/employee's salary split.
+export async function getCtcBreakupTemplate() {
+  return api.get('/payroll/ctc-breakup-template');
+}
+
+export async function updateCtcBreakupTemplate(percentages) {
+  // percentages: { BASIC_PCT, HRA_PCT, CONVEYANCE_PCT, MEDICAL_PCT, SPECIAL_PCT } summing to 100
+  return api.put('/payroll/ctc-breakup-template', percentages);
+}
+
+export async function previewCtcBreakup(ctc) {
+  return api.post(`/payroll/ctc-breakup-preview?ctc=${encodeURIComponent(ctc)}`);
+}
+
 export async function requestSalaryAdvance({ amount, reason, emiMonths }) {
   return adaptSalaryAdvance(await api.post('/payroll/salary-advance', { amount, reason, emiMonths }));
 }

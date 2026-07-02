@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Users, Briefcase, Clock, TrendingUp, AlertTriangle, Search } from 'lucide-react';
 import Card from '../components/ui/Card';
 import StatCard from '../components/ui/StatCard';
@@ -9,17 +9,63 @@ import DataTable from '../components/ui/DataTable';
 import Breadcrumb from '../components/ui/Breadcrumb';
 import SearchFilter from '../components/ui/SearchFilter';
 import { useData } from '../context/DataContext';
+import { getProjectMembers } from '../api/projects';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 
+// Deterministic fallback (not Math.random()) so demo-mode numbers are at least stable across renders.
+function seededPct(seed, options) {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return options[hash % options.length];
+}
+
 export default function ResourceAllocation() {
-  const { data } = useData();
+  const { data, projectsSource } = useData();
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
+  const [membersByEmployee, setMembersByEmployee] = useState(null); // null = not loaded yet
+
+  useEffect(() => {
+    if (projectsSource !== 'live' || data.projects.length === 0) { setMembersByEmployee(null); return; }
+    let cancelled = false;
+    Promise.all(data.projects.map(p => getProjectMembers(p.id).then(members => members.map(m => ({ ...m, projectName: p.name, projectClient: p.client }))).catch(() => [])))
+      .then(results => {
+        if (cancelled) return;
+        const byEmployee = {};
+        results.flat().forEach(m => {
+          if (!m.isActive) return;
+          if (!byEmployee[m.employeeId]) byEmployee[m.employeeId] = [];
+          byEmployee[m.employeeId].push(m);
+        });
+        setMembersByEmployee(byEmployee);
+      });
+    return () => { cancelled = true; };
+  }, [projectsSource, data.projects]);
 
   const resources = useMemo(() => {
     return data.employees.map(emp => {
-      const assignedProject = data.projects[Math.floor(Math.random() * data.projects.length)];
-      const allocation = emp.status === 'On Leave' ? 0 : emp.status === 'Notice Period' ? 50 : [100, 100, 100, 100, 75, 50, 0][Math.floor(Math.random() * 7)];
+      if (membersByEmployee) {
+        const assignments = membersByEmployee[emp.id] || [];
+        const allocation = emp.status === 'On Leave' ? 0 : Math.min(100, assignments.reduce((s, a) => s + (a.allocationPercentage || 0), 0));
+        const primary = assignments[0];
+        const isBench = allocation === 0 && emp.status === 'Active';
+        const billable = allocation > 0 && !isBench && primary?.projectClient && primary.projectClient !== 'Internal';
+        return {
+          ...emp,
+          currentProject: allocation > 0 ? primary?.projectName || 'Internal' : isBench ? 'Bench' : '-',
+          projectClient: allocation > 0 ? primary?.projectClient || 'Internal' : '-',
+          allocation,
+          billable,
+          benchStatus: isBench ? 'Bench' : allocation === 0 ? 'Not Allocated' : 'Allocated',
+          utilizationType: billable ? 'Billable' : isBench ? 'Bench' : allocation > 0 ? 'Non-Billable' : 'N/A',
+          teamLead: emp.manager || '-',
+          currentSprint: '-',
+          availableFrom: isBench ? 'Immediately' : emp.status === 'Notice Period' ? emp.joinDate : '-',
+        };
+      }
+      // Demo fallback: deterministic per employee, not randomized per render
+      const assignedProject = data.projects.length ? data.projects[seededPct(emp.id, [...Array(data.projects.length).keys()])] : null;
+      const allocation = emp.status === 'On Leave' ? 0 : emp.status === 'Notice Period' ? 50 : seededPct(emp.id, [100, 100, 100, 100, 75, 50, 0]);
       const isBench = allocation === 0 && emp.status === 'Active';
       const billable = allocation > 0 && !isBench && assignedProject?.client !== 'Internal';
       return {
@@ -31,11 +77,11 @@ export default function ResourceAllocation() {
         benchStatus: isBench ? 'Bench' : allocation === 0 ? 'Not Allocated' : 'Allocated',
         utilizationType: billable ? 'Billable' : isBench ? 'Bench' : allocation > 0 ? 'Non-Billable' : 'N/A',
         teamLead: emp.manager || '-',
-        currentSprint: allocation > 0 ? `Sprint ${Math.floor(Math.random() * 15) + 1}` : '-',
+        currentSprint: allocation > 0 ? `Sprint ${(seededPct(emp.id + 's', [...Array(15).keys()])) + 1}` : '-',
         availableFrom: isBench ? 'Immediately' : emp.status === 'Notice Period' ? emp.joinDate : '-',
       };
     });
-  }, [data.employees, data.projects]);
+  }, [data.employees, data.projects, membersByEmployee]);
 
   const filtered = useMemo(() => {
     return resources.filter(r => {
@@ -92,7 +138,7 @@ export default function ResourceAllocation() {
   return (
     <div className="space-y-5">
       <Breadcrumb items={[{ label: 'Resource Allocation' }]} />
-      <h1 className="text-xl font-bold text-text">Resource Allocation</h1>
+      <div className="flex items-center gap-2"><h1 className="text-xl font-bold text-text">Resource Allocation</h1>{!membersByEmployee && <span className="text-sm text-warning">(demo data)</span>}</div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard icon={Users} label="Total" value={stats.total} delay={0} />

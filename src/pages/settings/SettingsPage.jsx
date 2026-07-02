@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Building2, Shield, Bell, Palette, Key, Globe, Calendar, Mail, FileText, Database, Upload, RefreshCw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Building2, Shield, Bell, Palette, Key, Globe, Calendar, Mail, FileText, Database, Upload, RefreshCw, IndianRupee } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -9,8 +9,79 @@ import Breadcrumb from '../../components/ui/Breadcrumb';
 import DataTable from '../../components/ui/DataTable';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { updateSetting } from '../../api/settings';
+import { getCtcBreakupTemplate, updateCtcBreakupTemplate } from '../../api/payroll';
+
+const CTC_COMPONENTS = [
+  { key: 'BASIC_PCT', label: 'Basic Salary' },
+  { key: 'HRA_PCT', label: 'HRA' },
+  { key: 'CONVEYANCE_PCT', label: 'Conveyance Allowance' },
+  { key: 'MEDICAL_PCT', label: 'Medical Allowance' },
+  { key: 'SPECIAL_PCT', label: 'Special Allowance' },
+];
+
+function CtcBreakupSettings() {
+  const { user } = useAuth();
+  const toast = useToast();
+  const isCEO = user?.role === 'ceo';
+  const [template, setTemplate] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getCtcBreakupTemplate().then(setTemplate).catch(() => toast.error('Could not load CTC breakup template')).finally(() => setLoading(false));
+  }, []);
+
+  const total = template ? CTC_COMPONENTS.reduce((sum, c) => sum + (Number(template[c.key]) || 0), 0) : 0;
+
+  const handleSave = async () => {
+    if (Math.round(total) !== 100) { toast.error(`Percentages must add up to 100 (currently ${total})`); return; }
+    setSaving(true);
+    try {
+      const updated = await updateCtcBreakupTemplate(template);
+      setTemplate(updated);
+      toast.success('Standard CTC breakup updated — applies to all future offers and employees');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update CTC breakup');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <Card><p className="text-sm text-text-secondary">Loading...</p></Card>;
+
+  return (
+    <Card>
+      <div className="max-w-lg space-y-4">
+        <div>
+          <p className="text-sm font-medium text-text">CEO-Defined Standard CTC Breakup</p>
+          <p className="text-xs text-text-secondary mt-1">Set once — this percentage split is applied automatically to every candidate's offered CTC and every employee's salary structure.</p>
+        </div>
+        {CTC_COMPONENTS.map(c => (
+          <div key={c.key} className="flex items-center justify-between gap-4">
+            <span className="text-sm text-text w-48">{c.label}</span>
+            <div className="flex items-center gap-1">
+              <Input type="number" min="0" max="100" disabled={!isCEO} value={template[c.key] ?? ''}
+                onChange={e => setTemplate(p => ({ ...p, [c.key]: e.target.value }))} className="w-24" />
+              <span className="text-sm text-text-secondary">%</span>
+            </div>
+          </div>
+        ))}
+        <div className={`flex items-center justify-between pt-2 border-t border-border ${Math.round(total) !== 100 ? 'text-danger' : 'text-success'}`}>
+          <span className="text-sm font-semibold">Total</span>
+          <span className="text-sm font-bold">{total}%</span>
+        </div>
+        {isCEO ? (
+          <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Standard Breakup'}</Button>
+        ) : (
+          <p className="text-xs text-text-secondary italic">Only the CEO can change the standard CTC breakup.</p>
+        )}
+      </div>
+    </Card>
+  );
+}
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
@@ -100,6 +171,7 @@ export default function SettingsPage() {
             </div>
           </Card>
         )},
+        { id: 'ctc-breakup', label: 'CTC Breakup', content: <CtcBreakupSettings /> },
         { id: 'roles', label: 'Roles & Permissions', content: (
           <Card><div className="space-y-2">
             {['CEO', 'HR Manager', 'Manager', 'Employee', 'Recruiter', 'Finance', 'Admin', 'IT Support'].map(role => (

@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
     }
     fetchMe()
       .then((me) => {
-        const userData = { id: me.id, email: me.email, firstName: me.firstName, lastName: me.lastName, name: `${me.firstName} ${me.lastName}`, role: me.role?.replace('ROLE_', '') };
+        const userData = { id: me.id, email: me.email, firstName: me.firstName, lastName: me.lastName, name: `${me.firstName} ${me.lastName}`, role: me.role?.replace('ROLE_', '').toLowerCase() };
         setUser(userData);
         localStorage.setItem('vikisol_user', JSON.stringify(userData));
       })
@@ -41,7 +41,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     try {
       const data = await loginApi(email, password);
-      const userData = { email: data.email, firstName: data.firstName, lastName: data.lastName, name: `${data.firstName} ${data.lastName}`, role: data.role };
+      const userData = { email: data.email, firstName: data.firstName, lastName: data.lastName, name: `${data.firstName} ${data.lastName}`, role: data.role?.replace('ROLE_', '').toLowerCase() };
       setUser(userData);
       localStorage.setItem('vikisol_user', JSON.stringify(userData));
       return { success: true, user: userData };

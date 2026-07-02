@@ -74,6 +74,10 @@ export function adaptCandidate(c) {
     interviewer: '-',
     feedback: c.notes || null,
     resume: c.resumeUrl || 'resume.pdf',
+    offeredCtc: c.offeredCtc,
+    offeredDesignationTitle: c.offeredDesignationTitle,
+    offeredDateOfJoining: c.offeredDateOfJoining,
+    convertedEmployeeId: c.convertedEmployeeId || null,
   };
 }
 
@@ -126,6 +130,17 @@ export async function deleteCandidate(id) {
 export async function updateCandidateStatus(id, feStage) {
   const status = STAGE_TO_BE[feStage] || 'NEW';
   return adaptCandidate(await api.put(`/recruitment/candidates/${id}/status?status=${status}`));
+}
+
+// Marks the candidate SELECTED, creates their Employee record + employee ID using the
+// CEO's standard CTC breakup, and emails the offer/congratulations letter.
+export async function selectCandidate(id, { designationId, departmentId, offeredCtc, dateOfJoining }) {
+  return api.post(`/recruitment/candidates/${id}/select`, {
+    designationId,
+    departmentId,
+    offeredCtc: Number(offeredCtc),
+    dateOfJoining,
+  });
 }
 
 // ─── Job Postings ───

@@ -348,6 +348,16 @@ export function DataProvider({ children }) {
         await employeesApi.deactivateEmployee(id);
         setData(prev => ({ ...prev, employees: prev.employees.filter(e => e.id !== id) }));
       },
+      issueHike: async (id, offer) => {
+        const updated = await employeesApi.issueHike(id, offer);
+        setData(prev => ({ ...prev, employees: prev.employees.map(e => e.id === id ? updated : e) }));
+        return updated;
+      },
+      resign: async (id, offer) => {
+        const updated = await employeesApi.recordResignation(id, offer);
+        setData(prev => ({ ...prev, employees: prev.employees.map(e => e.id === id ? updated : e) }));
+        return updated;
+      },
     };
   }, [employeesSource, mockEmployeeCrud, data.employees]);
   const mockLeaveRequestsCrud = useMemo(() => crud('leaveRequests'), [crud]);
@@ -491,6 +501,12 @@ export function DataProvider({ children }) {
       remove: async (id) => {
         await recruitmentApi.deleteCandidate(id);
         setData(prev => ({ ...prev, candidates: prev.candidates.filter(c => c.id !== id) }));
+      },
+      select: async (id, offer) => {
+        const result = await recruitmentApi.selectCandidate(id, offer);
+        const refreshed = await recruitmentApi.getCandidate(id);
+        setData(prev => ({ ...prev, candidates: prev.candidates.map(c => c.id === id ? refreshed : c) }));
+        return result;
       },
     };
   }, [candidatesSource, mockCandidatesCrud, data.candidates]);

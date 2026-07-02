@@ -98,3 +98,13 @@ export async function searchEmployees(q) {
   const data = await api.get('/employees/search', { q });
   return (data.content || data || []).map(adaptEmployee);
 }
+
+// Revises CTC using the CEO's standard breakup template and emails a hike letter.
+export async function issueHike(id, { newAnnualCtc, effectiveDate, reason }) {
+  return adaptEmployee(await api.post(`/employees/${id}/hike`, { newAnnualCtc: Number(newAnnualCtc), effectiveDate, reason }));
+}
+
+// Records a resignation and emails an acknowledgement letter.
+export async function recordResignation(id, { lastWorkingDate, reason }) {
+  return adaptEmployee(await api.post(`/employees/${id}/resign`, { lastWorkingDate, reason }));
+}

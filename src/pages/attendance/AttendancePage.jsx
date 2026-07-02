@@ -10,7 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { getMyAttendance } from '../../api/attendance';
+import { getMyAttendance, getTeamAttendance } from '../../api/attendance';
 
 const ATTENDANCE_DATA = [
   { date: 'Mon', present: 210, absent: 15, late: 12, wfh: 8 },
@@ -51,6 +51,7 @@ export default function AttendancePage() {
   const [workingHours, setWorkingHours] = useState('7h 22m');
   const [punchBusy, setPunchBusy] = useState(false);
   const [liveWeekLog, setLiveWeekLog] = useState(null);
+  const [liveTeamLog, setLiveTeamLog] = useState(null);
 
   // Live: punched-in state derives from today's attendance record (no check-out time yet)
   const liveIsPunchedIn = !!todayAttendance && !!todayAttendance.checkInTime && todayAttendance.checkInTime !== '-' && (!todayAttendance.checkOutTime || todayAttendance.checkOutTime === '-');
@@ -65,6 +66,29 @@ export default function AttendancePage() {
       .then(setLiveWeekLog)
       .catch(() => setLiveWeekLog(null));
   }, [isLive, todayAttendance]);
+
+  const [liveTeamTrend, setLiveTeamTrend] = useState(null);
+
+  useEffect(() => {
+    if (!isLive || !isManager) return;
+    getTeamAttendance().then(setLiveTeamLog).catch(() => setLiveTeamLog(null));
+
+    // Trailing Mon-Fri of the current week, for the trend chart
+    const now = new Date();
+    const dow = now.getDay(); // 0=Sun..6=Sat
+    const monday = new Date(now); monday.setDate(now.getDate() - ((dow + 6) % 7));
+    const days = Array.from({ length: 5 }, (_, i) => { const d = new Date(monday); d.setDate(monday.getDate() + i); return d; });
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+    Promise.all(days.map(d => getTeamAttendance(d.toISOString().split('T')[0]).catch(() => [])))
+      .then(results => {
+        setLiveTeamTrend(results.map((log, i) => ({
+          date: dayLabels[i],
+          present: log.filter(l => l.status === 'Present').length,
+          absent: log.filter(l => l.status === 'Absent').length,
+          late: log.filter(l => l.status === 'Late').length,
+        })));
+      });
+  }, [isLive, isManager]);
 
   const handlePunch = async () => {
     if (!isLive) {
@@ -172,21 +196,31 @@ export default function AttendancePage() {
       )}
 
       {/* Manager: Team stats */}
-      {isManager && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard icon={UserCheck} label="Present Today" value="210" change="85.7%" color="success" delay={0} />
-          <StatCard icon={UserX} label="Absent" value="15" change="6.1%" changeType="negative" color="danger" delay={1} />
-          <StatCard icon={Timer} label="Late Arrivals" value="12" change="4.9%" changeType="negative" color="warning" delay={2} />
-          <StatCard icon={MapPin} label="WFH" value="8" change="3.3%" color="info" delay={3} />
-        </div>
-      )}
+      {isManager && (() => {
+        const teamData = isLive && liveTeamLog ? liveTeamLog : teamLog;
+        const isRealTeamData = isLive && !!liveTeamLog;
+        const total = teamData.length || 1;
+        const present = teamData.filter(t => t.status === 'Present').length;
+        const absent = teamData.filter(t => t.status === 'Absent').length;
+        const late = teamData.filter(t => t.status === 'Late').length;
+        const wfh = teamData.filter(t => t.mode === 'WFH').length;
+        const pct = (n) => `${((n / total) * 100).toFixed(1)}%${isRealTeamData ? '' : ' (demo data)'}`;
+        return (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard icon={UserCheck} label="Present Today" value={present} change={pct(present)} color="success" delay={0} />
+            <StatCard icon={UserX} label="Absent" value={absent} change={pct(absent)} changeType="negative" color="danger" delay={1} />
+            <StatCard icon={Timer} label="Late Arrivals" value={late} change={pct(late)} changeType="negative" color="warning" delay={2} />
+            <StatCard icon={MapPin} label="WFH" value={wfh} change={pct(wfh)} color="info" delay={3} />
+          </div>
+        );
+      })()}
 
       {/* Manager: Team chart */}
       {isManager && (
-        <Card title="Weekly Attendance Trend">
+        <Card title="Weekly Attendance Trend" subtitle={isLive && liveTeamTrend ? undefined : '(demo data — connect to live backend for real trend)'}>
           <div className="h-48">
             <ResponsiveContainer>
-              <BarChart data={ATTENDANCE_DATA}>
+              <BarChart data={isLive && liveTeamTrend ? liveTeamTrend : ATTENDANCE_DATA}>
                 <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ background: '#1F2937', border: '1px solid #2C3445', borderRadius: 8, fontSize: 12, color: '#F1F5F9' }} />
@@ -208,8 +242,8 @@ export default function AttendancePage() {
 
       {/* Manager: Team attendance log */}
       {isManager && (
-        <Card title="Today's Team Attendance" padding={false}>
-          <DataTable columns={teamColumns} data={teamLog} />
+        <Card title="Today's Team Attendance" subtitle={isLive && liveTeamLog ? undefined : '(demo data — connect to live backend for real team list)'} padding={false}>
+          <DataTable columns={teamColumns} data={isLive && liveTeamLog ? liveTeamLog : teamLog} />
         </Card>
       )}
     </div>

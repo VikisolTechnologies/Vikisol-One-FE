@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { ROLE_PERMISSIONS } from '../../data/mock';
@@ -30,13 +29,12 @@ const sections = [
   ]},
 ];
 
-export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
+export default function Sidebar({ collapsed, onToggleCollapse }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const perms = ROLE_PERMISSIONS[user?.role] || [];
+  const perms = ROLE_PERMISSIONS[user?.role?.toLowerCase()] || [];
   const isActive = (id) => {
     const path = location.pathname.split('/')[1] || 'dashboard';
     return path === id;
@@ -94,7 +92,7 @@ export default function Sidebar() {
         <button onClick={() => navigate('/help')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all ${isActive('help') ? 'bg-primary text-white' : 'text-text-secondary hover:text-text hover:bg-surface-3'}`}>
           <HelpCircle size={17} className="flex-shrink-0" />{!collapsed && <span>Help & Support</span>}
         </button>
-        <button onClick={() => setCollapsed(!collapsed)} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] text-text-secondary hover:text-text hover:bg-surface-3 transition-all">
+        <button onClick={onToggleCollapse} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] text-text-secondary hover:text-text hover:bg-surface-3 transition-all">
           <ChevronLeft size={17} className={`flex-shrink-0 transition-transform duration-200 ${collapsed ? 'rotate-180' : ''}`} />{!collapsed && <span>Collapse</span>}
         </button>
         <button onClick={logout} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] text-danger hover:bg-danger/10 transition-all">

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { UserPlus, Download, Upload, Eye, Edit3, Trash2, MoreVertical, UserCheck, UserX, Key, RefreshCw, FileText, Briefcase, Monitor } from 'lucide-react';
+import { UserPlus, Download, Upload, Eye, Edit3, Trash2, MoreVertical, UserCheck, UserX, Key, RefreshCw, FileText, Briefcase, Monitor, TrendingUp, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -37,6 +37,12 @@ export default function EmployeeDirectory() {
   const [contextMenu, setContextMenu] = useState(null);
   const [addForm, setAddForm] = useState({ name: '', email: '', department: 'Development', designation: '', location: 'Hyderabad', phone: '', employmentType: 'Full Time' });
   const [editForm, setEditForm] = useState({});
+  const [hikeEmp, setHikeEmp] = useState(null);
+  const [hikeForm, setHikeForm] = useState({ newAnnualCtc: '', effectiveDate: '', reason: '' });
+  const [hikeSubmitting, setHikeSubmitting] = useState(false);
+  const [resignEmp, setResignEmp] = useState(null);
+  const [resignForm, setResignForm] = useState({ lastWorkingDate: '', reason: '' });
+  const [resignSubmitting, setResignSubmitting] = useState(false);
 
   const allEmps = data.employees;
 
@@ -143,6 +149,48 @@ export default function EmployeeDirectory() {
     setContextMenu(null);
   };
 
+  const openHikeModal = (emp) => {
+    setHikeForm({ newAnnualCtc: emp.ctc || '', effectiveDate: '', reason: '' });
+    setHikeEmp(emp);
+    setContextMenu(null);
+  };
+
+  const handleIssueHike = async () => {
+    if (employeesSource !== 'live') { toast.error('Connect to the live backend to issue hikes and send hike letters'); return; }
+    if (!hikeForm.newAnnualCtc || !hikeForm.effectiveDate) { toast.error('New CTC and effective date are required'); return; }
+    setHikeSubmitting(true);
+    try {
+      await employees.issueHike(hikeEmp.id, hikeForm);
+      toast.success(`Hike issued for ${hikeEmp.name} — letter emailed`);
+      setHikeEmp(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to issue hike');
+    } finally {
+      setHikeSubmitting(false);
+    }
+  };
+
+  const openResignModal = (emp) => {
+    setResignForm({ lastWorkingDate: '', reason: '' });
+    setResignEmp(emp);
+    setContextMenu(null);
+  };
+
+  const handleRecordResignation = async () => {
+    if (employeesSource !== 'live') { toast.error('Connect to the live backend to record resignations'); return; }
+    if (!resignForm.lastWorkingDate) { toast.error('Last working date is required'); return; }
+    setResignSubmitting(true);
+    try {
+      await employees.resign(resignEmp.id, resignForm);
+      toast.success(`Resignation recorded for ${resignEmp.name} — acknowledgement emailed`);
+      setResignEmp(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to record resignation');
+    } finally {
+      setResignSubmitting(false);
+    }
+  };
+
   const filterConfig = [
     { key: 'department', label: 'Department', options: data.departments },
     { key: 'status', label: 'Status', options: ['Active', 'On Leave', 'Notice Period', 'Suspended'] },
@@ -178,6 +226,9 @@ export default function EmployeeDirectory() {
             <button onClick={() => handleGenerateLetter(row, 'Offer Letter')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><FileText size={14} /> Generate Offer Letter</button>
             <button onClick={() => handleGenerateLetter(row, 'Experience Letter')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><FileText size={14} /> Experience Letter</button>
             <button onClick={() => handleGenerateLetter(row, 'Relieving Letter')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><FileText size={14} /> Relieving Letter</button>
+            <hr className="border-border my-1" />
+            <button onClick={() => openHikeModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><TrendingUp size={14} /> Issue Hike</button>
+            <button onClick={() => openResignModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-warning hover:bg-warning/10"><LogOut size={14} /> Record Resignation</button>
             <hr className="border-border my-1" />
             <button onClick={() => handleDelete(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger hover:bg-danger/10"><Trash2 size={14} /> Delete Employee</button>
           </div>
@@ -344,6 +395,39 @@ export default function EmployeeDirectory() {
                 </div>
               )},
             ]} />
+          </div>
+        )}
+      </Modal>
+
+      {/* Issue Hike Modal */}
+      <Modal open={!!hikeEmp} onClose={() => setHikeEmp(null)} title="Issue Hike">
+        {hikeEmp && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-surface-3 rounded-xl">
+              <Avatar name={hikeEmp.name} size="md" />
+              <div><p className="font-medium text-text">{hikeEmp.name}</p><p className="text-xs text-text-secondary">Current CTC: ₹{hikeEmp.ctc ? (hikeEmp.ctc / 100000).toFixed(1) : '-'}L</p></div>
+            </div>
+            <Input label="New Annual CTC (₹) *" type="number" value={hikeForm.newAnnualCtc} onChange={e => setHikeForm(p => ({ ...p, newAnnualCtc: e.target.value }))} placeholder="e.g. 1500000" />
+            <Input label="Effective Date *" type="date" value={hikeForm.effectiveDate} onChange={e => setHikeForm(p => ({ ...p, effectiveDate: e.target.value }))} />
+            <Textarea label="Reason / Notes" value={hikeForm.reason} onChange={e => setHikeForm(p => ({ ...p, reason: e.target.value }))} placeholder="Annual appraisal, promotion, retention, etc." />
+            <p className="text-xs text-text-secondary">The new CTC will be split using the CEO's standard breakup, and a hike letter will be emailed to {hikeEmp.email}.</p>
+            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setHikeEmp(null)}>Cancel</Button><Button onClick={handleIssueHike} disabled={hikeSubmitting}>{hikeSubmitting ? 'Sending...' : 'Issue Hike & Send Letter'}</Button></div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Record Resignation Modal */}
+      <Modal open={!!resignEmp} onClose={() => setResignEmp(null)} title="Record Resignation">
+        {resignEmp && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-surface-3 rounded-xl">
+              <Avatar name={resignEmp.name} size="md" />
+              <div><p className="font-medium text-text">{resignEmp.name}</p><p className="text-xs text-text-secondary">{resignEmp.designation}</p></div>
+            </div>
+            <Input label="Last Working Date *" type="date" value={resignForm.lastWorkingDate} onChange={e => setResignForm(p => ({ ...p, lastWorkingDate: e.target.value }))} />
+            <Textarea label="Reason / Notes" value={resignForm.reason} onChange={e => setResignForm(p => ({ ...p, reason: e.target.value }))} placeholder="Optional context for HR records" />
+            <p className="text-xs text-text-secondary">This marks {resignEmp.name} as on notice and emails a resignation acknowledgement to {resignEmp.email}.</p>
+            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setResignEmp(null)}>Cancel</Button><Button onClick={handleRecordResignation} disabled={resignSubmitting}>{resignSubmitting ? 'Sending...' : 'Record Resignation'}</Button></div>
           </div>
         )}
       </Modal>
