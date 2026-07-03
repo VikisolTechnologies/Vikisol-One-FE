@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Building2, Shield, Bell, Palette, Key, Globe, Calendar, Mail, FileText, Database, Upload, RefreshCw, IndianRupee } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
+import Input, { Textarea } from '../../components/ui/Input';
 import Tabs from '../../components/ui/Tabs';
 import Badge from '../../components/ui/Badge';
 import Breadcrumb from '../../components/ui/Breadcrumb';
