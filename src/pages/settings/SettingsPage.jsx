@@ -161,9 +161,176 @@ function CtcBreakupSettings() {
   );
 }
 
+function OrgStructureSettings() {
+  const { lookups, departmentsCrud, designationsCrud } = useData();
+  const toast = useToast();
+  const [newDept, setNewDept] = useState('');
+  const [newDesig, setNewDesig] = useState('');
+  const [savingDept, setSavingDept] = useState(false);
+  const [savingDesig, setSavingDesig] = useState(false);
+
+  const handleAddDept = async () => {
+    if (!newDept.trim()) return;
+    setSavingDept(true);
+    try {
+      await departmentsCrud.create({ name: newDept.trim() });
+      setNewDept('');
+      toast.success('Department added');
+    } catch (err) {
+      toast.error(err.message || 'Failed to add department');
+    } finally {
+      setSavingDept(false);
+    }
+  };
+
+  const handleDeleteDept = async (d) => {
+    try {
+      await departmentsCrud.remove(d.id);
+      toast.success(`${d.name} removed`);
+    } catch (err) {
+      toast.error(err.message || 'Cannot delete this department (it may still have employees)');
+    }
+  };
+
+  const handleAddDesig = async () => {
+    if (!newDesig.trim()) return;
+    setSavingDesig(true);
+    try {
+      await designationsCrud.create({ title: newDesig.trim(), level: 1 });
+      setNewDesig('');
+      toast.success('Designation added');
+    } catch (err) {
+      toast.error(err.message || 'Failed to add designation');
+    } finally {
+      setSavingDesig(false);
+    }
+  };
+
+  const handleDeleteDesig = async (d) => {
+    try {
+      await designationsCrud.remove(d.id);
+      toast.success(`${d.title} removed`);
+    } catch (err) {
+      toast.error(err.message || 'Cannot delete this designation (it may still be in use)');
+    }
+  };
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Card>
+        <p className="text-sm font-medium text-text mb-3">Departments</p>
+        <div className="space-y-2 max-w-md">
+          {lookups.departments.map(d => (
+            <div key={d.id} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
+              <span className="text-sm text-text">{d.name}</span>
+              <Button size="sm" variant="ghost" onClick={() => handleDeleteDept(d)}>Delete</Button>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <Input value={newDept} onChange={e => setNewDept(e.target.value)} placeholder="New department name" className="flex-1" />
+            <Button size="sm" variant="secondary" onClick={handleAddDept} disabled={savingDept}>+ Add</Button>
+          </div>
+        </div>
+      </Card>
+      <Card>
+        <p className="text-sm font-medium text-text mb-3">Designations</p>
+        <div className="space-y-2 max-w-md">
+          {lookups.designations.map(d => (
+            <div key={d.id} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
+              <span className="text-sm text-text">{d.title}</span>
+              <Button size="sm" variant="ghost" onClick={() => handleDeleteDesig(d)}>Delete</Button>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <Input value={newDesig} onChange={e => setNewDesig(e.target.value)} placeholder="New designation title" className="flex-1" />
+            <Button size="sm" variant="secondary" onClick={handleAddDesig} disabled={savingDesig}>+ Add</Button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function LeaveTypesSettings() {
+  const { leaveTypes, leaveTypesCrud } = useData();
+  const toast = useToast();
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState({});
+  const [newType, setNewType] = useState({ name: '', code: '', defaultDays: '' });
+  const [saving, setSaving] = useState(false);
+
+  const startEdit = (t) => { setEditingId(t.id); setDraft({ ...t }); };
+
+  const handleSaveEdit = async () => {
+    setSaving(true);
+    try {
+      await leaveTypesCrud.update(editingId, draft);
+      toast.success('Leave quota updated');
+      setEditingId(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to update leave type');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAdd = async () => {
+    if (!newType.name.trim() || !newType.code.trim() || !newType.defaultDays) {
+      toast.error('Name, code and number of days are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      await leaveTypesCrud.create(newType);
+      setNewType({ name: '', code: '', defaultDays: '' });
+      toast.success('Leave type added');
+    } catch (err) {
+      toast.error(err.message || 'Failed to add leave type');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <p className="text-sm font-medium text-text mb-1">Leave Types & Annual Quotas</p>
+      <p className="text-xs text-text-secondary mb-3">Set how many Casual, Earned, Sick, Comp Off (and other) leave days each employee gets per year.</p>
+      <div className="space-y-2 max-w-xl">
+        {leaveTypes.map(t => (
+          <div key={t.id} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
+            {editingId === t.id ? (
+              <div className="flex items-center gap-2 flex-1">
+                <Input value={draft.name} onChange={e => setDraft(p => ({ ...p, name: e.target.value }))} className="flex-1" />
+                <Input type="number" min="0" value={draft.defaultDays} onChange={e => setDraft(p => ({ ...p, defaultDays: e.target.value }))} className="w-20" />
+                <span className="text-xs text-text-secondary">days/yr</span>
+                <Button size="sm" onClick={handleSaveEdit} disabled={saving}>Save</Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>Cancel</Button>
+              </div>
+            ) : (
+              <>
+                <div><span className="text-sm text-text">{t.name}</span> <span className="text-xs text-text-secondary">({t.code})</span></div>
+                <div className="flex items-center gap-3">
+                  <Badge variant="default">{t.defaultDays} days/yr</Badge>
+                  <Button size="sm" variant="ghost" onClick={() => startEdit(t)}>Edit</Button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+        <div className="flex gap-2 pt-2 border-t border-border mt-2">
+          <Input value={newType.name} onChange={e => setNewType(p => ({ ...p, name: e.target.value }))} placeholder="Name (e.g. Sabbatical)" className="flex-1" />
+          <Input value={newType.code} onChange={e => setNewType(p => ({ ...p, code: e.target.value.toUpperCase() }))} placeholder="Code" className="w-24" />
+          <Input type="number" min="0" value={newType.defaultDays} onChange={e => setNewType(p => ({ ...p, defaultDays: e.target.value }))} placeholder="Days" className="w-20" />
+          <Button size="sm" variant="secondary" onClick={handleAdd} disabled={saving}>+ Add Type</Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
-  const { departments, auditLogs, data, holidays, holidaysSource, holidaysLoading } = useData();
+  const { auditLogs, data, holidays, holidaysSource, holidaysLoading } = useData();
   const { user } = useAuth();
   const isCEO = user?.role === 'ceo';
   const toast = useToast();
@@ -235,22 +402,8 @@ export default function SettingsPage() {
             </div>
           </div></Card>
         )},
-        { id: 'departments', label: 'Departments', content: (
-          <Card>
-            <div className="space-y-2 max-w-md">
-              {departments.map(d => (
-                <div key={d} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
-                  <span className="text-sm text-text">{d}</span>
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => toast.info(`Editing ${d}`)}>Edit</Button>
-                    <Button size="sm" variant="ghost" onClick={() => toast.warning(`Cannot delete department with employees`)}>Delete</Button>
-                  </div>
-                </div>
-              ))}
-              <Button size="sm" variant="secondary" onClick={() => toast.success('Department added')}>+ Add Department</Button>
-            </div>
-          </Card>
-        )},
+        { id: 'departments', label: 'Departments & Designations', content: <OrgStructureSettings /> },
+        { id: 'leave-types', label: 'Leave Types', content: <LeaveTypesSettings /> },
         { id: 'ctc-breakup', label: 'CTC Breakup', content: <CtcBreakupSettings /> },
         ...(isCEO ? [{ id: 'role-permissions', label: 'Role Permissions', content: <RolePermissionsSettings /> }] : []),
         { id: 'roles', label: 'Roles & Permissions', content: (

@@ -44,6 +44,9 @@ export default function ProjectsPage() {
   const [membersLoading, setMembersLoading] = useState(false);
   const [addMemberForm, setAddMemberForm] = useState({ employeeId: '', role: '', allocationPercentage: 100 });
   const [addingMember, setAddingMember] = useState(false);
+  const [moveMember, setMoveMember] = useState(null); // member being reassigned to another project
+  const [moveTargetId, setMoveTargetId] = useState('');
+  const [moving, setMoving] = useState(false);
 
   const allProjects = useMemo(() => {
     if (isAdmin || isManager) return data.projects;
@@ -131,6 +134,28 @@ export default function ProjectsPage() {
       toast.success(`${member.employeeName} removed from ${selected.name}`);
     } catch (err) {
       toast.error(err.message || 'Failed to remove team member');
+    }
+  };
+
+  // Reassigns a team member from the currently open project to a different one in one action
+  // (remove from here + add to the target), instead of two separate manual steps.
+  const handleMoveMember = async () => {
+    if (!moveTargetId) { toast.error('Select a target project'); return; }
+    setMoving(true);
+    try {
+      await removeProjectMember(selected.id, moveMember.id);
+      const added = await addProjectMember(moveTargetId, {
+        employeeId: moveMember.employeeId, role: moveMember.role, allocationPercentage: moveMember.allocationPercentage,
+      });
+      setMembers(prev => (prev || []).filter(m => m.id !== moveMember.id));
+      const targetName = data.projects.find(p => p.id === moveTargetId)?.name || 'the selected project';
+      toast.success(`${added.employeeName} moved to ${targetName}`);
+      setMoveMember(null);
+      setMoveTargetId('');
+    } catch (err) {
+      toast.error(err.message || 'Failed to move team member');
+    } finally {
+      setMoving(false);
     }
   };
 
@@ -246,7 +271,12 @@ export default function ProjectsPage() {
                   {(members || []).map(m => (
                     <div key={m.id} className="flex items-center justify-between p-2 bg-surface-3 rounded-lg">
                       <div className="flex items-center gap-2"><Avatar name={m.employeeName} size="sm" /><div><p className="text-sm text-text">{m.employeeName}</p><p className="text-[10px] text-text-secondary">{m.role || 'Member'} &middot; {m.allocationPercentage}%</p></div></div>
-                      {isManager && <button onClick={() => handleRemoveMember(m)} className="p-1 rounded hover:bg-danger/10 text-danger"><X size={14} /></button>}
+                      {isManager && (
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => { setMoveMember(m); setMoveTargetId(''); }}>Move</Button>
+                          <button onClick={() => handleRemoveMember(m)} className="p-1 rounded hover:bg-danger/10 text-danger"><X size={14} /></button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -264,6 +294,20 @@ export default function ProjectsPage() {
             </div>
           )}
         </div>}
+      </Modal>
+
+      <Modal open={!!moveMember} onClose={() => setMoveMember(null)} title="Move to Another Project">
+        {moveMember && (
+          <div className="space-y-4">
+            <p className="text-sm text-text-secondary">Move <span className="text-text font-medium">{moveMember.employeeName}</span> from <span className="text-text font-medium">{selected?.name}</span> to:</p>
+            <Select label="Target Project" value={moveTargetId} onChange={e => setMoveTargetId(e.target.value)}
+              placeholder="Select project" options={data.projects.filter(p => p.id !== selected?.id).map(p => ({ value: p.id, label: p.name }))} />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setMoveMember(null)}>Cancel</Button>
+              <Button onClick={handleMoveMember} disabled={moving}>{moving ? 'Moving...' : 'Move'}</Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

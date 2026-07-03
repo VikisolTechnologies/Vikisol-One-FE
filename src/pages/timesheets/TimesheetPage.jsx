@@ -92,7 +92,7 @@ export default function TimesheetPage() {
       }
       return prev[i]?.dirty ? prev[i] : { date, id: null, projectId: '', checkInTime: '', checkOutTime: '', reason: '', workLocation: 'Office', status: 'Draft', dirty: false };
     }));
-  }, [data.timesheets, weekDates, defaultProjectId]);
+  }, [data.timesheets, weekDates]);
 
   const updateRow = (date, field, value) => {
     setMyWeekRows(prev => prev.map(r => r.date === date && (r.status === 'Draft' || r.status === 'Rejected') ? { ...r, [field]: value, dirty: true } : r));

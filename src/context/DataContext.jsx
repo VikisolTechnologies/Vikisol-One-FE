@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import { generateEmployees, generateLeaveRequests, generateTimesheets, generateTickets, generateCandidates, generateProjects, generateAssets, generatePayslips, generateDocuments, generateAnnouncements, generateNotifications, generateHolidays } from '../data/generator';
 import * as employeesApi from '../api/employees';
-import { getAllDepartments } from '../api/departments';
-import { getAllDesignations } from '../api/designations';
+import { getAllDepartments, createDepartment, updateDepartment, deleteDepartment } from '../api/departments';
+import { getAllDesignations, createDesignation, updateDesignation, deleteDesignation } from '../api/designations';
 import * as leaveApi from '../api/leave';
 import * as attendanceApi from '../api/attendance';
 import * as ticketsApi from '../api/tickets';
@@ -661,6 +661,60 @@ export function DataProvider({ children }) {
     };
   }, [notificationsSource, mockNotificationsCrud, data.notifications]);
 
+  // Real CRUD for departments/designations/leave-type quotas (CEO/HR-managed org structure).
+  // lookups.departments/designations are always live (independently fetched above), so these
+  // simply call the backend then patch the lookups list locally - no mock fallback needed.
+  const departmentsCrud = useMemo(() => ({
+    create: async (form) => {
+      const created = await createDepartment(form);
+      setLookups(prev => ({ ...prev, departments: [...prev.departments, created] }));
+      return created;
+    },
+    update: async (id, form) => {
+      const updated = await updateDepartment(id, form);
+      setLookups(prev => ({ ...prev, departments: prev.departments.map(d => d.id === id ? updated : d) }));
+      return updated;
+    },
+    remove: async (id) => {
+      await deleteDepartment(id);
+      setLookups(prev => ({ ...prev, departments: prev.departments.filter(d => d.id !== id) }));
+    },
+  }), []);
+
+  const designationsCrud = useMemo(() => ({
+    create: async (form) => {
+      const created = await createDesignation(form);
+      setLookups(prev => ({ ...prev, designations: [...prev.designations, created] }));
+      return created;
+    },
+    update: async (id, form) => {
+      const updated = await updateDesignation(id, form);
+      setLookups(prev => ({ ...prev, designations: prev.designations.map(d => d.id === id ? updated : d) }));
+      return updated;
+    },
+    remove: async (id) => {
+      await deleteDesignation(id);
+      setLookups(prev => ({ ...prev, designations: prev.designations.filter(d => d.id !== id) }));
+    },
+  }), []);
+
+  const leaveTypesCrud = useMemo(() => ({
+    create: async (form) => {
+      const created = await leaveApi.createLeaveType(form);
+      setLeaveTypes(prev => [...prev, created]);
+      return created;
+    },
+    update: async (id, form) => {
+      const updated = await leaveApi.updateLeaveType(id, form);
+      setLeaveTypes(prev => prev.map(t => t.id === id ? updated : t));
+      return updated;
+    },
+    remove: async (id) => {
+      await leaveApi.deleteLeaveType(id);
+      setLeaveTypes(prev => prev.filter(t => t.id !== id));
+    },
+  }), []);
+
   const holidays = useMemo(() => {
     if (holidaysSource !== 'live') return mockHolidaysCrud;
     return {
@@ -751,7 +805,8 @@ export function DataProvider({ children }) {
     projectsSource, projectsLoading, timesheetsSource, timesheetsLoading,
     documentsSource, documentsLoading,
     candidatesSource, candidatesLoading, jobPostings, visibleModules,
-  }), [data, stats, employees, leaveRequests, timesheets, tickets, candidates, projects, assets, payslips, documents, announcements, notifications, holidays, markNotificationRead, markAllNotificationsRead, employeesSource, employeesLoading, lookups, leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances, attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut, ticketsSource, ticketsLoading, assetsSource, assetsLoading, payslipsSource, payslipsLoading, holidaysSource, holidaysLoading, notificationsSource, notificationsLoading, unreadCount, projectsSource, projectsLoading, timesheetsSource, timesheetsLoading, documentsSource, documentsLoading, candidatesSource, candidatesLoading, jobPostings]);
+    departmentsCrud, designationsCrud, leaveTypesCrud,
+  }), [data, stats, employees, leaveRequests, timesheets, tickets, candidates, projects, assets, payslips, documents, announcements, notifications, holidays, markNotificationRead, markAllNotificationsRead, employeesSource, employeesLoading, lookups, leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances, attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut, ticketsSource, ticketsLoading, assetsSource, assetsLoading, payslipsSource, payslipsLoading, holidaysSource, holidaysLoading, notificationsSource, notificationsLoading, unreadCount, projectsSource, projectsLoading, timesheetsSource, timesheetsLoading, documentsSource, documentsLoading, candidatesSource, candidatesLoading, jobPostings, departmentsCrud, designationsCrud, leaveTypesCrud]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

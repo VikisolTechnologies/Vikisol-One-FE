@@ -55,6 +55,19 @@ export async function getLeaveTypes() {
   return (data || []).map(adaptLeaveType);
 }
 
+// CEO-configurable leave type quotas (Casual/Earned/Sick/Comp Off/etc).
+export async function createLeaveType({ name, code, defaultDays, carryForward = false, maxCarryForwardDays = 0 }) {
+  return adaptLeaveType(await api.post('/leaves/types', { name, code, defaultDays: Number(defaultDays), carryForward, maxCarryForwardDays: Number(maxCarryForwardDays) || 0 }));
+}
+
+export async function updateLeaveType(id, { name, code, defaultDays, carryForward = false, maxCarryForwardDays = 0 }) {
+  return adaptLeaveType(await api.put(`/leaves/types/${id}`, { name, code, defaultDays: Number(defaultDays), carryForward, maxCarryForwardDays: Number(maxCarryForwardDays) || 0 }));
+}
+
+export async function deleteLeaveType(id) {
+  return api.del(`/leaves/types/${id}`);
+}
+
 export async function applyLeave(form) {
   const body = {
     leaveTypeId: form.leaveTypeId,

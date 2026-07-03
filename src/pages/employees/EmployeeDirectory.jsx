@@ -32,6 +32,9 @@ export default function EmployeeDirectory() {
   const { user } = useAuth();
   const isCEO = user?.role === 'ceo';
   const canManageOnboarding = ['ceo', 'hr_manager', 'admin'].includes(user?.role);
+  // Hikes/resignations are compensation & exit decisions - HR's call, not a Manager's. Matches
+  // the backend's @PreAuthorize on /employees/{id}/hike and /employees/{id}/resign.
+  const canManageCompensation = ['ceo', 'hr_manager', 'admin'].includes(user?.role);
   const toast = useToast();
   const confirm = useConfirm();
   const [roleChangeBusy, setRoleChangeBusy] = useState(false);
@@ -267,9 +270,9 @@ export default function EmployeeDirectory() {
             <button onClick={() => handleGenerateLetter(row, 'Offer Letter')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><FileText size={14} /> Generate Offer Letter</button>
             <button onClick={() => handleGenerateLetter(row, 'Experience Letter')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><FileText size={14} /> Experience Letter</button>
             <button onClick={() => handleGenerateLetter(row, 'Relieving Letter')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><FileText size={14} /> Relieving Letter</button>
-            <hr className="border-border my-1" />
-            <button onClick={() => openHikeModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><TrendingUp size={14} /> Issue Hike</button>
-            <button onClick={() => openResignModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-warning hover:bg-warning/10"><LogOut size={14} /> Record Resignation</button>
+            {canManageCompensation && <hr className="border-border my-1" />}
+            {canManageCompensation && <button onClick={() => openHikeModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><TrendingUp size={14} /> Issue Hike</button>}
+            {canManageCompensation && <button onClick={() => openResignModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-warning hover:bg-warning/10"><LogOut size={14} /> Record Resignation</button>}
             <hr className="border-border my-1" />
             <button onClick={() => handleDelete(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger hover:bg-danger/10"><Trash2 size={14} /> Delete Employee</button>
           </div>
