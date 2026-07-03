@@ -15,6 +15,7 @@ import * as settingsApi from '../api/settings';
 import * as notificationsApi from '../api/notifications';
 import * as recruitmentApi from '../api/recruitment';
 import * as announcementsApi from '../api/announcements';
+import * as auditLogsApi from '../api/auditLogs';
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext(null);
@@ -72,6 +73,8 @@ export function DataProvider({ children }) {
   const [holidaysSource, setHolidaysSource] = useState('mock'); // 'mock' | 'live'
   const [announcementsSource, setAnnouncementsSource] = useState('mock');
   const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+  const [auditLogsSource, setAuditLogsSource] = useState('mock');
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false);
   const [holidaysLoading, setHolidaysLoading] = useState(false);
   const [notificationsSource, setNotificationsSource] = useState('mock'); // 'mock' | 'live'
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -270,6 +273,20 @@ export function DataProvider({ children }) {
       })
       .catch(() => setAnnouncementsSource('mock'))
       .finally(() => setAnnouncementsLoading(false));
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    // Only CEO/ADMIN can call this - other roles will 403 and silently keep the mock/empty view,
+    // which is fine since they can't see the Audit Logs tab in the UI anyway.
+    setAuditLogsLoading(true);
+    auditLogsApi.getAuditLogs({ size: 200 })
+      .then((result) => {
+        setData(prev => ({ ...prev, auditLogs: result.items }));
+        setAuditLogsSource('live');
+      })
+      .catch(() => setAuditLogsSource('mock'))
+      .finally(() => setAuditLogsLoading(false));
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -837,12 +854,12 @@ export function DataProvider({ children }) {
     attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut,
     ticketsSource, ticketsLoading, assetsSource, assetsLoading,
     payslipsSource, payslipsLoading,
-    holidaysSource, holidaysLoading, announcementsSource, announcementsLoading, notificationsSource, notificationsLoading, unreadCount,
+    holidaysSource, holidaysLoading, announcementsSource, announcementsLoading, auditLogsSource, auditLogsLoading, notificationsSource, notificationsLoading, unreadCount,
     projectsSource, projectsLoading, timesheetsSource, timesheetsLoading,
     documentsSource, documentsLoading,
     candidatesSource, candidatesLoading, jobPostings, visibleModules,
     departmentsCrud, designationsCrud, leaveTypesCrud,
-  }), [data, stats, employees, leaveRequests, timesheets, tickets, candidates, projects, assets, payslips, documents, announcements, notifications, holidays, markNotificationRead, markAllNotificationsRead, employeesSource, employeesLoading, lookups, leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances, attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut, ticketsSource, ticketsLoading, assetsSource, assetsLoading, payslipsSource, payslipsLoading, holidaysSource, holidaysLoading, announcementsSource, announcementsLoading, notificationsSource, notificationsLoading, unreadCount, projectsSource, projectsLoading, timesheetsSource, timesheetsLoading, documentsSource, documentsLoading, candidatesSource, candidatesLoading, jobPostings, departmentsCrud, designationsCrud, leaveTypesCrud]);
+  }), [data, stats, employees, leaveRequests, timesheets, tickets, candidates, projects, assets, payslips, documents, announcements, notifications, holidays, markNotificationRead, markAllNotificationsRead, employeesSource, employeesLoading, lookups, leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances, attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut, ticketsSource, ticketsLoading, assetsSource, assetsLoading, payslipsSource, payslipsLoading, holidaysSource, holidaysLoading, announcementsSource, announcementsLoading, auditLogsSource, auditLogsLoading, notificationsSource, notificationsLoading, unreadCount, projectsSource, projectsLoading, timesheetsSource, timesheetsLoading, documentsSource, documentsLoading, candidatesSource, candidatesLoading, jobPostings, departmentsCrud, designationsCrud, leaveTypesCrud]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

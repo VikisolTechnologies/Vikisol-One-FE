@@ -421,7 +421,7 @@ function AnnouncementsSettings() {
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
-  const { auditLogs, data, holidays, holidaysSource, holidaysLoading } = useData();
+  const { auditLogs, data, holidays, holidaysSource, holidaysLoading, auditLogsSource, auditLogsLoading } = useData();
   const { user } = useAuth();
   const isCEO = user?.role === 'ceo';
   const toast = useToast();
@@ -559,6 +559,8 @@ export default function SettingsPage() {
         )},
         { id: 'audit', label: 'Audit Logs', content: (
           <div className="space-y-3">
+            {auditLogsLoading && <p className="text-xs text-text-secondary">Loading from server...</p>}
+            {!auditLogsLoading && auditLogsSource === 'mock' && <p className="text-xs text-warning">(demo data - live backend unavailable or insufficient permissions)</p>}
             <Input placeholder="Search by action, user, target or IP..." value={auditSearch} onChange={e => setAuditSearch(e.target.value)} className="max-w-sm" />
             <Card padding={false}>
               <DataTable columns={[
