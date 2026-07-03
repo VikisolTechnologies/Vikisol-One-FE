@@ -129,6 +129,15 @@ export async function previewCtcBreakup(ctc) {
   return api.post(`/payroll/ctc-breakup-preview?ctc=${encodeURIComponent(ctc)}`);
 }
 
+// CEO-nameable 6th CTC component (e.g. "LTA", "Bonus") - 0% until named/set.
+export async function getCtcCustomLabel() {
+  return api.get('/payroll/ctc-custom-label');
+}
+
+export async function updateCtcCustomLabel(label) {
+  return api.put('/payroll/ctc-custom-label', { label });
+}
+
 export async function requestSalaryAdvance({ amount, reason, emiMonths }) {
   return adaptSalaryAdvance(await api.post('/payroll/salary-advance', { amount, reason, emiMonths }));
 }

@@ -12,7 +12,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { updateSetting, getRolePermissionMatrix, updateRolePermissionMatrix } from '../../api/settings';
-import { getCtcBreakupTemplate, updateCtcBreakupTemplate } from '../../api/payroll';
+import { getCtcBreakupTemplate, updateCtcBreakupTemplate, getCtcCustomLabel, updateCtcCustomLabel } from '../../api/payroll';
 
 const MODULE_LABELS = {
   dashboard: 'Dashboard', employees: 'Employees', recruitment: 'Recruitment', 'new-hires': 'New Hires', projects: 'Projects',
@@ -105,14 +105,19 @@ function CtcBreakupSettings() {
   const toast = useToast();
   const isCEO = user?.role === 'ceo';
   const [template, setTemplate] = useState(null);
+  const [customLabel, setCustomLabel] = useState('Custom Allowance');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    getCtcBreakupTemplate().then(setTemplate).catch(() => toast.error('Could not load CTC breakup template')).finally(() => setLoading(false));
+    Promise.all([getCtcBreakupTemplate(), getCtcCustomLabel().catch(() => 'Custom Allowance')])
+      .then(([tmpl, label]) => { setTemplate(tmpl); setCustomLabel(label); })
+      .catch(() => toast.error('Could not load CTC breakup template'))
+      .finally(() => setLoading(false));
   }, []);
 
-  const total = template ? CTC_COMPONENTS.reduce((sum, c) => sum + (Number(template[c.key]) || 0), 0) : 0;
+  const components = [...CTC_COMPONENTS, { key: 'CUSTOM_PCT', label: customLabel || 'Custom Allowance' }];
+  const total = template ? components.reduce((sum, c) => sum + (Number(template[c.key]) || 0), 0) : 0;
 
   const handleSave = async () => {
     if (Math.round(total) !== 100) { toast.error(`Percentages must add up to 100 (currently ${total})`); return; }
@@ -120,6 +125,7 @@ function CtcBreakupSettings() {
     try {
       const updated = await updateCtcBreakupTemplate(template);
       setTemplate(updated);
+      await updateCtcCustomLabel(customLabel.trim() || 'Custom Allowance');
       toast.success('Standard CTC breakup updated — applies to all future offers and employees');
     } catch (err) {
       toast.error(err.message || 'Failed to update CTC breakup');
@@ -147,6 +153,15 @@ function CtcBreakupSettings() {
             </div>
           </div>
         ))}
+        <div className="flex items-center justify-between gap-4 pt-2 border-t border-border">
+          <Input placeholder="Custom component name (e.g. LTA)" disabled={!isCEO} value={customLabel}
+            onChange={e => setCustomLabel(e.target.value)} className="w-48" />
+          <div className="flex items-center gap-1">
+            <Input type="number" min="0" max="100" disabled={!isCEO} value={template['CUSTOM_PCT'] ?? ''}
+              onChange={e => setTemplate(p => ({ ...p, CUSTOM_PCT: e.target.value }))} className="w-24" />
+            <span className="text-sm text-text-secondary">%</span>
+          </div>
+        </div>
         <div className={`flex items-center justify-between pt-2 border-t border-border ${Math.round(total) !== 100 ? 'text-danger' : 'text-success'}`}>
           <span className="text-sm font-semibold">Total</span>
           <span className="text-sm font-bold">{total}%</span>
