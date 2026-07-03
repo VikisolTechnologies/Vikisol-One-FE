@@ -35,6 +35,12 @@ export function adaptEmployee(e) {
     reportingManagerId: e.reportingManagerId,
     isActive: e.isActive,
     accountRole: e.accountRole || null,
+    onboarding: {
+      documentsVerified: !!e.onboardingDocumentsVerified,
+      assetsAssigned: !!e.onboardingAssetsAssigned,
+      bankDetailsCollected: !!e.onboardingBankDetailsCollected,
+      inductionCompleted: !!e.onboardingInductionCompleted,
+    },
     emergencyContact: e.emergencyContactName
       ? { name: e.emergencyContactName, phone: e.emergencyContactPhone, relation: e.emergencyContactRelation }
       : null,
@@ -113,4 +119,9 @@ export async function recordResignation(id, { lastWorkingDate, reason }) {
 // Promotes/changes an employee's application login role (CEO only). role is e.g. 'MANAGER', 'HR_MANAGER'.
 export async function changeAccountRole(id, role) {
   return adaptEmployee(await api.put(`/employees/${id}/account-role?role=${role}`));
+}
+
+// Updates one or more onboarding checklist flags. Pass only the fields you want to change.
+export async function updateOnboardingChecklist(id, { documentsVerified, assetsAssigned, bankDetailsCollected, inductionCompleted } = {}) {
+  return adaptEmployee(await api.put(`/employees/${id}/onboarding`, { documentsVerified, assetsAssigned, bankDetailsCollected, inductionCompleted }));
 }

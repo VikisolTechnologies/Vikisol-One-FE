@@ -17,17 +17,25 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { getEmployee, changeAccountRole } from '../../api/employees';
+import { getEmployee, changeAccountRole, updateOnboardingChecklist } from '../../api/employees';
 
 const APP_ROLES = ['CEO', 'ADMIN', 'HR_MANAGER', 'MANAGER', 'RECRUITER', 'FINANCE', 'EMPLOYEE'];
+const ONBOARDING_STEPS = [
+  { key: 'documentsVerified', label: 'Documents Verified' },
+  { key: 'assetsAssigned', label: 'IT Assets Assigned' },
+  { key: 'bankDetailsCollected', label: 'Bank Details Collected' },
+  { key: 'inductionCompleted', label: 'Induction Completed' },
+];
 
 export default function EmployeeDirectory() {
   const { data, employees, stats, lookups, employeesLoading, employeesSource } = useData();
   const { user } = useAuth();
   const isCEO = user?.role === 'ceo';
+  const canManageOnboarding = ['ceo', 'hr_manager', 'admin'].includes(user?.role);
   const toast = useToast();
   const confirm = useConfirm();
   const [roleChangeBusy, setRoleChangeBusy] = useState(false);
+  const [onboardingBusy, setOnboardingBusy] = useState(false);
   const deptOptions = employeesSource === 'live' && lookups.departments.length
     ? lookups.departments.map(d => ({ value: d.id, label: d.name }))
     : data.departments.map(d => ({ value: d, label: d }));
@@ -161,6 +169,19 @@ export default function EmployeeDirectory() {
       toast.error(err.message || 'Failed to change account role');
     } finally {
       setRoleChangeBusy(false);
+    }
+  };
+
+  const handleToggleOnboardingStep = async (emp, key, current) => {
+    if (employeesSource !== 'live') { toast.error('Connect to the live backend to update onboarding'); return; }
+    setOnboardingBusy(true);
+    try {
+      const updated = await updateOnboardingChecklist(emp.id, { [key]: !current });
+      setSelectedEmp(updated);
+    } catch (err) {
+      toast.error(err.message || 'Failed to update onboarding checklist');
+    } finally {
+      setOnboardingBusy(false);
     }
   };
 
@@ -385,6 +406,24 @@ export default function EmployeeDirectory() {
                     <p className="text-xs text-text-secondary mb-2">Skills</p>
                     <div className="flex flex-wrap gap-1.5">{selectedEmp.skills?.map(s => <span key={s} className="px-2.5 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium">{s}</span>)}</div>
                   </div>
+                  {selectedEmp.onboarding && (
+                    <div className="col-span-3 p-3 bg-surface-3 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs text-text-secondary font-semibold">Onboarding Checklist</p>
+                        {ONBOARDING_STEPS.every(s => selectedEmp.onboarding[s.key]) && <Badge variant="success">Complete</Badge>}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {ONBOARDING_STEPS.map(step => (
+                          <label key={step.key} className={`flex items-center gap-2 text-sm ${canManageOnboarding && employeesSource === 'live' ? 'cursor-pointer' : 'cursor-default opacity-80'}`}>
+                            <input type="checkbox" checked={!!selectedEmp.onboarding[step.key]} disabled={!canManageOnboarding || employeesSource !== 'live' || onboardingBusy}
+                              onChange={() => handleToggleOnboardingStep(selectedEmp, step.key, selectedEmp.onboarding[step.key])}
+                              className="w-4 h-4 accent-primary" />
+                            <span className="text-text">{step.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {isCEO && employeesSource === 'live' && (
                     <div className="col-span-3 p-3 bg-surface-3 rounded-lg">
                       <p className="text-xs text-text-secondary font-semibold mb-2">Application Login Role</p>
