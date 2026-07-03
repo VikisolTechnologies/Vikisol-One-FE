@@ -151,8 +151,8 @@ export default function OrgChart() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" icon={Download} onClick={() => toast.success('Org chart exported as PDF')}>Export PDF</Button>
-          <Button variant="secondary" size="sm" icon={Printer} onClick={() => toast.success('Printing org chart...')}>Print</Button>
+          <Button variant="secondary" size="sm" icon={Download} onClick={() => toast.info('PDF export is not available yet')}>Export PDF</Button>
+          <Button variant="secondary" size="sm" icon={Printer} onClick={() => window.print()}>Print</Button>
         </div>
       </div>
 

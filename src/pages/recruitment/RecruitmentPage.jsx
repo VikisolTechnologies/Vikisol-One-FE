@@ -135,8 +135,11 @@ export default function RecruitmentPage() {
     }
   };
 
-  const handleScheduleInterview = (candidate) => {
-    toast.success(`Interview scheduled for ${candidate.name}`);
+  // A real scheduleInterview API exists (see api/recruitment.js) but needs a proper form
+  // (date/time/interviewer/mode) - a single click can't supply that, so this is honestly
+  // labeled as not-yet-available rather than faking a toast success with no real interview created.
+  const handleScheduleInterview = () => {
+    toast.info('Interview scheduling form is not available yet');
   };
 
   const stageData = stages.slice(0, 6).map(s => ({ stage: s, count: allCandidates.filter(c => c.stage === s).length }));
@@ -242,7 +245,7 @@ export default function RecruitmentPage() {
               <div className="flex-1"><h3 className="text-lg font-bold text-text">{selected.name}</h3><p className="text-sm text-primary">{selected.role}</p><p className="text-xs text-text-secondary">{selected.email} &middot; {selected.phone}</p><div className="flex gap-2 mt-2"><Badge>{selected.stage}</Badge><Badge variant="default">{selected.source}</Badge></div></div>
               <div className="flex flex-col gap-2">
                 <Button size="sm" icon={Calendar} onClick={() => { handleScheduleInterview(selected); setSelected(null); }}>Schedule Interview</Button>
-                <Button size="sm" variant="secondary" icon={Mail} onClick={() => { toast.info(`Email sent to ${selected.name}`); }}>Send Email</Button>
+                <Button size="sm" variant="secondary" icon={Mail} onClick={() => toast.info('Direct email to candidates is not available yet')}>Send Email</Button>
                 {selected.stage === 'HR' && !selected.convertedEmployeeId && selected.status !== 'PENDING_APPROVAL' && (
                   <Button size="sm" variant="secondary" icon={FileText} onClick={() => openOfferModal(selected)}>{selected.status === 'REVISION_REQUESTED' ? 'Resubmit Proposal' : 'Submit for Approval'}</Button>
                 )}

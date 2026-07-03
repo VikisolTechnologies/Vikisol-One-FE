@@ -12,6 +12,7 @@ import SearchFilter from '../../components/ui/SearchFilter';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import { toFileUrl } from '../../api/client';
 
 const categories = ['All', 'Employment', 'Legal', 'Compensation', 'Benefits', 'Policy', 'Performance', 'Disciplinary', 'Training', 'General'];
 
@@ -55,6 +56,12 @@ export default function DocumentsPage() {
     }
   };
 
+  const handleDownload = (doc) => {
+    const url = toFileUrl(doc.fileUrl);
+    if (!url) { toast.error('No file is stored for this document'); return; }
+    window.open(url, '_blank');
+  };
+
   const handleDelete = async (doc) => {
     const ok = await confirm({ title: 'Delete Document?', message: `Delete "${doc.name}"?`, type: 'danger', confirmText: 'Delete' });
     if (!ok) return;
@@ -96,7 +103,7 @@ export default function DocumentsPage() {
     { key: 'signed', label: 'Signed', render: (v) => v ? <CheckCircle size={14} className="text-success" /> : <span className="text-text-secondary text-xs">-</span> },
     { key: 'actions', label: '', sortable: false, render: (_, row) => (
       <div className="flex gap-1">
-        <button onClick={(e) => { e.stopPropagation(); toast.success(`${row.name} downloaded`); }} className="p-1 rounded hover:bg-surface-3 text-text-secondary" title="Download"><Download size={14} /></button>
+        <button onClick={(e) => { e.stopPropagation(); handleDownload(row); }} className="p-1 rounded hover:bg-surface-3 text-text-secondary" title="Download"><Download size={14} /></button>
         <button onClick={(e) => { e.stopPropagation(); setSelected(row); }} className="p-1 rounded hover:bg-surface-3 text-text-secondary" title="View"><Eye size={14} /></button>
         <button onClick={(e) => { e.stopPropagation(); handleDelete(row); }} className="p-1 rounded hover:bg-danger/10 text-danger"><Trash2 size={14} /></button>
       </div>
@@ -148,7 +155,7 @@ export default function DocumentsPage() {
           </div>
           <div className="p-8 bg-surface-3 rounded-xl text-center"><FileText size={48} className="mx-auto text-text-secondary mb-2" /><p className="text-sm text-text-secondary">PDF Preview</p></div>
           <div className="flex gap-2 flex-wrap">
-            <Button icon={Download} onClick={() => toast.success('Downloaded')}>Download</Button>
+            <Button icon={Download} onClick={() => handleDownload(selected)}>Download</Button>
             {!selected.signed && <Button variant="secondary" icon={CheckCircle} onClick={() => { handleSign(selected); setSelected({ ...selected, signed: true }); }}>Digital Sign</Button>}
             <Button variant="secondary" icon={Archive} onClick={() => { handleArchive(selected); setSelected(null); }}>Archive</Button>
             <Button variant="danger" icon={Trash2} onClick={() => handleDelete(selected)}>Delete</Button>

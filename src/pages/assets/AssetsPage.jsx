@@ -157,8 +157,8 @@ export default function AssetsPage() {
             {selected.status === 'Available' && <Button size="sm" onClick={() => { handleAssign(selected); setSelected(null); }}>Assign</Button>}
             {selected.status === 'Assigned' && <Button size="sm" variant="secondary" icon={RotateCcw} onClick={() => { handleUnassign(selected); setSelected(null); }}>Return</Button>}
             <Button size="sm" variant="secondary" icon={Wrench} onClick={() => { handleRepair(selected); setSelected(null); }}>Send for Repair</Button>
-            <Button size="sm" variant="secondary" icon={QrCode} onClick={() => toast.info('QR Code generated')}>QR Code</Button>
-            <Button size="sm" variant="secondary" icon={Printer} onClick={() => toast.info('Asset label printed')}>Print Label</Button>
+            <Button size="sm" variant="secondary" icon={QrCode} onClick={() => toast.info('QR code generation is not available yet')}>QR Code</Button>
+            <Button size="sm" variant="secondary" icon={Printer} onClick={() => window.print()}>Print Label</Button>
             <Button size="sm" variant="danger" onClick={() => handleDispose(selected)}>Dispose</Button>
           </div>
         </div>}

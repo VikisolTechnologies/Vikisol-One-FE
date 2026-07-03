@@ -55,9 +55,9 @@ export default function ReportsPage() {
   const categories = ['All', ...new Set(reports.map(r => r.category))];
   const filtered = filter === 'All' ? reports : reports.filter(r => r.category === filter);
 
-  const handleExport = (report, format) => toast.success(`${report.name} exported as ${format}`);
-  const handleEmail = (report) => toast.success(`${report.name} sent via email`);
-  const handleSchedule = (report) => toast.info(`${report.name} scheduled for weekly generation`);
+  const handleExport = () => toast.info('Report export is not available yet');
+  const handleEmail = () => toast.info('Report email delivery is not available yet');
+  const handleSchedule = () => toast.info('Scheduled reports are not available yet');
 
   const openPreview = async (report) => {
     setPreview(report);

@@ -100,7 +100,7 @@ export default function PayrollPage() {
     { key: 'actions', label: '', sortable: false, render: (_, row) => (
       <div className="flex gap-1">
         <button onClick={(e) => { e.stopPropagation(); setSelected(row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary"><Eye size={14} /></button>
-        <button onClick={(e) => { e.stopPropagation(); toast.success('Payslip downloaded'); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary"><Download size={14} /></button>
+        <button onClick={(e) => { e.stopPropagation(); toast.info('Payslip PDF download is not available yet'); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary"><Download size={14} /></button>
       </div>
     )},
   ];
@@ -118,8 +118,8 @@ export default function PayrollPage() {
         </div>
         {!isEmployee && (
           <div className="flex gap-2">
-            <Button variant="secondary" icon={Download} size="sm" onClick={() => toast.success('Bulk download started')}>Bulk Download</Button>
-            {(isCEO || isHRManager) && <Button variant="secondary" icon={Send} size="sm" onClick={() => toast.success(`Emailed ${allPayslips.length} payslips`)}>Bulk Email</Button>}
+            <Button variant="secondary" icon={Download} size="sm" onClick={() => toast.info('Bulk payslip download is not available yet')}>Bulk Download</Button>
+            {(isCEO || isHRManager) && <Button variant="secondary" icon={Send} size="sm" onClick={() => toast.info('Bulk payslip email is not available yet')}>Bulk Email</Button>}
             {isCEO && <Button variant="secondary" icon={payrollStatus === 'Locked' ? Unlock : Lock} size="sm" onClick={handleLockPayroll}>{payrollStatus === 'Locked' ? 'Unlock' : 'Lock'}</Button>}
             {(isCEO || isHRManager) && <Button icon={Calculator} size="sm" onClick={handleRunPayroll} disabled={payrollStatus === 'Locked' || runningPayroll}>{runningPayroll ? 'Running...' : 'Run Payroll'}</Button>}
           </div>
@@ -148,7 +148,7 @@ export default function PayrollPage() {
         <SelectableTable columns={columns} data={filtered} pageSize={isEmployee ? 6 : 12} selected={!isEmployee ? selectedIds : []} onSelectChange={!isEmployee ? setSelectedIds : () => {}} onRowClick={setSelected} />
       </Card>
 
-      {!isEmployee && <BulkActions selectedCount={selectedIds.length} onExport={() => { toast.success('Exported'); setSelectedIds([]); }} onEmail={() => { toast.success('Emailed'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}
+      {!isEmployee && <BulkActions selectedCount={selectedIds.length} onExport={() => { toast.info('Export is not available yet'); setSelectedIds([]); }} onEmail={() => { toast.info('Bulk email is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}
 
       {/* Payslip Modal */}
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Payslip" size="xl">
@@ -192,9 +192,9 @@ export default function PayrollPage() {
               <p className="text-3xl font-bold text-primary">₹{(selected.netPay || 0).toLocaleString()}</p>
             </div>
             <div className="flex gap-2 flex-wrap border-t border-border pt-4">
-              <Button icon={Download} onClick={() => toast.success('Payslip downloaded')}>Download PDF</Button>
-              <Button variant="secondary" icon={Mail} onClick={() => toast.success('Payslip emailed')}>Email</Button>
-              <Button variant="secondary" icon={Printer} onClick={() => toast.success('Printing...')}>Print</Button>
+              <Button icon={Download} onClick={() => toast.info('Payslip PDF download is not available yet')}>Download PDF</Button>
+              <Button variant="secondary" icon={Mail} onClick={() => toast.info('Payslip email is not available yet')}>Email</Button>
+              <Button variant="secondary" icon={Printer} onClick={() => window.print()}>Print</Button>
             </div>
           </div>
         )}

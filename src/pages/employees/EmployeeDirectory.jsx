@@ -17,7 +17,9 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { getEmployee, changeAccountRole, updateOnboardingChecklist } from '../../api/employees';
+import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword } from '../../api/employees';
+import { getEmployeeDocuments } from '../../api/documents';
+import { toFileUrl } from '../../api/client';
 
 const APP_ROLES = ['CEO', 'ADMIN', 'HR_MANAGER', 'MANAGER', 'RECRUITER', 'FINANCE', 'EMPLOYEE'];
 const ONBOARDING_STEPS = [
@@ -49,6 +51,7 @@ export default function EmployeeDirectory() {
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
   const [selectedEmp, setSelectedEmp] = useState(null);
+  const [empDocuments, setEmpDocuments] = useState(null); // null = not loaded for this employee yet
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
@@ -126,6 +129,7 @@ export default function EmployeeDirectory() {
 
   const openView = async (row) => {
     setSelectedEmp(row);
+    setEmpDocuments(null);
     if (employeesSource === 'live') {
       try {
         const full = await getEmployee(row.id);
@@ -133,6 +137,7 @@ export default function EmployeeDirectory() {
       } catch {
         // keep the lightweight row data if the detail fetch fails
       }
+      getEmployeeDocuments(row.id).then(setEmpDocuments).catch(() => setEmpDocuments([]));
     }
   };
 
@@ -159,7 +164,16 @@ export default function EmployeeDirectory() {
       setContextMenu(null);
     }
   };
-  const handleResetPassword = (emp) => { toast.info(`Password reset link sent to ${emp.email}`); setContextMenu(null); };
+  const handleResetPassword = async (emp) => {
+    setContextMenu(null);
+    if (employeesSource !== 'live') { toast.error('Connect to the live backend to reset passwords'); return; }
+    try {
+      await resetPassword(emp.id);
+      toast.success(`New temporary password emailed to ${emp.email}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to reset password');
+    }
+  };
 
   const handleChangeAccountRole = async (emp, role) => {
     if (employeesSource !== 'live') { toast.error('Connect to the live backend to change account roles'); return; }
@@ -189,7 +203,7 @@ export default function EmployeeDirectory() {
   };
 
   const handleGenerateLetter = (emp, type) => {
-    toast.success(`${type} generated for ${emp.name}`);
+    toast.info(`${type} generation is not available yet`);
     setContextMenu(null);
   };
 
@@ -293,8 +307,8 @@ export default function EmployeeDirectory() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" icon={Upload} size="sm" onClick={() => toast.info('Bulk upload template downloaded')}>Import</Button>
-          <Button variant="secondary" icon={Download} size="sm" onClick={() => toast.success('Employee data exported')}>Export</Button>
+          <Button variant="secondary" icon={Upload} size="sm" onClick={() => toast.info('Bulk import is not available yet')}>Import</Button>
+          <Button variant="secondary" icon={Download} size="sm" onClick={() => toast.info('Export is not available yet')}>Export</Button>
           <Button icon={UserPlus} size="sm" onClick={() => setShowAdd(true)}>Add Employee</Button>
         </div>
       </div>
@@ -459,10 +473,17 @@ export default function EmployeeDirectory() {
               )},
               { id: 'documents', label: 'Documents', content: (
                 <div className="space-y-2">
-                  {['Offer Letter','Appointment Letter','NDA','ID Proof','Address Proof'].map(d => (
-                    <div key={d} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
-                      <div className="flex items-center gap-2"><FileText size={14} className="text-primary" /><span className="text-sm text-text">{d}</span></div>
-                      <Button size="sm" variant="ghost" onClick={() => toast.info(`${d} downloaded`)}>Download</Button>
+                  {employeesSource !== 'live' && <p className="text-xs text-warning mb-1">(demo data)</p>}
+                  {employeesSource === 'live' && empDocuments === null && <p className="text-xs text-text-secondary">Loading...</p>}
+                  {employeesSource === 'live' && empDocuments?.length === 0 && <p className="text-xs text-text-secondary">No documents uploaded for this employee yet.</p>}
+                  {(employeesSource === 'live' ? (empDocuments || []) : ['Offer Letter', 'Appointment Letter', 'NDA', 'ID Proof', 'Address Proof'].map(name => ({ id: name, name, fileUrl: null }))).map(d => (
+                    <div key={d.id} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
+                      <div className="flex items-center gap-2"><FileText size={14} className="text-primary" /><span className="text-sm text-text">{d.name}</span></div>
+                      <Button size="sm" variant="ghost" onClick={() => {
+                        const url = toFileUrl(d.fileUrl);
+                        if (!url) { toast.error('No file stored for this document'); return; }
+                        window.open(url, '_blank');
+                      }}>Download</Button>
                     </div>
                   ))}
                 </div>

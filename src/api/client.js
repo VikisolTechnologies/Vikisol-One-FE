@@ -1,5 +1,12 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
 
+// For turning a stored relative fileUrl (e.g. "/files/documents/xyz.pdf") into an absolute link.
+export function toFileUrl(relativeUrl) {
+  if (!relativeUrl) return null;
+  if (/^https?:\/\//.test(relativeUrl)) return relativeUrl;
+  return BASE_URL + relativeUrl;
+}
+
 function getToken() {
   return localStorage.getItem('vikisol_token');
 }

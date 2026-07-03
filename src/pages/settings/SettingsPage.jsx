@@ -531,7 +531,7 @@ export default function SettingsPage() {
             {['Email Notifications', 'Push Notifications', 'Leave Reminders', 'Timesheet Reminders', 'Birthday Reminders', 'Interview Reminders', 'Payroll Alerts', 'System Alerts'].map((n, i) => (
               <div key={n} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
                 <span className="text-sm text-text">{n}</span>
-                <button onClick={() => toast.success(`${n} toggled`)} className={`w-10 h-5 rounded-full relative ${i < 5 ? 'bg-primary' : 'bg-surface-4'}`}>
+                <button onClick={() => toast.info('Notification preferences are not available yet')} className={`w-10 h-5 rounded-full relative ${i < 5 ? 'bg-primary' : 'bg-surface-4'}`}>
                   <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow ${i < 5 ? 'right-0.5' : 'left-0.5'}`} />
                 </button>
               </div>
@@ -543,12 +543,12 @@ export default function SettingsPage() {
             <div className="p-4 bg-surface-3 rounded-xl">
               <p className="text-sm font-medium text-text mb-1">Multi-Factor Authentication</p>
               <p className="text-xs text-text-secondary mb-3">Require MFA for all users</p>
-              <Button size="sm" onClick={() => toast.success('MFA enabled for all users')}>Enable MFA</Button>
+              <Button size="sm" onClick={() => toast.info('MFA is not available yet')}>Enable MFA</Button>
             </div>
             <div className="p-4 bg-surface-3 rounded-xl">
               <p className="text-sm font-medium text-text mb-1">Password Policy</p>
               <p className="text-xs text-text-secondary mb-3">Minimum 8 chars, 1 uppercase, 1 number, 1 special</p>
-              <Button size="sm" variant="secondary" onClick={() => toast.info('Password policy configured')}>Configure</Button>
+              <Button size="sm" variant="secondary" onClick={() => toast.info('Custom password policy is not available yet')}>Configure</Button>
             </div>
             <div className="p-4 bg-surface-3 rounded-xl">
               <p className="text-sm font-medium text-text mb-1">Session Timeout</p>
@@ -572,25 +572,26 @@ export default function SettingsPage() {
           </div>
         )},
         { id: 'integrations', label: 'Integrations', content: (
-          <Card><div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Card>
+            <p className="text-xs text-text-secondary mb-3">None of these are wired up yet - each needs its own API credentials/OAuth app before it can do anything real. Not a priority right now.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {[
-              { name: 'Microsoft Outlook', status: 'Connected', desc: 'Email & Calendar sync' },
-              { name: 'Microsoft Teams', status: 'Not Connected', desc: 'Meeting integration' },
-              { name: 'Azure AD', status: 'Connected', desc: 'SSO & directory sync' },
-              { name: 'Slack', status: 'Not Connected', desc: 'Notifications & alerts' },
-              { name: 'Jira', status: 'Connected', desc: 'Project & issue tracking' },
-              { name: 'GitHub', status: 'Connected', desc: 'Code repository' },
-              { name: 'RazorpayX', status: 'Not Connected', desc: 'Payroll processing' },
-              { name: 'Zoom', status: 'Not Connected', desc: 'Video conferencing' },
+              { name: 'Microsoft Outlook', desc: 'Email & Calendar sync' },
+              { name: 'Microsoft Teams', desc: 'Meeting integration' },
+              { name: 'Azure AD', desc: 'SSO & directory sync' },
+              { name: 'Slack', desc: 'Notifications & alerts' },
+              { name: 'Jira', desc: 'Project & issue tracking' },
+              { name: 'GitHub', desc: 'Code repository' },
+              { name: 'RazorpayX', desc: 'Payroll processing' },
+              { name: 'Zoom', desc: 'Video conferencing' },
             ].map(i => (
               <div key={i.name} className="flex items-center justify-between p-4 bg-surface-3 rounded-xl">
                 <div><p className="text-sm font-medium text-text">{i.name}</p><p className="text-xs text-text-secondary">{i.desc}</p></div>
-                <Button size="sm" variant={i.status === 'Connected' ? 'secondary' : 'primary'} onClick={() => toast.success(i.status === 'Connected' ? `${i.name} disconnected` : `${i.name} connected`)}>
-                  {i.status === 'Connected' ? 'Disconnect' : 'Connect'}
-                </Button>
+                <Badge variant="default">Not Configured</Badge>
               </div>
             ))}
-          </div></Card>
+            </div>
+          </Card>
         )},
         { id: 'backup', label: 'Backup', content: (
           <Card><div className="space-y-4 max-w-md">
@@ -598,8 +599,8 @@ export default function SettingsPage() {
               <p className="text-sm font-medium text-text mb-1">Create Backup</p>
               <p className="text-xs text-text-secondary mb-3">Export all data as JSON/CSV</p>
               <div className="flex gap-2">
-                <Button size="sm" icon={Database} onClick={() => toast.success('Backup created successfully')}>Create Backup</Button>
-                <Button size="sm" variant="secondary" icon={RefreshCw} onClick={() => toast.info('Restore from backup')}>Restore</Button>
+                <Button size="sm" icon={Database} onClick={() => toast.info('Backup/restore is not available yet')}>Create Backup</Button>
+                <Button size="sm" variant="secondary" icon={RefreshCw} onClick={() => toast.info('Backup/restore is not available yet')}>Restore</Button>
               </div>
             </div>
             <div className="p-4 bg-surface-3 rounded-xl">

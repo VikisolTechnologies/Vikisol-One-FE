@@ -371,7 +371,7 @@ export default function TimesheetPage() {
           <SelectableTable columns={teamColumns} data={filteredTeam} pageSize={12} selected={selectedIds} onSelectChange={setSelectedIds} onRowClick={setShowDetail} />
         </Card>
 
-        <BulkActions selectedCount={selectedIds.length} onApprove={handleBulkApprove} onReject={handleBulkReject} onExport={() => { toast.success('Exported'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />
+        <BulkActions selectedCount={selectedIds.length} onApprove={handleBulkApprove} onReject={handleBulkReject} onExport={() => { toast.info('Export is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />
       </div>
     )});
   }

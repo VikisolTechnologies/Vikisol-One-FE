@@ -237,7 +237,7 @@ export default function LeaveManagement() {
         <SelectableTable columns={columns} data={filtered} pageSize={10} selected={isManager ? selectedIds : []} onSelectChange={isManager ? setSelectedIds : () => {}} onRowClick={setShowDetail} />
       </Card>
 
-      {isManager && <BulkActions selectedCount={selectedIds.length} onApprove={handleBulkApprove} onReject={handleBulkReject} onExport={() => { toast.success('Exported'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}
+      {isManager && <BulkActions selectedCount={selectedIds.length} onApprove={handleBulkApprove} onReject={handleBulkReject} onExport={() => { toast.info('Export is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}
 
       {/* Detail Modal */}
       <Modal open={!!showDetail} onClose={() => setShowDetail(null)} title="Leave Request Details" size="lg">

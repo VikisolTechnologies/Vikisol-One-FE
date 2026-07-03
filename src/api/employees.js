@@ -101,6 +101,10 @@ export async function deactivateEmployee(id) {
   return api.del(`/employees/${id}`);
 }
 
+export async function resetPassword(id) {
+  return api.post(`/employees/${id}/reset-password`);
+}
+
 // Lightweight manager list for dropdowns - available to any authenticated role (e.g. recruiters
 // picking a reporting manager for an offer), unlike the full employee list.
 export async function getManagerOptions() {
