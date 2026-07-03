@@ -14,8 +14,20 @@ function handleNumberPaste(e, onPaste) {
   onPaste?.(e);
 }
 
-export default function Input({ label, icon: Icon, error, className = '', type, onKeyDown, onPaste, ...props }) {
+// Chrome's native date input lets fast typing overflow the year segment past 4 digits
+// (e.g. "52022-02-25"), which the backend then fails to parse as a LocalDate. Clamp it.
+function handleDateChange(e, onChange) {
+  const value = e.target.value;
+  const match = /^(\d+)-(\d{2})-(\d{2})$/.exec(value);
+  if (match && match[1].length > 4) {
+    e.target.value = `${match[1].slice(-4)}-${match[2]}-${match[3]}`;
+  }
+  onChange?.(e);
+}
+
+export default function Input({ label, icon: Icon, error, className = '', type, onKeyDown, onPaste, onChange, ...props }) {
   const isNumber = type === 'number';
+  const isDate = type === 'date';
   return (
     <div className={`space-y-1.5 ${className}`}>
       {label && <label className="text-xs font-medium text-text-secondary">{label}</label>}
@@ -27,6 +39,7 @@ export default function Input({ label, icon: Icon, error, className = '', type, 
           onKeyDown={isNumber ? (e) => handleNumberKeyDown(e, onKeyDown) : onKeyDown}
           onPaste={isNumber ? (e) => handleNumberPaste(e, onPaste) : onPaste}
           onWheel={isNumber ? (e) => e.currentTarget.blur() : undefined}
+          onChange={isDate ? (e) => handleDateChange(e, onChange) : onChange}
           {...props}
         />
       </div>
