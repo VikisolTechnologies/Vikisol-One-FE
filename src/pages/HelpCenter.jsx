@@ -8,6 +8,7 @@ import Modal from '../components/ui/Modal';
 import Breadcrumb from '../components/ui/Breadcrumb';
 import Tabs from '../components/ui/Tabs';
 import { useToast } from '../components/ui/Toast';
+import { raiseTicket } from '../api/tickets';
 
 const faqs = [
   { q: 'How do I apply for leave?', a: 'Navigate to Leave Management from the sidebar, click "Apply Leave", fill in the form and submit.' },
@@ -25,6 +26,9 @@ export default function HelpCenter() {
   const [expandedFaq, setExpandedFaq] = useState(null);
   const [showBugReport, setShowBugReport] = useState(false);
   const [showFeatureReq, setShowFeatureReq] = useState(false);
+  const [bugForm, setBugForm] = useState({ title: '', steps: '', expected: '' });
+  const [featureForm, setFeatureForm] = useState({ title: '', description: '' });
+  const [submitting, setSubmitting] = useState(false);
   const [chatMessages, setChatMessages] = useState([{ from: 'bot', text: 'Hi! I\'m the Vikisol HRMS Assistant. How can I help you today?' }]);
   const [chatInput, setChatInput] = useState('');
   const [faqSearch, setFaqSearch] = useState('');
@@ -45,6 +49,49 @@ export default function HelpCenter() {
       setChatMessages(prev => [...prev, { from: 'bot', text: responses[Math.floor(Math.random() * responses.length)] }]);
     }, 800);
     setChatInput('');
+  };
+
+  // Bug reports and feature requests are real support Tickets under the hood (category
+  // Software/General), not a separate fake system - so they actually reach IT/HR and show
+  // up in the Tickets page instead of vanishing into a toast.
+  const handleSubmitBug = async () => {
+    if (!bugForm.title.trim()) { toast.error('Title is required'); return; }
+    setSubmitting(true);
+    try {
+      await raiseTicket({
+        title: `[Bug] ${bugForm.title}`,
+        description: `Steps to Reproduce:\n${bugForm.steps || '-'}\n\nExpected Behavior:\n${bugForm.expected || '-'}`,
+        category: 'Software',
+        priority: 'Medium',
+      });
+      toast.success('Bug report submitted as a support ticket');
+      setBugForm({ title: '', steps: '', expected: '' });
+      setShowBugReport(false);
+    } catch (err) {
+      toast.error(err.message || 'Failed to submit bug report');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmitFeature = async () => {
+    if (!featureForm.title.trim()) { toast.error('Feature title is required'); return; }
+    setSubmitting(true);
+    try {
+      await raiseTicket({
+        title: `[Feature Request] ${featureForm.title}`,
+        description: featureForm.description || '-',
+        category: 'General',
+        priority: 'Low',
+      });
+      toast.success('Feature request submitted as a support ticket');
+      setFeatureForm({ title: '', description: '' });
+      setShowFeatureReq(false);
+    } catch (err) {
+      toast.error(err.message || 'Failed to submit feature request');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -143,18 +190,18 @@ export default function HelpCenter() {
 
       <Modal open={showBugReport} onClose={() => setShowBugReport(false)} title="Report Bug">
         <div className="space-y-4">
-          <Input label="Title *" placeholder="Brief description of the bug" />
-          <Textarea label="Steps to Reproduce" placeholder="1. Go to...\n2. Click on...\n3. See error" />
-          <Textarea label="Expected Behavior" placeholder="What should have happened?" />
-          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setShowBugReport(false)}>Cancel</Button><Button onClick={() => { toast.success('Bug report submitted'); setShowBugReport(false); }}>Submit</Button></div>
+          <Input label="Title *" placeholder="Brief description of the bug" value={bugForm.title} onChange={e => setBugForm(p => ({ ...p, title: e.target.value }))} />
+          <Textarea label="Steps to Reproduce" placeholder="1. Go to...\n2. Click on...\n3. See error" value={bugForm.steps} onChange={e => setBugForm(p => ({ ...p, steps: e.target.value }))} />
+          <Textarea label="Expected Behavior" placeholder="What should have happened?" value={bugForm.expected} onChange={e => setBugForm(p => ({ ...p, expected: e.target.value }))} />
+          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setShowBugReport(false)}>Cancel</Button><Button onClick={handleSubmitBug} disabled={submitting}>{submitting ? 'Submitting...' : 'Submit'}</Button></div>
         </div>
       </Modal>
 
       <Modal open={showFeatureReq} onClose={() => setShowFeatureReq(false)} title="Feature Request">
         <div className="space-y-4">
-          <Input label="Feature Title *" placeholder="What feature would you like?" />
-          <Textarea label="Description" placeholder="Describe the feature and why it's needed..." />
-          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setShowFeatureReq(false)}>Cancel</Button><Button onClick={() => { toast.success('Feature request submitted'); setShowFeatureReq(false); }}>Submit</Button></div>
+          <Input label="Feature Title *" placeholder="What feature would you like?" value={featureForm.title} onChange={e => setFeatureForm(p => ({ ...p, title: e.target.value }))} />
+          <Textarea label="Description" placeholder="Describe the feature and why it's needed..." value={featureForm.description} onChange={e => setFeatureForm(p => ({ ...p, description: e.target.value }))} />
+          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setShowFeatureReq(false)}>Cancel</Button><Button onClick={handleSubmitFeature} disabled={submitting}>{submitting ? 'Submitting...' : 'Submit'}</Button></div>
         </div>
       </Modal>
     </div>

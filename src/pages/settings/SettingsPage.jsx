@@ -411,6 +411,12 @@ export default function SettingsPage() {
   const isCEO = user?.role === 'ceo';
   const toast = useToast();
   const [primaryColor, setPrimaryColor] = useState('#FF6A00');
+  const [auditSearch, setAuditSearch] = useState('');
+  const filteredAuditLogs = auditLogs.filter(l => {
+    const q = auditSearch.toLowerCase();
+    if (!q) return true;
+    return [l.action, l.user, l.target, l.ip].some(f => (f || '').toLowerCase().includes(q));
+  });
 
   const handleAddHoliday = async () => {
     try {
@@ -481,17 +487,11 @@ export default function SettingsPage() {
         { id: 'departments', label: 'Departments & Designations', content: <OrgStructureSettings /> },
         { id: 'leave-types', label: 'Leave Types', content: <LeaveTypesSettings /> },
         { id: 'ctc-breakup', label: 'CTC Breakup', content: <CtcBreakupSettings /> },
+        // "Role Permissions" is the one real permissions feature: it controls which sidebar
+        // modules each role can see. A previous "Roles & Permissions" tab duplicated this in
+        // name only - every button in it was decorative (toast.info, no backend call) - so it
+        // was removed rather than kept alongside the real thing under a near-identical name.
         ...(isCEO ? [{ id: 'role-permissions', label: 'Role Permissions', content: <RolePermissionsSettings /> }] : []),
-        { id: 'roles', label: 'Roles & Permissions', content: (
-          <Card><div className="space-y-2">
-            {['CEO', 'HR Manager', 'Manager', 'Employee', 'Recruiter', 'Finance', 'Admin', 'IT Support'].map(role => (
-              <div key={role} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
-                <div className="flex items-center gap-3"><Shield size={16} className="text-primary" /><span className="text-sm font-medium text-text">{role}</span></div>
-                <Button size="sm" variant="ghost" onClick={() => toast.info(`Configuring ${role} permissions`)}>Configure</Button>
-              </div>
-            ))}
-          </div></Card>
-        )},
         { id: 'announcements', label: 'Announcements', content: <AnnouncementsSettings /> },
         { id: 'holidays', label: 'Holidays', content: (
           <Card>
@@ -543,15 +543,18 @@ export default function SettingsPage() {
           </div></Card>
         )},
         { id: 'audit', label: 'Audit Logs', content: (
-          <Card padding={false}>
-            <DataTable columns={[
-              { key: 'action', label: 'Action', render: (v) => <span className="font-medium text-text">{v}</span> },
-              { key: 'user', label: 'User' },
-              { key: 'target', label: 'Target' },
-              { key: 'timestamp', label: 'Time', render: (v) => new Date(v).toLocaleString() },
-              { key: 'ip', label: 'IP Address', render: (v) => <span className="font-mono text-xs">{v}</span> },
-            ]} data={auditLogs} pageSize={10} />
-          </Card>
+          <div className="space-y-3">
+            <Input placeholder="Search by action, user, target or IP..." value={auditSearch} onChange={e => setAuditSearch(e.target.value)} className="max-w-sm" />
+            <Card padding={false}>
+              <DataTable columns={[
+                { key: 'action', label: 'Action', render: (v) => <span className="font-medium text-text">{v}</span> },
+                { key: 'user', label: 'User' },
+                { key: 'target', label: 'Target' },
+                { key: 'timestamp', label: 'Time', render: (v) => new Date(v).toLocaleString() },
+                { key: 'ip', label: 'IP Address', render: (v) => <span className="font-mono text-xs">{v}</span> },
+              ]} data={filteredAuditLogs} pageSize={10} />
+            </Card>
+          </div>
         )},
         { id: 'integrations', label: 'Integrations', content: (
           <Card><div className="grid grid-cols-1 md:grid-cols-2 gap-3">
