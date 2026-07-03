@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -7,26 +8,34 @@ import { ConfirmProvider } from './components/ui/ConfirmDialog';
 import { ApprovalProvider } from './context/ApprovalEngine';
 import { PayrollProvider } from './context/PayrollEngine';
 import AppLayout from './components/layout/AppLayout';
+// Login loads eagerly - it's the first thing every unauthenticated visitor sees.
+// Every other page is route-split so the initial bundle only contains what's needed to log in
+// and render the shell; each page's code loads on first visit to that route.
 import Login from './pages/Login';
-import DashboardRouter from './pages/dashboard/DashboardRouter';
-import EmployeeDirectory from './pages/employees/EmployeeDirectory';
-import LeaveManagement from './pages/leave/LeaveManagement';
-import AttendancePage from './pages/attendance/AttendancePage';
-import PayrollPage from './pages/payroll/PayrollPage';
-import RecruitmentPage from './pages/recruitment/RecruitmentPage';
-import NewHiresPage from './pages/recruitment/NewHiresPage';
-import TimesheetPage from './pages/timesheets/TimesheetPage';
-import ProjectsPage from './pages/projects/ProjectsPage';
-import TicketsPage from './pages/tickets/TicketsPage';
-import PerformancePage from './pages/performance/PerformancePage';
-import DocumentsPage from './pages/documents/DocumentsPage';
-import AssetsPage from './pages/assets/AssetsPage';
-import ReportsPage from './pages/reports/ReportsPage';
-import SettingsPage from './pages/settings/SettingsPage';
-import NotificationCenter from './pages/NotificationCenter';
-import HelpCenter from './pages/HelpCenter';
-import OrgChart from './pages/OrgChart';
-import ResourceAllocation from './pages/ResourceAllocation';
+
+const DashboardRouter = lazy(() => import('./pages/dashboard/DashboardRouter'));
+const EmployeeDirectory = lazy(() => import('./pages/employees/EmployeeDirectory'));
+const LeaveManagement = lazy(() => import('./pages/leave/LeaveManagement'));
+const AttendancePage = lazy(() => import('./pages/attendance/AttendancePage'));
+const PayrollPage = lazy(() => import('./pages/payroll/PayrollPage'));
+const RecruitmentPage = lazy(() => import('./pages/recruitment/RecruitmentPage'));
+const NewHiresPage = lazy(() => import('./pages/recruitment/NewHiresPage'));
+const TimesheetPage = lazy(() => import('./pages/timesheets/TimesheetPage'));
+const ProjectsPage = lazy(() => import('./pages/projects/ProjectsPage'));
+const TicketsPage = lazy(() => import('./pages/tickets/TicketsPage'));
+const PerformancePage = lazy(() => import('./pages/performance/PerformancePage'));
+const DocumentsPage = lazy(() => import('./pages/documents/DocumentsPage'));
+const AssetsPage = lazy(() => import('./pages/assets/AssetsPage'));
+const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'));
+const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'));
+const NotificationCenter = lazy(() => import('./pages/NotificationCenter'));
+const HelpCenter = lazy(() => import('./pages/HelpCenter'));
+const OrgChart = lazy(() => import('./pages/OrgChart'));
+const ResourceAllocation = lazy(() => import('./pages/ResourceAllocation'));
+
+function PageFallback() {
+  return <div className="flex items-center justify-center h-full min-h-[50vh]"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+}
 
 export default function App() {
   return (
@@ -38,32 +47,34 @@ export default function App() {
               <ConfirmProvider>
                 <ApprovalProvider>
                   <PayrollProvider>
-                    <Routes>
-                      <Route path="/login" element={<Login />} />
-                      <Route element={<AppLayout />}>
-                        <Route path="/" element={<DashboardRouter />} />
-                        <Route path="/dashboard" element={<Navigate to="/" replace />} />
-                        <Route path="/employees" element={<EmployeeDirectory />} />
-                        <Route path="/leave" element={<LeaveManagement />} />
-                        <Route path="/attendance" element={<AttendancePage />} />
-                        <Route path="/payroll" element={<PayrollPage />} />
-                        <Route path="/recruitment" element={<RecruitmentPage />} />
-                        <Route path="/new-hires" element={<NewHiresPage />} />
-                        <Route path="/timesheets" element={<TimesheetPage />} />
-                        <Route path="/projects" element={<ProjectsPage />} />
-                        <Route path="/tickets" element={<TicketsPage />} />
-                        <Route path="/performance" element={<PerformancePage />} />
-                        <Route path="/documents" element={<DocumentsPage />} />
-                        <Route path="/assets" element={<AssetsPage />} />
-                        <Route path="/reports" element={<ReportsPage />} />
-                        <Route path="/settings" element={<SettingsPage />} />
-                        <Route path="/notifications" element={<NotificationCenter />} />
-                        <Route path="/help" element={<HelpCenter />} />
-                        <Route path="/org-chart" element={<OrgChart />} />
-                        <Route path="/resources" element={<ResourceAllocation />} />
-                      </Route>
-                      <Route path="*" element={<Navigate to="/" replace />} />
-                    </Routes>
+                    <Suspense fallback={<PageFallback />}>
+                      <Routes>
+                        <Route path="/login" element={<Login />} />
+                        <Route element={<AppLayout />}>
+                          <Route path="/" element={<DashboardRouter />} />
+                          <Route path="/dashboard" element={<Navigate to="/" replace />} />
+                          <Route path="/employees" element={<EmployeeDirectory />} />
+                          <Route path="/leave" element={<LeaveManagement />} />
+                          <Route path="/attendance" element={<AttendancePage />} />
+                          <Route path="/payroll" element={<PayrollPage />} />
+                          <Route path="/recruitment" element={<RecruitmentPage />} />
+                          <Route path="/new-hires" element={<NewHiresPage />} />
+                          <Route path="/timesheets" element={<TimesheetPage />} />
+                          <Route path="/projects" element={<ProjectsPage />} />
+                          <Route path="/tickets" element={<TicketsPage />} />
+                          <Route path="/performance" element={<PerformancePage />} />
+                          <Route path="/documents" element={<DocumentsPage />} />
+                          <Route path="/assets" element={<AssetsPage />} />
+                          <Route path="/reports" element={<ReportsPage />} />
+                          <Route path="/settings" element={<SettingsPage />} />
+                          <Route path="/notifications" element={<NotificationCenter />} />
+                          <Route path="/help" element={<HelpCenter />} />
+                          <Route path="/org-chart" element={<OrgChart />} />
+                          <Route path="/resources" element={<ResourceAllocation />} />
+                        </Route>
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                      </Routes>
+                    </Suspense>
                   </PayrollProvider>
                 </ApprovalProvider>
               </ConfirmProvider>

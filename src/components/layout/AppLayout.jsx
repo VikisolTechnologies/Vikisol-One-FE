@@ -9,16 +9,19 @@ export default function AppLayout() {
   const { isAuthenticated, authLoading } = useAuth();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  // Sidebar was always rendered at fixed width with no mobile pattern - on a phone this left
+  // almost no room for content. Below md it's now an off-canvas drawer, toggled from the topbar.
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   if (authLoading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed(c => !c)} />
-      <div className={`flex-1 flex flex-col transition-all duration-300 ${collapsed ? 'ml-[68px]' : 'ml-[240px]'}`}>
-        <Topbar />
-        <main className="flex-1 p-6 overflow-auto">
+      <Sidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed(c => !c)} mobileOpen={mobileOpen} onCloseMobile={() => setMobileOpen(false)} />
+      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${collapsed ? 'md:ml-[68px]' : 'md:ml-[240px]'}`}>
+        <Topbar onOpenMobileSidebar={() => setMobileOpen(true)} />
+        <main className="flex-1 p-4 md:p-6 overflow-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}

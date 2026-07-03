@@ -31,7 +31,7 @@ const sections = [
   ]},
 ];
 
-export default function Sidebar({ collapsed, onToggleCollapse }) {
+export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile }) {
   const { user, logout } = useAuth();
   const { visibleModules } = useData() || {};
   const navigate = useNavigate();
@@ -45,7 +45,12 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
   };
 
   return (
-    <aside className={`sidebar fixed left-0 top-0 h-screen bg-surface-2 border-r border-border flex flex-col z-40 transition-all duration-300 ${collapsed ? 'w-[68px]' : 'w-[240px]'}`}>
+    <>
+      {/* Backdrop - mobile only, closes the drawer on outside tap */}
+      {mobileOpen && (
+        <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={onCloseMobile} />
+      )}
+      <aside className={`sidebar fixed left-0 top-0 h-screen bg-surface-2 border-r border-border flex flex-col z-40 transition-transform md:transition-all duration-300 ${collapsed ? 'md:w-[68px]' : 'md:w-[240px]'} w-[240px] ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b border-border gap-3">
         <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary/20">
@@ -71,7 +76,7 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
               {visibleItems.map(item => {
                 const active = isActive(item.id);
                 return (
-                  <button key={item.id} onClick={() => navigate(`/${item.id === 'dashboard' ? '' : item.id}`)}
+                  <button key={item.id} onClick={() => { navigate(`/${item.id === 'dashboard' ? '' : item.id}`); onCloseMobile?.(); }}
                     className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
                       active ? 'bg-primary text-white shadow-lg shadow-primary/25' : 'text-text-secondary hover:text-text hover:bg-surface-3'
                     }`}
@@ -104,5 +109,6 @@ export default function Sidebar({ collapsed, onToggleCollapse }) {
         </button>
       </div>
     </aside>
+    </>
   );
 }

@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { Search, Bell, Sun, Moon, ChevronDown, Settings, LogOut, X, HelpCircle } from 'lucide-react';
+import { Search, Bell, Sun, Moon, ChevronDown, Settings, LogOut, X, HelpCircle, Menu } from 'lucide-react';
 import Avatar from '../ui/Avatar';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const searchPlaceholders = ['Search employees...', 'Search projects...', 'Search tickets...', 'Search candidates...', 'Search anything...'];
 
-export default function Topbar() {
+export default function Topbar({ onOpenMobileSidebar }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { data, stats, markNotificationRead } = useData();
@@ -42,11 +42,16 @@ export default function Topbar() {
   const unreadNotifs = data.notifications.filter(n => !n.read);
 
   return (
-    <header className="topbar h-16 bg-surface-2 border-b border-border flex items-center justify-between px-6 sticky top-0 z-30">
-      {/* Greeting */}
-      <div>
-        <p className="text-xs text-text-secondary font-medium">{greeting()},</p>
-        <h1 className="text-xl font-bold text-text -mt-0.5">{user?.name?.split(' ')[0]}</h1>
+    <header className="topbar h-16 bg-surface-2 border-b border-border flex items-center justify-between px-3 md:px-6 sticky top-0 z-30">
+      <div className="flex items-center gap-2 min-w-0">
+        <button onClick={onOpenMobileSidebar} className="p-2 -ml-1 hover:bg-surface-3 rounded-xl text-text-secondary hover:text-text md:hidden flex-shrink-0">
+          <Menu size={20} />
+        </button>
+        {/* Greeting */}
+        <div className="min-w-0">
+          <p className="text-xs text-text-secondary font-medium truncate">{greeting()},</p>
+          <h1 className="text-xl font-bold text-text -mt-0.5 truncate">{user?.name?.split(' ')[0]}</h1>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
@@ -129,7 +134,7 @@ export default function Topbar() {
         <AnimatePresence>
           {showNotif && (
             <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}
-              className="absolute right-6 top-16 w-96 bg-surface-2 border border-border rounded-xl shadow-2xl z-50 max-h-96 overflow-hidden" onMouseLeave={() => setShowNotif(false)}>
+              className="fixed md:absolute left-3 right-3 md:left-auto md:right-6 top-16 w-auto md:w-96 bg-surface-2 border border-border rounded-xl shadow-2xl z-50 max-h-96 overflow-hidden" onMouseLeave={() => setShowNotif(false)}>
               <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-text">Notifications</h3>
                 <button onClick={() => { navigate('/notifications'); setShowNotif(false); }} className="text-xs text-primary hover:underline font-medium">View All</button>
