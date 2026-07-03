@@ -14,6 +14,7 @@ import * as documentsApi from '../api/documents';
 import * as settingsApi from '../api/settings';
 import * as notificationsApi from '../api/notifications';
 import * as recruitmentApi from '../api/recruitment';
+import * as announcementsApi from '../api/announcements';
 import { useAuth } from './AuthContext';
 
 const DataContext = createContext(null);
@@ -69,6 +70,8 @@ export function DataProvider({ children }) {
   const [timesheetsSource, setTimesheetsSource] = useState('mock'); // 'mock' | 'live'
   const [timesheetsLoading, setTimesheetsLoading] = useState(false);
   const [holidaysSource, setHolidaysSource] = useState('mock'); // 'mock' | 'live'
+  const [announcementsSource, setAnnouncementsSource] = useState('mock');
+  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
   const [holidaysLoading, setHolidaysLoading] = useState(false);
   const [notificationsSource, setNotificationsSource] = useState('mock'); // 'mock' | 'live'
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -255,6 +258,18 @@ export function DataProvider({ children }) {
         setHolidaysSource('mock');
       })
       .finally(() => setHolidaysLoading(false));
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    setAnnouncementsLoading(true);
+    announcementsApi.getAllAnnouncements()
+      .then((items) => {
+        setData(prev => ({ ...prev, announcements: items }));
+        setAnnouncementsSource('live');
+      })
+      .catch(() => setAnnouncementsSource('mock'))
+      .finally(() => setAnnouncementsLoading(false));
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -645,7 +660,28 @@ export function DataProvider({ children }) {
       },
     };
   }, [documentsSource, mockDocumentsCrud, data.documents]);
-  const announcements = useMemo(() => crud('announcements'), [crud]);
+  const mockAnnouncementsCrud = useMemo(() => crud('announcements'), [crud]);
+  const announcements = useMemo(() => {
+    if (announcementsSource !== 'live') return mockAnnouncementsCrud;
+    return {
+      getAll: () => data.announcements,
+      getById: (id) => data.announcements.find(a => a.id === id),
+      create: async (form) => {
+        const created = await announcementsApi.createAnnouncement(form);
+        setData(prev => ({ ...prev, announcements: [created, ...prev.announcements] }));
+        return created;
+      },
+      update: async (id, form) => {
+        const updated = await announcementsApi.updateAnnouncement(id, form);
+        setData(prev => ({ ...prev, announcements: prev.announcements.map(a => a.id === id ? updated : a) }));
+        return updated;
+      },
+      remove: async (id) => {
+        await announcementsApi.deleteAnnouncement(id);
+        setData(prev => ({ ...prev, announcements: prev.announcements.filter(a => a.id !== id) }));
+      },
+    };
+  }, [announcementsSource, mockAnnouncementsCrud, data.announcements]);
   const mockNotificationsCrud = useMemo(() => crud('notifications'), [crud]);
   const mockHolidaysCrud = useMemo(() => crud('holidays'), [crud]);
 
@@ -801,12 +837,12 @@ export function DataProvider({ children }) {
     attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut,
     ticketsSource, ticketsLoading, assetsSource, assetsLoading,
     payslipsSource, payslipsLoading,
-    holidaysSource, holidaysLoading, notificationsSource, notificationsLoading, unreadCount,
+    holidaysSource, holidaysLoading, announcementsSource, announcementsLoading, notificationsSource, notificationsLoading, unreadCount,
     projectsSource, projectsLoading, timesheetsSource, timesheetsLoading,
     documentsSource, documentsLoading,
     candidatesSource, candidatesLoading, jobPostings, visibleModules,
     departmentsCrud, designationsCrud, leaveTypesCrud,
-  }), [data, stats, employees, leaveRequests, timesheets, tickets, candidates, projects, assets, payslips, documents, announcements, notifications, holidays, markNotificationRead, markAllNotificationsRead, employeesSource, employeesLoading, lookups, leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances, attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut, ticketsSource, ticketsLoading, assetsSource, assetsLoading, payslipsSource, payslipsLoading, holidaysSource, holidaysLoading, notificationsSource, notificationsLoading, unreadCount, projectsSource, projectsLoading, timesheetsSource, timesheetsLoading, documentsSource, documentsLoading, candidatesSource, candidatesLoading, jobPostings, departmentsCrud, designationsCrud, leaveTypesCrud]);
+  }), [data, stats, employees, leaveRequests, timesheets, tickets, candidates, projects, assets, payslips, documents, announcements, notifications, holidays, markNotificationRead, markAllNotificationsRead, employeesSource, employeesLoading, lookups, leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances, attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut, ticketsSource, ticketsLoading, assetsSource, assetsLoading, payslipsSource, payslipsLoading, holidaysSource, holidaysLoading, announcementsSource, announcementsLoading, notificationsSource, notificationsLoading, unreadCount, projectsSource, projectsLoading, timesheetsSource, timesheetsLoading, documentsSource, documentsLoading, candidatesSource, candidatesLoading, jobPostings, departmentsCrud, designationsCrud, leaveTypesCrud]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

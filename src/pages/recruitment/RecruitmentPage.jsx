@@ -87,7 +87,8 @@ export default function RecruitmentPage() {
       const matchSearch = !s || c.name.toLowerCase().includes(s) || c.role.toLowerCase().includes(s) || c.email.toLowerCase().includes(s);
       const matchStage = !filters.stage || filters.stage === 'All' || c.stage === filters.stage;
       const matchRole = !filters.role || filters.role === 'All' || c.role === filters.role;
-      return matchSearch && matchStage && matchRole;
+      const matchSkill = !filters.skill || filters.skill === 'All' || (c.skills || []).includes(filters.skill);
+      return matchSearch && matchStage && matchRole && matchSkill;
     });
   }, [allCandidates, search, filters]);
 
@@ -140,6 +141,7 @@ export default function RecruitmentPage() {
 
   const stageData = stages.slice(0, 6).map(s => ({ stage: s, count: allCandidates.filter(c => c.stage === s).length }));
   const roles = [...new Set(allCandidates.map(c => c.role))];
+  const skills = [...new Set(allCandidates.flatMap(c => c.skills || []))].sort();
 
   const columns = [
     { key: 'name', label: 'Candidate', render: (_, row) => <div className="flex items-center gap-2"><Avatar name={row.name} size="sm" /><div><p className="font-medium text-text text-sm">{row.name}</p><p className="text-xs text-text-secondary">{row.email}</p></div></div> },
@@ -175,22 +177,22 @@ export default function RecruitmentPage() {
         {stageData.map(s => <Card key={s.stage} hoverable><p className="text-[10px] text-text-secondary font-medium uppercase">{s.stage}</p><p className="text-2xl font-bold text-text mt-1">{s.count}</p></Card>)}
       </div>
 
+      <SearchFilter searchValue={search} onSearch={setSearch} filters={[
+        { key: 'stage', label: 'Stage', options: stages },
+        { key: 'role', label: 'Role', options: roles },
+        { key: 'skill', label: 'Technology', options: skills },
+      ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => setFilters({})} />
+
       {view === 'table' ? (
-        <>
-          <SearchFilter searchValue={search} onSearch={setSearch} filters={[
-            { key: 'stage', label: 'Stage', options: stages },
-            { key: 'role', label: 'Role', options: roles },
-          ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => setFilters({})} />
-          <Card padding={false}><DataTable columns={columns} data={filtered} pageSize={12} onRowClick={setSelected} /></Card>
-        </>
+        <Card padding={false}><DataTable columns={columns} data={filtered} pageSize={12} onRowClick={setSelected} /></Card>
       ) : (
         <div className="flex gap-4 overflow-x-auto pb-4">
           {stages.slice(0, 6).map(stage => {
-            const stageCandidates = allCandidates.filter(c => c.stage === stage).slice(0, 8);
+            const stageCandidates = filtered.filter(c => c.stage === stage).slice(0, 8);
             return (
               <div key={stage} className="min-w-[280px] flex-shrink-0">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2"><h3 className="text-sm font-semibold text-text">{stage}</h3><span className="text-xs px-2 py-0.5 rounded-full bg-surface-3 text-text-secondary">{allCandidates.filter(c => c.stage === stage).length}</span></div>
+                  <div className="flex items-center gap-2"><h3 className="text-sm font-semibold text-text">{stage}</h3><span className="text-xs px-2 py-0.5 rounded-full bg-surface-3 text-text-secondary">{filtered.filter(c => c.stage === stage).length}</span></div>
                 </div>
                 <div className="space-y-2">
                   {stageCandidates.map(c => {

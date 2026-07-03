@@ -328,6 +328,82 @@ function LeaveTypesSettings() {
   );
 }
 
+function AnnouncementsSettings() {
+  const { data, announcements, announcementsSource, announcementsLoading } = useData();
+  const toast = useToast();
+  const [form, setForm] = useState({ title: '', message: '', priority: 'NORMAL' });
+  const [editingId, setEditingId] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const handleAdd = async () => {
+    if (!form.title.trim() || !form.message.trim()) { toast.error('Title and message are required'); return; }
+    setSaving(true);
+    try {
+      if (editingId) {
+        await announcements.update(editingId, form);
+        toast.success('Announcement updated');
+      } else {
+        await announcements.create(form);
+        toast.success('Announcement posted');
+      }
+      setForm({ title: '', message: '', priority: 'NORMAL' });
+      setEditingId(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to save announcement');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startEdit = (a) => { setEditingId(a.id); setForm({ title: a.title, message: a.message, priority: a.priority || 'NORMAL' }); };
+
+  const handleDelete = async (a) => {
+    try {
+      await announcements.remove(a.id);
+      toast.success('Announcement removed');
+    } catch (err) {
+      toast.error(err.message || 'Failed to remove announcement');
+    }
+  };
+
+  return (
+    <Card>
+      <p className="text-sm font-medium text-text mb-1">Company Announcements</p>
+      <p className="text-xs text-text-secondary mb-3">Visible to every employee. Use this for company-wide updates, policy changes, or notices.</p>
+      {announcementsLoading && <p className="text-xs text-text-secondary mb-2">Loading from server...</p>}
+      {!announcementsLoading && announcementsSource === 'mock' && <p className="text-xs text-warning mb-2">(demo data - live backend unavailable)</p>}
+      <div className="space-y-2 max-w-xl mb-4">
+        {data.announcements.map(a => (
+          <div key={a.id} className="p-3 bg-surface-3 rounded-lg">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-text">{a.title}</p>
+              <div className="flex items-center gap-2">
+                <Badge variant={a.priority === 'URGENT' || a.priority === 'HIGH' ? 'danger' : 'default'}>{a.priority || 'NORMAL'}</Badge>
+                <Button size="sm" variant="ghost" onClick={() => startEdit(a)}>Edit</Button>
+                <Button size="sm" variant="ghost" onClick={() => handleDelete(a)}>Delete</Button>
+              </div>
+            </div>
+            <p className="text-xs text-text-secondary mt-1">{a.message}</p>
+            {a.postedByName && <p className="text-[10px] text-text-secondary mt-1">Posted by {a.postedByName}</p>}
+          </div>
+        ))}
+        {data.announcements.length === 0 && <p className="text-xs text-text-secondary">No announcements yet.</p>}
+      </div>
+      <div className="max-w-xl space-y-2 pt-2 border-t border-border">
+        <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Title" />
+        <Textarea value={form.message} onChange={e => setForm(p => ({ ...p, message: e.target.value }))} placeholder="Message" />
+        <div className="flex gap-2">
+          <select value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} className="bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm text-text">
+            {['LOW', 'NORMAL', 'HIGH', 'URGENT'].map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <Button size="sm" onClick={handleAdd} disabled={saving}>{saving ? 'Saving...' : editingId ? 'Save Changes' : '+ Post Announcement'}</Button>
+          {editingId && <Button size="sm" variant="ghost" onClick={() => { setEditingId(null); setForm({ title: '', message: '', priority: 'NORMAL' }); }}>Cancel</Button>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const { auditLogs, data, holidays, holidaysSource, holidaysLoading } = useData();
@@ -416,6 +492,7 @@ export default function SettingsPage() {
             ))}
           </div></Card>
         )},
+        { id: 'announcements', label: 'Announcements', content: <AnnouncementsSettings /> },
         { id: 'holidays', label: 'Holidays', content: (
           <Card>
             <div className="space-y-2">
