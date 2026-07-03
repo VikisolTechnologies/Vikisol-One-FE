@@ -61,7 +61,7 @@ export async function uploadFile(file) {
   const formData = new FormData();
   formData.append('file', file);
   const token = localStorage.getItem('vikisol_token');
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+  const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
   const res = await fetch(`${BASE_URL}/files/upload/documents`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
