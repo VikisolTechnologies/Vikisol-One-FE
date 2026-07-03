@@ -105,6 +105,11 @@ export async function resetPassword(id) {
   return api.post(`/employees/${id}/reset-password`);
 }
 
+// Generates the employee's offer letter PDF from their current record; returns the file URL.
+export async function generateOfferLetter(id) {
+  return api.post(`/employees/${id}/generate-offer-letter`);
+}
+
 // Lightweight manager list for dropdowns - available to any authenticated role (e.g. recruiters
 // picking a reporting manager for an offer), unlike the full employee list.
 export async function getManagerOptions() {

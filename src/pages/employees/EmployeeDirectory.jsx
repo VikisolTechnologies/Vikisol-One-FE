@@ -17,7 +17,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword } from '../../api/employees';
+import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter } from '../../api/employees';
 import { getEmployeeDocuments } from '../../api/documents';
 import { toFileUrl } from '../../api/client';
 
@@ -202,9 +202,17 @@ export default function EmployeeDirectory() {
     }
   };
 
-  const handleGenerateLetter = (emp, type) => {
-    toast.info(`${type} generation is not available yet`);
+  const handleGenerateLetter = async (emp, type) => {
     setContextMenu(null);
+    if (type !== 'Offer Letter') { toast.info(`${type} generation is not available yet`); return; }
+    if (employeesSource !== 'live') { toast.error('Connect to the live backend to generate offer letters'); return; }
+    try {
+      const fileUrl = await generateOfferLetter(emp.id);
+      toast.success('Offer letter generated');
+      window.open(fileUrl, '_blank');
+    } catch (err) {
+      toast.error(err.message || 'Failed to generate offer letter');
+    }
   };
 
   const openHikeModal = (emp) => {
