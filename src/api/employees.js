@@ -101,6 +101,13 @@ export async function deactivateEmployee(id) {
   return api.del(`/employees/${id}`);
 }
 
+// Lightweight manager list for dropdowns - available to any authenticated role (e.g. recruiters
+// picking a reporting manager for an offer), unlike the full employee list.
+export async function getManagerOptions() {
+  const data = await api.get('/employees/managers');
+  return (data || []).map(m => ({ id: m.id, name: m.name, designation: m.designationTitle || '' }));
+}
+
 export async function searchEmployees(q) {
   const data = await api.get('/employees/search', { q });
   return (data.content || data || []).map(adaptEmployee);

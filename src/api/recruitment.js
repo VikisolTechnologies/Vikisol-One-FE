@@ -82,6 +82,7 @@ export function adaptCandidate(c) {
     offeredDepartmentId: c.offeredDepartmentId,
     offeredDepartmentName: c.offeredDepartmentName,
     offeredDateOfJoining: c.offeredDateOfJoining,
+    offeredReportingManagerId: c.offeredReportingManagerId || null,
     convertedEmployeeId: c.convertedEmployeeId || null,
     managerRemarks: c.managerRemarks || null,
   };
@@ -140,12 +141,13 @@ export async function updateCandidateStatus(id, feStage) {
 
 // Recruiter proposes CTC/designation/department/joining date for manager approval.
 // Does NOT send an offer letter by itself - a manager must approve first.
-export async function proposeSelection(id, { designationId, departmentId, offeredCtc, dateOfJoining }) {
+export async function proposeSelection(id, { designationId, departmentId, offeredCtc, dateOfJoining, reportingManagerId }) {
   return adaptCandidate(await api.post(`/recruitment/candidates/${id}/propose-selection`, {
     designationId,
     departmentId,
     offeredCtc: Number(offeredCtc),
     dateOfJoining,
+    reportingManagerId: reportingManagerId || null,
   }));
 }
 

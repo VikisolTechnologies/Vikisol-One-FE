@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Plus, Filter, Eye, Edit3, Trash2, Mail, Calendar, MoreVertical, UserCheck, XCircle, FileText, Send } from 'lucide-react';
 import { previewCtcBreakup } from '../../api/payroll';
+import { getManagerOptions } from '../../api/employees';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -31,9 +32,14 @@ export default function RecruitmentPage() {
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState({ name: '', email: '', role: '', experience: '', currentCTC: '', expectedCTC: '', source: 'LinkedIn', phone: '' });
   const [offerCandidate, setOfferCandidate] = useState(null);
-  const [offerForm, setOfferForm] = useState({ designationId: '', departmentId: '', offeredCtc: '', dateOfJoining: '' });
+  const [offerForm, setOfferForm] = useState({ designationId: '', departmentId: '', offeredCtc: '', dateOfJoining: '', reportingManagerId: '' });
   const [offerBreakup, setOfferBreakup] = useState(null);
   const [offerSubmitting, setOfferSubmitting] = useState(false);
+  const [managerOptions, setManagerOptions] = useState([]);
+
+  useEffect(() => {
+    getManagerOptions().then(setManagerOptions).catch(() => setManagerOptions([]));
+  }, []);
 
   useEffect(() => {
     if (!offerForm.offeredCtc || Number(offerForm.offeredCtc) <= 0) { setOfferBreakup(null); return; }
@@ -49,6 +55,7 @@ export default function RecruitmentPage() {
       departmentId: candidate.offeredDepartmentId || '',
       offeredCtc: candidate.offeredCtc || candidate.expectedSalary || '',
       dateOfJoining: candidate.offeredDateOfJoining || '',
+      reportingManagerId: candidate.offeredReportingManagerId || '',
     });
     setOfferBreakup(null);
     setOfferCandidate(candidate);
@@ -283,6 +290,8 @@ export default function RecruitmentPage() {
                 options={(lookups.departments || []).map(d => ({ value: d.id, label: d.name }))} placeholder="Select department" />
               <Input label="Annual CTC (₹) *" type="number" value={offerForm.offeredCtc} onChange={e => setOfferForm(p => ({ ...p, offeredCtc: e.target.value }))} placeholder="e.g. 1200000" />
               <Input label="Date of Joining *" type="date" value={offerForm.dateOfJoining} onChange={e => setOfferForm(p => ({ ...p, dateOfJoining: e.target.value }))} />
+              <Select label="Reporting Manager" value={offerForm.reportingManagerId} onChange={e => setOfferForm(p => ({ ...p, reportingManagerId: e.target.value }))}
+                options={managerOptions.map(m => ({ value: m.id, label: m.designation ? `${m.name} (${m.designation})` : m.name }))} placeholder="Select reporting manager" />
             </div>
             {offerBreakup && (
               <div className="p-3 bg-surface-3 rounded-lg space-y-1">
