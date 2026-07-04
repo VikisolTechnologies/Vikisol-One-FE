@@ -28,7 +28,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex bg-surface relative overflow-hidden">
-      {/* Animated background particles */}
+      {/* Vivid blurred blobs - glassmorphism needs colorful shapes behind the glass to show through */}
       <div className="absolute inset-0 overflow-hidden">
         {Array.from({ length: 50 }).map((_, i) => (
           <motion.div
@@ -39,8 +39,9 @@ export default function Login() {
             transition={{ duration: 3 + Math.random() * 4, repeat: Infinity, delay: Math.random() * 3 }}
           />
         ))}
-        <div className="absolute top-1/4 -left-32 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-primary/8 rounded-full blur-3xl" />
+        <div className="absolute top-[-10%] -left-32 w-[32rem] h-[32rem] bg-primary/40 rounded-full blur-3xl" />
+        <div className="absolute bottom-[-15%] -right-32 w-[32rem] h-[32rem] bg-[#58A6FF]/30 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 right-1/4 w-72 h-72 bg-[#A371F7]/20 rounded-full blur-3xl" />
       </div>
 
       <div className="flex-1 flex items-center justify-center relative z-10">
@@ -59,25 +60,25 @@ export default function Login() {
             <p className="text-[10px] text-text-secondary mt-1 tracking-[0.15em]">TECHNOLOGY · TALENT · TRANSFORMATION</p>
           </div>
 
-          <div className="bg-surface-2 border border-border rounded-2xl p-8 shadow-2xl">
+          <div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-2xl p-8 shadow-2xl shadow-black/20">
             <h2 className="text-xl font-semibold text-text mb-1">Welcome Back!</h2>
             <p className="text-sm text-text-secondary mb-6">Sign in to continue to Vikisol HRMS</p>
 
-            <div className="flex bg-surface-3 rounded-lg p-1 mb-6">
-              <button onClick={() => setTab('email')} className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${tab === 'email' ? 'bg-primary text-white' : 'text-text-secondary'}`}>Email Login</button>
-              <button onClick={() => setTab('otp')} className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${tab === 'otp' ? 'bg-primary text-white' : 'text-text-secondary'}`}>OTP Login</button>
+            <div className="flex bg-white/10 backdrop-blur-md border border-white/10 rounded-lg p-1 mb-6">
+              <button onClick={() => setTab('email')} className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${tab === 'email' ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'text-text-secondary'}`}>Email Login</button>
+              <button onClick={() => setTab('otp')} className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${tab === 'otp' ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'text-text-secondary'}`}>OTP Login</button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="relative">
                 <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@vikisol.in" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@vikisol.in" className="w-full bg-white/10 backdrop-blur-md border border-white/15 rounded-lg pl-10 pr-4 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
               </div>
 
               {tab === 'email' && (
                 <div className="relative">
                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-10 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
+                  <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="w-full bg-white/10 backdrop-blur-md border border-white/15 rounded-lg pl-10 pr-10 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
                   <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text">
                     {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -92,18 +93,18 @@ export default function Login() {
                 <a href="#" className="text-primary hover:underline">Forgot Password?</a>
               </div>
 
-              {error && <p className="text-sm text-danger bg-danger/10 rounded-lg px-3 py-2">{error}</p>}
+              {error && <p className="text-sm text-danger bg-danger/10 backdrop-blur-md rounded-lg px-3 py-2">{error}</p>}
 
               <button type="submit" disabled={submitting} className="w-full bg-primary hover:bg-primary-dark text-white py-3 rounded-lg font-semibold text-sm transition-all shadow-lg shadow-primary/20 active:scale-[0.98] disabled:opacity-60">
                 {submitting ? 'Signing in...' : 'Sign In'}
               </button>
 
               <div className="relative my-4">
-                <hr className="border-border" />
-                <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 bg-surface-2 px-3 text-xs text-text-secondary">or continue with</span>
+                <hr className="border-white/15" />
+                <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 bg-surface px-3 text-xs text-text-secondary">or continue with</span>
               </div>
 
-              <button type="button" className="w-full flex items-center justify-center gap-2 bg-[#0078D4] hover:bg-[#006BC1] text-white py-3 rounded-lg font-medium text-sm transition-all">
+              <button type="button" className="w-full flex items-center justify-center gap-2 bg-[#0078D4]/80 backdrop-blur-md hover:bg-[#0078D4] text-white py-3 rounded-lg font-medium text-sm transition-all border border-white/10">
                 <Monitor size={16} /> Sign in with Microsoft
               </button>
             </form>
@@ -116,7 +117,7 @@ export default function Login() {
           <p className="text-xs text-text-secondary text-center mt-6">&copy; 2024 Vikisol. All rights reserved.</p>
 
           {/* Demo credentials */}
-          <div className="mt-6 bg-surface-2 border border-border rounded-xl p-4">
+          <div className="mt-6 bg-white/10 backdrop-blur-2xl border border-white/20 rounded-xl p-4 shadow-xl shadow-black/10">
             <p className="text-xs font-semibold text-text mb-2">Demo Logins:</p>
             <div className="space-y-1 text-xs text-text-secondary">
               {[
