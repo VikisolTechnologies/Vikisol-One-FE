@@ -32,6 +32,8 @@ const NotificationCenter = lazy(() => import('./pages/NotificationCenter'));
 const HelpCenter = lazy(() => import('./pages/HelpCenter'));
 const OrgChart = lazy(() => import('./pages/OrgChart'));
 const ResourceAllocation = lazy(() => import('./pages/ResourceAllocation'));
+const CompanyBranding = lazy(() => import('./pages/admin/CompanyBranding'));
+const DocumentStudio = lazy(() => import('./pages/admin/DocumentStudio'));
 
 function PageFallback() {
   return <div className="flex items-center justify-center h-full min-h-[50vh]"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
@@ -71,6 +73,8 @@ export default function App() {
                           <Route path="/help" element={<HelpCenter />} />
                           <Route path="/org-chart" element={<OrgChart />} />
                           <Route path="/resources" element={<ResourceAllocation />} />
+                          <Route path="/company-branding" element={<CompanyBranding />} />
+                          <Route path="/document-studio" element={<DocumentStudio />} />
                         </Route>
                         <Route path="*" element={<Navigate to="/" replace />} />
                       </Routes>

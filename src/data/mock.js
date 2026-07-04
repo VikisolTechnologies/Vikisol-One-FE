@@ -28,13 +28,13 @@ export const NAV_ITEMS = [
 ];
 
 export const ROLE_PERMISSIONS = {
-  ceo: ['dashboard', 'employees', 'recruitment', 'new-hires', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'settings', 'notifications'],
-  hr_manager: ['dashboard', 'employees', 'recruitment', 'new-hires', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'settings'],
+  ceo: ['dashboard', 'employees', 'recruitment', 'new-hires', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'company-branding', 'document-studio', 'settings', 'notifications'],
+  hr_manager: ['dashboard', 'employees', 'recruitment', 'new-hires', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'company-branding', 'document-studio', 'settings'],
   manager: ['dashboard', 'employees', 'new-hires', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'tickets', 'performance', 'org-chart', 'reports'],
   employee: ['dashboard', 'projects', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'performance', 'documents'],
   recruiter: ['dashboard', 'recruitment', 'reports'],
   finance: ['dashboard', 'payroll', 'reports'],
-  admin: ['dashboard', 'employees', 'recruitment', 'new-hires', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'settings'],
+  admin: ['dashboard', 'employees', 'recruitment', 'new-hires', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'company-branding', 'document-studio', 'settings'],
 };
 
 export const TIMESHEET_DATA = {

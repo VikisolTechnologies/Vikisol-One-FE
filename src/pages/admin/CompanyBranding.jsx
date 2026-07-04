@@ -1,0 +1,219 @@
+import { useState, useEffect, useRef } from 'react';
+import { Save, Upload, Trash2, Building2, Image as ImageIcon, PenTool, Palette } from 'lucide-react';
+import Card from '../../components/ui/Card';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import Breadcrumb from '../../components/ui/Breadcrumb';
+import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../context/AuthContext';
+import { getBranding, updateBranding, uploadBrandingAsset } from '../../api/branding';
+
+// Every generated HR document (offer letters, payslips, certificates...) reads these settings
+// automatically via the backend's BrandingService - changing something here takes effect on the
+// next document generated, no code change or redeploy needed.
+const COMPANY_FIELDS = [
+  { key: 'COMPANY_NAME', label: 'Company Name' },
+  { key: 'LEGAL_NAME', label: 'Legal Name' },
+  { key: 'WEBSITE', label: 'Website' },
+  { key: 'EMAIL', label: 'Email' },
+  { key: 'PHONE', label: 'Phone' },
+  { key: 'GST', label: 'GST Number' },
+  { key: 'PAN', label: 'PAN Number' },
+  { key: 'CIN', label: 'CIN Number' },
+  { key: 'COMPANY_ADDRESS', label: 'Address', full: true },
+];
+
+const ASSET_FIELDS = [
+  { key: 'LOGO_URL', assetType: 'logo', label: 'Primary Logo' },
+  { key: 'DARK_LOGO_URL', assetType: 'dark-logo', label: 'Dark Logo' },
+  { key: 'LIGHT_LOGO_URL', assetType: 'light-logo', label: 'Light Logo' },
+  { key: 'LETTERHEAD_URL', assetType: 'letterhead', label: 'Letterhead' },
+  { key: 'WATERMARK_URL', assetType: 'watermark', label: 'Watermark' },
+  { key: 'COMPANY_SEAL_URL', assetType: 'company-seal', label: 'Company Seal' },
+];
+
+const SIGNATURE_FIELDS = [
+  { key: 'CEO_SIGNATURE_URL', assetType: 'ceo-signature', label: 'CEO Signature' },
+  { key: 'HR_SIGNATURE_URL', assetType: 'hr-signature', label: 'HR Signature' },
+  { key: 'AUTHORIZED_SIGNATORY_URL', assetType: 'authorized-signatory', label: 'Authorized Signatory' },
+];
+
+function fieldValue(branding, key) {
+  const camelKey = key.toLowerCase().replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+  return branding?.[camelKey] ?? '';
+}
+
+function AssetUploadTile({ label, url, onUpload, onRemove, busy }) {
+  const fileInputRef = useRef(null);
+  return (
+    <div className="border border-border rounded-xl p-3 bg-surface-3">
+      <p className="text-xs font-semibold text-text-secondary mb-2">{label}</p>
+      <div className="h-20 rounded-lg bg-surface-2 border border-border flex items-center justify-center overflow-hidden mb-2">
+        {url ? <img src={url} alt={label} className="max-h-full max-w-full object-contain" /> : <ImageIcon size={20} className="text-text-secondary/40" />}
+      </div>
+      <div className="flex gap-1.5">
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files[0] && onUpload(e.target.files[0])} />
+        <Button size="sm" variant="secondary" icon={Upload} disabled={busy} onClick={() => fileInputRef.current?.click()} className="flex-1">
+          {url ? 'Replace' : 'Upload'}
+        </Button>
+        {url && <Button size="sm" variant="ghost" icon={Trash2} disabled={busy} onClick={onRemove} />}
+      </div>
+    </div>
+  );
+}
+
+export default function CompanyBranding() {
+  const { user } = useAuth();
+  const toast = useToast();
+  const canManage = ['ceo', 'hr_manager', 'admin'].includes((user?.role || '').toLowerCase());
+
+  const [branding, setBranding] = useState(null);
+  const [form, setForm] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploadingKey, setUploadingKey] = useState(null);
+
+  useEffect(() => {
+    getBranding()
+      .then(b => { setBranding(b); setForm(b); })
+      .catch(() => toast.error('Failed to load branding settings'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const setField = (key, value) => setForm(prev => ({ ...prev, [key.toLowerCase().replace(/_([a-z])/g, (_, c) => c.toUpperCase())]: value }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      // Diff against loaded branding so only changed fields are sent - PUT /branding accepts a
+      // partial map of BRANDING_<KEY> -> value.
+      const changes = {};
+      [...COMPANY_FIELDS, ...ASSET_FIELDS, ...SIGNATURE_FIELDS].forEach(({ key }) => {
+        const current = fieldValue(form, key);
+        const original = fieldValue(branding, key);
+        if (current !== original) changes[key] = current;
+      });
+      if (Object.keys(changes).length === 0) { toast.info('No changes to save'); setSaving(false); return; }
+      const updated = await updateBranding(changes);
+      setBranding(updated);
+      setForm(updated);
+      toast.success('Branding updated - takes effect on the next document generated');
+    } catch (err) {
+      toast.error(err.message || 'Failed to save branding');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAssetUpload = async (field, file) => {
+    setUploadingKey(field.key);
+    try {
+      const url = await uploadBrandingAsset(file, field.assetType);
+      const updated = await updateBranding({ [field.key]: url });
+      setBranding(updated);
+      setForm(updated);
+      toast.success(`${field.label} updated`);
+    } catch (err) {
+      toast.error(err.message || `Failed to upload ${field.label}`);
+    } finally {
+      setUploadingKey(null);
+    }
+  };
+
+  const handleAssetRemove = async (field) => {
+    setUploadingKey(field.key);
+    try {
+      const updated = await updateBranding({ [field.key]: '' });
+      setBranding(updated);
+      setForm(updated);
+    } catch (err) {
+      toast.error(err.message || `Failed to remove ${field.label}`);
+    } finally {
+      setUploadingKey(null);
+    }
+  };
+
+  if (!canManage) {
+    return (
+      <div className="space-y-5">
+        <Breadcrumb items={[{ label: 'Company Branding' }]} />
+        <Card><p className="text-sm text-text-secondary">Only the CEO, HR Manager, or Admin can manage company branding.</p></Card>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <Breadcrumb items={[{ label: 'Company Branding' }]} />
+        <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <Breadcrumb items={[{ label: 'Company Branding' }]} />
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-text">Company Branding</h1>
+          <p className="text-sm text-text-secondary">Every generated document automatically uses these settings</p>
+        </div>
+        <Button icon={Save} disabled={saving} onClick={handleSave}>{saving ? 'Saving...' : 'Save Changes'}</Button>
+      </div>
+
+      <Card title="Company Information" action={<Building2 size={16} className="text-text-secondary" />}>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {COMPANY_FIELDS.map(f => (
+            <div key={f.key} className={f.full ? 'col-span-2 md:col-span-3' : ''}>
+              <Input label={f.label} value={fieldValue(form, f.key)} onChange={e => setField(f.key, e.target.value)} />
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card title="Logos & Documents" subtitle="Logo, letterhead, watermark, and company seal" action={<ImageIcon size={16} className="text-text-secondary" />}>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {ASSET_FIELDS.map(f => (
+            <AssetUploadTile key={f.key} label={f.label} url={fieldValue(form, f.key)}
+              busy={uploadingKey === f.key}
+              onUpload={file => handleAssetUpload(f, file)}
+              onRemove={() => handleAssetRemove(f)} />
+          ))}
+        </div>
+      </Card>
+
+      <Card title="Signatures" subtitle="Applied to offer letters, hike letters, and other formal documents" action={<PenTool size={16} className="text-text-secondary" />}>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {SIGNATURE_FIELDS.map(f => (
+            <AssetUploadTile key={f.key} label={f.label} url={fieldValue(form, f.key)}
+              busy={uploadingKey === f.key}
+              onUpload={file => handleAssetUpload(f, file)}
+              onRemove={() => handleAssetRemove(f)} />
+          ))}
+        </div>
+      </Card>
+
+      <Card title="Brand Theme" subtitle="Applied to the header/footer chrome of every generated PDF" action={<Palette size={16} className="text-text-secondary" />}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <label className="text-xs font-medium text-text-secondary block mb-1.5">Primary Color</label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={fieldValue(form, 'PRIMARY_COLOR') || '#FF6B35'} onChange={e => setField('PRIMARY_COLOR', e.target.value)} className="w-9 h-9 rounded-lg border border-border cursor-pointer" />
+              <Input value={fieldValue(form, 'PRIMARY_COLOR')} onChange={e => setField('PRIMARY_COLOR', e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-text-secondary block mb-1.5">Secondary Color</label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={fieldValue(form, 'SECONDARY_COLOR') || '#0a0a0a'} onChange={e => setField('SECONDARY_COLOR', e.target.value)} className="w-9 h-9 rounded-lg border border-border cursor-pointer" />
+              <Input value={fieldValue(form, 'SECONDARY_COLOR')} onChange={e => setField('SECONDARY_COLOR', e.target.value)} />
+            </div>
+          </div>
+          <Input label="Default Font" value={fieldValue(form, 'FONT_FAMILY')} onChange={e => setField('FONT_FAMILY', e.target.value)} placeholder="Helvetica, Arial, sans-serif" />
+          <Input label="Default Margin" value={fieldValue(form, 'DEFAULT_MARGIN')} onChange={e => setField('DEFAULT_MARGIN', e.target.value)} placeholder="36px 40px" />
+        </div>
+      </Card>
+    </div>
+  );
+}

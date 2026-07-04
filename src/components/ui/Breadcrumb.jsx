@@ -9,8 +9,8 @@ export default function Breadcrumb({ items }) {
       {items.map((item, i) => (
         <span key={i} className="flex items-center gap-1.5">
           <ChevronRight size={12} />
-          {item.path ? (
-            <button onClick={() => navigate(item.path)} className="hover:text-primary transition-colors">{item.label}</button>
+          {item.path || item.onClick ? (
+            <button onClick={() => (item.onClick ? item.onClick() : navigate(item.path))} className="hover:text-primary transition-colors">{item.label}</button>
           ) : (
             <span className="text-text font-medium">{item.label}</span>
           )}
