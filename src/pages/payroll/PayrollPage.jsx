@@ -3,7 +3,7 @@ import { Download, IndianRupee, Calculator, FileText, TrendingUp, Mail, Lock, Un
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import StatCard from '../../components/ui/StatCard';
-import SelectableTable from '../../components/ui/SelectableTable';
+import DataTable from '../../components/ui/DataTable';
 import BulkActions from '../../components/ui/BulkActions';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
@@ -166,7 +166,7 @@ export default function PayrollPage() {
       )}
 
       <Card padding={false}>
-        {payslipsLoading ? <TableSkeleton rows={8} cols={6} /> : <SelectableTable columns={columns} data={filtered} pageSize={isEmployee ? 6 : 12} selected={!isEmployee ? selectedIds : []} onSelectChange={!isEmployee ? setSelectedIds : () => {}} onRowClick={setSelected} />}
+        {payslipsLoading ? <TableSkeleton rows={8} cols={6} /> : <DataTable columns={columns} data={filtered} pageSize={isEmployee ? 6 : 12} selectable={!isEmployee} selected={!isEmployee ? selectedIds : []} onSelectChange={!isEmployee ? setSelectedIds : () => {}} onRowClick={setSelected} />}
       </Card>
 
       {!isEmployee && <BulkActions selectedCount={selectedIds.length} onExport={() => { toast.info('Export is not available yet'); setSelectedIds([]); }} onEmail={() => { toast.info('Bulk email is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}

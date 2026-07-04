@@ -13,6 +13,56 @@ function getToken() {
   return localStorage.getItem('vikisol_token');
 }
 
+// Shared multipart-upload path - previously duplicated (with slightly different error handling
+// each time) across api/documents.js, api/branding.js, and api/documentStudio.js, each
+// re-reading localStorage/rebuilding BASE_URL by hand instead of going through this module.
+export async function uploadMultipart(path, formData) {
+  const token = getToken();
+  let res;
+  try {
+    res = await fetch(BASE_URL + path, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+  } catch (err) {
+    const networkError = new ApiError('Network error - check your connection and try again', 0, null);
+    networkError.category = 'network';
+    logError('api.network_error', networkError, { path, method: 'POST (multipart)' });
+    throw networkError;
+  }
+  const json = await res.json().catch(() => null);
+  if (!res.ok || (json && json.success === false)) {
+    const message = json?.message || `Upload failed with status ${res.status}`;
+    const apiError = new ApiError(message, res.status, json);
+    logError('api.upload_failed', apiError, { path });
+    throw apiError;
+  }
+  return json?.data;
+}
+
+// Shared "POST JSON, get a blob back" path - used for PDF previews (documentStudio.js) where the
+// response is a raw file stream, not the usual { success, data } JSON envelope.
+export async function fetchBlob(path, body) {
+  const token = getToken();
+  const res = await fetch(BASE_URL + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let message = `Request failed with status ${res.status}`;
+    try {
+      const json = await res.json();
+      message = json?.message || message;
+    } catch { /* body wasn't JSON (likely a raw file stream on success, or empty on error) */ }
+    const apiError = new ApiError(message, res.status, null);
+    logError('api.request_failed', apiError, { path });
+    throw apiError;
+  }
+  return res.blob();
+}
+
 export function setToken(token) {
   if (token) localStorage.setItem('vikisol_token', token);
   else localStorage.removeItem('vikisol_token');

@@ -4,7 +4,7 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Input, { Select } from '../../components/ui/Input';
-import SelectableTable from '../../components/ui/SelectableTable';
+import DataTable from '../../components/ui/DataTable';
 import { TableSkeleton } from '../../components/ui/Skeleton';
 import ErrorState from '../../components/ui/ErrorState';
 import BulkActions from '../../components/ui/BulkActions';
@@ -373,7 +373,7 @@ export default function TimesheetPage() {
         <Card padding={false}>
           {timesheetsLoading ? <TableSkeleton rows={8} cols={6} />
             : timesheetsError ? <ErrorState message={timesheetsError} onRetry={() => retryLoad('timesheets')} />
-            : <SelectableTable columns={teamColumns} data={filteredTeam} pageSize={12} selected={selectedIds} onSelectChange={setSelectedIds} onRowClick={setShowDetail} />}
+            : <DataTable columns={teamColumns} data={filteredTeam} pageSize={12} selectable selected={selectedIds} onSelectChange={setSelectedIds} onRowClick={setShowDetail} />}
         </Card>
 
         <BulkActions selectedCount={selectedIds.length} onApprove={handleBulkApprove} onReject={handleBulkReject} onExport={() => { toast.info('Export is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />

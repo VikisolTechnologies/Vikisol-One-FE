@@ -3,7 +3,7 @@ import { Plus, Check, X, Calendar, Eye } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
-import SelectableTable from '../../components/ui/SelectableTable';
+import DataTable from '../../components/ui/DataTable';
 import BulkActions from '../../components/ui/BulkActions';
 import Modal from '../../components/ui/Modal';
 import Input from '../../components/ui/Input';
@@ -234,7 +234,7 @@ export default function LeaveManagement() {
       )}
 
       <Card title={isEmployee ? 'My Leave Requests' : 'Leave Requests'} padding={false}>
-        <SelectableTable columns={columns} data={filtered} pageSize={10} selected={isManager ? selectedIds : []} onSelectChange={isManager ? setSelectedIds : () => {}} onRowClick={setShowDetail} />
+        <DataTable columns={columns} data={filtered} pageSize={10} selectable selected={isManager ? selectedIds : []} onSelectChange={isManager ? setSelectedIds : () => {}} onRowClick={setShowDetail} />
       </Card>
 
       {isManager && <BulkActions selectedCount={selectedIds.length} onApprove={handleBulkApprove} onReject={handleBulkReject} onExport={() => { toast.info('Export is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}

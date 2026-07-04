@@ -3,7 +3,25 @@ import { ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Down
 import Button from './Button';
 import EmptyState from './EmptyState';
 
-export default function DataTable({ columns, data, pageSize = 10, onRowClick, actions }) {
+// Escapes a cell value before it's interpolated into an HTML string for the Print window - both
+// the old DataTable and SelectableTable built that HTML via unescaped template-string
+// interpolation of raw row values (e.g. `<td>${row[c.key]}</td>`), which is a real stored-XSS
+// vector: any column showing free-text user input (a leave reason, ticket title, employee name)
+// containing HTML would be parsed and could execute in the print window. Every consumer of this
+// table can render arbitrary user-supplied strings, so this isn't a hypothetical.
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Unified table component - previously DataTable and SelectableTable were ~95% duplicated (same
+// sort/paginate/export/print logic), which had already caused one real bug (SelectableTable's
+// CSV export didn't quote comma-containing values the way DataTable's did) since a fix to one
+// silently never applied to the other. Pass `selectable` + `selected`/`onSelectChange` to get the
+// checkbox-selection behavior that used to be SelectableTable's only differentiator; omit them
+// for the plain read-only table.
+export default function DataTable({ columns, data, pageSize = 10, onRowClick, actions, selectable = false, selected = [], onSelectChange }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(0);
@@ -21,15 +39,25 @@ export default function DataTable({ columns, data, pageSize = 10, onRowClick, ac
 
   const totalPages = Math.ceil(sorted.length / pageSize);
   const paged = sorted.slice(page * pageSize, (page + 1) * pageSize);
+  const displayColumns = columns.filter(c => c.key !== 'actions');
 
   const toggleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
   };
 
+  const allPageSelected = selectable && paged.length > 0 && paged.every(r => selected.includes(r.id));
+  const toggleAll = () => {
+    if (allPageSelected) onSelectChange(selected.filter(id => !paged.find(r => r.id === id)));
+    else onSelectChange([...new Set([...selected, ...paged.map(r => r.id)])]);
+  };
+  const toggleOne = (id) => {
+    onSelectChange(selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id]);
+  };
+
   const exportCSV = () => {
-    const headers = columns.filter(c => c.key !== 'actions').map(c => c.label);
-    const rows = data.map(row => columns.filter(c => c.key !== 'actions').map(c => {
+    const headers = displayColumns.map(c => c.label);
+    const rows = data.map(row => displayColumns.map(c => {
       const val = row[c.key];
       return typeof val === 'string' && val.includes(',') ? `"${val}"` : val ?? '';
     }));
@@ -41,13 +69,14 @@ export default function DataTable({ columns, data, pageSize = 10, onRowClick, ac
   };
 
   const printTable = () => {
-    const printContent = document.createElement('div');
-    printContent.innerHTML = `<style>table{border-collapse:collapse;width:100%;font-family:sans-serif;font-size:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f5f5f5;font-weight:600}</style>
-    <h2 style="font-family:sans-serif;margin-bottom:12px">Vikisol HRMS Export</h2>
-    <table><thead><tr>${columns.filter(c=>c.key!=='actions').map(c=>`<th>${c.label}</th>`).join('')}</tr></thead>
-    <tbody>${data.map(row=>`<tr>${columns.filter(c=>c.key!=='actions').map(c=>`<td>${row[c.key]??''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
     const w = window.open('', '_blank');
-    w.document.write(printContent.innerHTML);
+    const headerHtml = displayColumns.map(c => `<th>${escapeHtml(c.label)}</th>`).join('');
+    const bodyHtml = data.map(row =>
+      `<tr>${displayColumns.map(c => `<td>${escapeHtml(row[c.key])}</td>`).join('')}</tr>`
+    ).join('');
+    w.document.write(`<style>table{border-collapse:collapse;width:100%;font-family:sans-serif;font-size:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f5f5f5;font-weight:600}</style>
+    <h2 style="font-family:sans-serif;margin-bottom:12px">Vikisol HRMS Export</h2>
+    <table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`);
     w.document.close();
     w.print();
   };
@@ -55,7 +84,7 @@ export default function DataTable({ columns, data, pageSize = 10, onRowClick, ac
   return (
     <div>
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-        <span className="text-xs text-text-secondary">{data.length} total records</span>
+        <span className="text-xs text-text-secondary">{data.length} {selectable ? 'records' : 'total records'}{selectable && selected.length > 0 && ` · ${selected.length} selected`}</span>
         <div className="flex items-center gap-1">
           {actions}
           <Button variant="ghost" size="sm" icon={Download} onClick={exportCSV} title="Export CSV">CSV</Button>
@@ -67,6 +96,7 @@ export default function DataTable({ columns, data, pageSize = 10, onRowClick, ac
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
+              {selectable && <th className="py-3 px-3 w-10"><input type="checkbox" checked={allPageSelected} onChange={toggleAll} className="rounded accent-primary" /></th>}
               {columns.map(col => (
                 <th key={col.key} className="text-left py-3 px-4 text-xs font-semibold text-text-secondary uppercase tracking-wider">
                   {col.sortable !== false && col.key !== 'actions' ? (
@@ -81,9 +111,11 @@ export default function DataTable({ columns, data, pageSize = 10, onRowClick, ac
           </thead>
           <tbody>
             {paged.map((row, i) => (
-              <tr key={row.id || i} onClick={() => onRowClick?.(row)} className={`border-b border-border/50 hover:bg-surface-3/50 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}>
+              <tr key={row.id || i} onClick={() => !selectable && onRowClick?.(row)}
+                className={`border-b border-border/50 hover:bg-surface-3/50 transition-colors ${onRowClick && !selectable ? 'cursor-pointer' : ''} ${selectable && selected.includes(row.id) ? 'bg-primary/5' : ''}`}>
+                {selectable && <td className="py-3 px-3"><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggleOne(row.id)} className="rounded accent-primary" /></td>}
                 {columns.map(col => (
-                  <td key={col.key} className="py-3 px-4 text-text">
+                  <td key={col.key} className="py-3 px-4 text-text" onClick={selectable ? () => col.key !== 'actions' && onRowClick?.(row) : undefined}>
                     {col.render ? col.render(row[col.key], row) : row[col.key]}
                   </td>
                 ))}

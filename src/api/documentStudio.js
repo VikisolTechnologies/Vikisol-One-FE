@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, fetchBlob } from './client';
 
 export async function listTemplatesByType(documentType) {
   return api.get('/document-templates', { type: documentType });
@@ -47,23 +47,5 @@ export async function createVariable({ key, label, description, documentType }) 
 // Renders a preview PDF without storing it - returns a Blob the caller can open in an <iframe>
 // or new tab via URL.createObjectURL.
 export async function previewDocument({ documentType, employeeId, templateId, fields }) {
-  const token = localStorage.getItem('vikisol_token');
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
-  const res = await fetch(`${BASE_URL}/documents/preview`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ documentType, employeeId, templateId, fields }),
-  });
-  if (!res.ok) {
-    let message = `Preview failed with status ${res.status}`;
-    try {
-      const json = await res.json();
-      message = json?.message || message;
-    } catch { /* not JSON */ }
-    throw new Error(message);
-  }
-  return res.blob();
+  return fetchBlob('/documents/preview', { documentType, employeeId, templateId, fields });
 }

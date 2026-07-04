@@ -1,4 +1,5 @@
-import { api } from './client';
+import { api, uploadMultipart } from './client';
+import { validateFile } from '../utils/fileValidation';
 
 // Maps backend Document.DocumentType <-> FE category labels used by DocumentsPage
 const TYPE_TO_FE = {
@@ -60,21 +61,12 @@ export function adaptDocument(d) {
 // Cloudinary under employees/{entityId}/documents/ - entityId should be a stable identifier
 // (the employee's UUID), never their name (names change, IDs don't).
 export async function uploadFile(file, entityId) {
+  const validationError = validateFile(file);
+  if (validationError) throw new Error(validationError);
   const formData = new FormData();
   formData.append('file', file);
-  const token = localStorage.getItem('vikisol_token');
-  const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
   const params = new URLSearchParams({ entityId: entityId || 'unspecified', documentType: 'documents' });
-  const res = await fetch(`${BASE_URL}/files/upload?${params}`, {
-    method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: formData,
-  });
-  const json = await res.json().catch(() => null);
-  if (!res.ok || (json && json.success === false)) {
-    throw new Error(json?.message || `File upload failed with status ${res.status}`);
-  }
-  return json?.data;
+  return uploadMultipart(`/files/upload?${params}`, formData);
 }
 
 // Step 2: create the document metadata record referencing the uploaded file's URL
