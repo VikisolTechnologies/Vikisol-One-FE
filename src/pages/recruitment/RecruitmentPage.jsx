@@ -17,6 +17,7 @@ import Tabs from '../../components/ui/Tabs';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
+import SensitiveValue from '../../components/ui/SensitiveValue';
 
 const stages = ['Applied', 'Screening', 'Technical', 'Manager', 'HR', 'Offered', 'Hired', 'Rejected'];
 
@@ -260,9 +261,11 @@ export default function RecruitmentPage() {
               </div>
             )}
             <div className="grid grid-cols-3 gap-4 text-sm">
-              {[['Experience', selected.experience], ['Current CTC', selected.currentCTC], ['Expected CTC', selected.expectedCTC], ['Notice Period', selected.noticePeriod], ['Current Company', selected.currentCompany], ['Location', selected.location], ['Applied Date', selected.appliedDate], ['Score', `${selected.score}%`], ['Interviewer', selected.interviewer]].map(([k, v]) => (
+              {[['Experience', selected.experience], ['Notice Period', selected.noticePeriod], ['Current Company', selected.currentCompany], ['Location', selected.location], ['Applied Date', selected.appliedDate], ['Score', `${selected.score}%`], ['Interviewer', selected.interviewer]].map(([k, v]) => (
                 <div key={k}><p className="text-xs text-text-secondary">{k}</p><p className="text-text font-medium mt-0.5">{v || '-'}</p></div>
               ))}
+              <div><p className="text-xs text-text-secondary">Current CTC</p><p className="text-text font-medium mt-0.5"><SensitiveValue type="currency" value={selected.currentCTC} id={`candidate-current-ctc-${selected.id}`} /></p></div>
+              <div><p className="text-xs text-text-secondary">Expected CTC</p><p className="text-text font-medium mt-0.5"><SensitiveValue type="currency" value={selected.expectedCTC} id={`candidate-expected-ctc-${selected.id}`} /></p></div>
             </div>
             {selected.feedback && <div className="p-3 bg-surface-3 rounded-lg"><p className="text-xs text-text-secondary mb-1">Feedback</p><p className="text-sm text-text">{selected.feedback}</p></div>}
             <div className="flex gap-2">

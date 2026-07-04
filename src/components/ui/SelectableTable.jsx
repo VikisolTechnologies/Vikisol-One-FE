@@ -37,7 +37,10 @@ export default function SelectableTable({ columns, data, pageSize = 10, onRowCli
 
   const exportCSV = () => {
     const headers = columns.filter(c => c.key !== 'actions').map(c => c.label);
-    const rows = data.map(row => columns.filter(c => c.key !== 'actions').map(c => row[c.key] ?? ''));
+    const rows = data.map(row => columns.filter(c => c.key !== 'actions').map(c => {
+      const val = row[c.key];
+      return typeof val === 'string' && val.includes(',') ? `"${val}"` : val ?? '';
+    }));
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'export.csv'; a.click();

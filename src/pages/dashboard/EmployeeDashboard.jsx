@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { computeLiveWorkingHours } from '../../api/attendance';
+import SensitiveValue from '../../components/ui/SensitiveValue';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
@@ -98,7 +99,7 @@ export default function EmployeeDashboard() {
         <div className="cursor-pointer" onClick={() => navigate('/attendance')}><StatCard icon={Clock} label="Today's Hours" value={workingHours} change={punchedIn ? 'In Progress' : 'Not Punched In'} color="primary" delay={0} /></div>
         <div className="cursor-pointer" onClick={() => navigate('/leave')}><StatCard icon={CalendarDays} label="Leave Balance" value={totalLeaveLeft} change={`${myLeaves.length} pending`} color="success" delay={1} /></div>
         <div className="cursor-pointer" onClick={() => navigate('/projects')}><StatCard icon={FolderKanban} label="My Projects" value={myProjects.length} color="info" delay={2} /></div>
-        <div className="cursor-pointer" onClick={() => navigate('/payroll')}><StatCard icon={IndianRupee} label="Last Salary" value={lastPayslip ? `₹${lastPayslip.netPay.toLocaleString('en-IN')}` : '-'} change={lastPayslip?.month || ''} color="primary" delay={3} /></div>
+        <div className="cursor-pointer" onClick={() => navigate('/payroll')}><StatCard icon={IndianRupee} label="Last Salary" value={lastPayslip ? <SensitiveValue type="currency" value={lastPayslip.netPay} id="employee-dashboard-last-salary" /> : '-'} change={lastPayslip?.month || ''} color="primary" delay={3} showSparkline={false} /></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

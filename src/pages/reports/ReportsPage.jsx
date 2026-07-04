@@ -9,6 +9,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import * as reportsApi from '../../api/reports';
+import SensitiveValue from '../../components/ui/SensitiveValue';
 
 // Each report is tagged with the sidebar module it's most relevant to, so we can hide reports
 // that don't matter for a given role (e.g. a Manager doesn't need company Revenue/Recruitment
@@ -182,7 +183,7 @@ export default function ReportsPage() {
                 {[['Gross Pay', previewData.totalGrossPay], ['Net Pay', previewData.totalNetPay], ['PF', previewData.totalPF], ['ESI', previewData.totalESI], ['TDS', previewData.totalTDS]].map(([label, val]) => (
                   <div key={label} className="p-4 bg-surface-3 rounded-xl">
                     <p className="text-xs text-text-secondary">{label}</p>
-                    <p className="text-lg font-semibold text-text mt-1">₹{Number(val || 0).toLocaleString()}</p>
+                    <p className="text-lg font-semibold text-text mt-1"><SensitiveValue type="currency" value={val} id={`report-payroll-${label}`} /></p>
                   </div>
                 ))}
                 {Object.keys(previewData.departmentWiseCost || {}).length > 0 && (
@@ -190,7 +191,7 @@ export default function ReportsPage() {
                     <p className="text-xs text-text-secondary mb-2">Department-wise Cost</p>
                     <div className="space-y-1.5">
                       {Object.entries(previewData.departmentWiseCost).map(([dept, cost]) => (
-                        <div key={dept} className="flex justify-between text-sm"><span className="text-text-secondary">{dept}</span><span className="text-text font-medium">₹{Number(cost).toLocaleString()}</span></div>
+                        <div key={dept} className="flex justify-between text-sm"><span className="text-text-secondary">{dept}</span><SensitiveValue type="currency" value={cost} id={`report-dept-cost-${dept}`} className="font-medium" /></div>
                       ))}
                     </div>
                   </div>

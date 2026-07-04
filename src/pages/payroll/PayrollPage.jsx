@@ -20,6 +20,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useAuth } from '../../context/AuthContext';
 import SensitiveValue from '../../components/ui/SensitiveValue';
 import { formatCurrency } from '../../utils/format';
+import Skeleton, { TableSkeleton } from '../../components/ui/Skeleton';
 
 export default function PayrollPage() {
   const { data, payslips: payslipsCrud, stats, payslipsSource, payslipsLoading } = useData();
@@ -104,8 +105,17 @@ export default function PayrollPage() {
     { key: 'status', label: 'Status', render: (v) => <Badge dot>{v || 'Paid'}</Badge> },
     { key: 'actions', label: '', sortable: false, render: (_, row) => (
       <div className="flex gap-1">
-        <button onClick={(e) => { e.stopPropagation(); setSelected(row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary"><Eye size={14} /></button>
-        <button onClick={(e) => { e.stopPropagation(); toast.info('Payslip PDF download is not available yet'); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary"><Download size={14} /></button>
+        <button onClick={(e) => { e.stopPropagation(); setSelected(row); }} aria-label={`View payslip for ${row.empName}`} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary"><Eye size={14} /></button>
+        <button onClick={async (e) => {
+          e.stopPropagation();
+          if (payslipsSource !== 'live') { toast.error('Connect to the live backend to download payslips'); return; }
+          try {
+            const fileUrl = await generatePayslipPdf(row.id);
+            await downloadFile(fileUrl);
+          } catch (err) {
+            toast.error(err.message || 'Failed to generate payslip PDF');
+          }
+        }} aria-label={`Download payslip for ${row.empName}`} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary"><Download size={14} /></button>
       </div>
     )},
   ];
@@ -133,14 +143,20 @@ export default function PayrollPage() {
 
       {/* Summary - only for managers */}
       {!isEmployee && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <StatCard icon={IndianRupee} label="Total Net" value={<SensitiveValue type="currency" value={summary.totalPayroll} id="payroll-total-net" />} delay={0} showSparkline={false} />
-          <StatCard icon={TrendingUp} label="Total Gross" value={<SensitiveValue type="currency" value={summary.totalGross} id="payroll-total-gross" />} color="success" delay={1} showSparkline={false} />
-          <StatCard icon={Calculator} label="Deductions" value={<SensitiveValue type="currency" value={summary.totalDeductions} id="payroll-total-deductions" />} color="warning" delay={2} showSparkline={false} />
-          <StatCard icon={IndianRupee} label="Avg Salary" value={<SensitiveValue type="currency" value={summary.avgSalary} id="payroll-avg-salary" />} color="info" delay={3} showSparkline={false} />
-          <StatCard icon={IndianRupee} label="Highest" value={<SensitiveValue type="currency" value={summary.highestSalary} id="payroll-highest-salary" />} color="primary" delay={4} showSparkline={false} />
-          <StatCard icon={IndianRupee} label="Lowest" value={<SensitiveValue type="currency" value={summary.lowestSalary} id="payroll-lowest-salary" />} color="default" delay={5} showSparkline={false} />
-        </div>
+        payslipsLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} variant="stat" />)}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <StatCard icon={IndianRupee} label="Total Net" value={<SensitiveValue type="currency" value={summary.totalPayroll} id="payroll-total-net" />} delay={0} showSparkline={false} />
+            <StatCard icon={TrendingUp} label="Total Gross" value={<SensitiveValue type="currency" value={summary.totalGross} id="payroll-total-gross" />} color="success" delay={1} showSparkline={false} />
+            <StatCard icon={Calculator} label="Deductions" value={<SensitiveValue type="currency" value={summary.totalDeductions} id="payroll-total-deductions" />} color="warning" delay={2} showSparkline={false} />
+            <StatCard icon={IndianRupee} label="Avg Salary" value={<SensitiveValue type="currency" value={summary.avgSalary} id="payroll-avg-salary" />} color="info" delay={3} showSparkline={false} />
+            <StatCard icon={IndianRupee} label="Highest" value={<SensitiveValue type="currency" value={summary.highestSalary} id="payroll-highest-salary" />} color="primary" delay={4} showSparkline={false} />
+            <StatCard icon={IndianRupee} label="Lowest" value={<SensitiveValue type="currency" value={summary.lowestSalary} id="payroll-lowest-salary" />} color="default" delay={5} showSparkline={false} />
+          </div>
+        )
       )}
 
       {!isEmployee && (
@@ -150,7 +166,7 @@ export default function PayrollPage() {
       )}
 
       <Card padding={false}>
-        <SelectableTable columns={columns} data={filtered} pageSize={isEmployee ? 6 : 12} selected={!isEmployee ? selectedIds : []} onSelectChange={!isEmployee ? setSelectedIds : () => {}} onRowClick={setSelected} />
+        {payslipsLoading ? <TableSkeleton rows={8} cols={6} /> : <SelectableTable columns={columns} data={filtered} pageSize={isEmployee ? 6 : 12} selected={!isEmployee ? selectedIds : []} onSelectChange={!isEmployee ? setSelectedIds : () => {}} onRowClick={setSelected} />}
       </Card>
 
       {!isEmployee && <BulkActions selectedCount={selectedIds.length} onExport={() => { toast.info('Export is not available yet'); setSelectedIds([]); }} onEmail={() => { toast.info('Bulk email is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}

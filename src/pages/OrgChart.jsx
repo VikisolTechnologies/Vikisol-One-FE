@@ -12,6 +12,7 @@ import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
 import { getFullOrgChart } from '../api/orgchart';
+import SensitiveValue from '../components/ui/SensitiveValue';
 
 const hierarchy = [
   { title: 'CEO', level: 0 },
@@ -73,7 +74,7 @@ function OrgNode({ employee, children, expanded, onToggle, onSelect, depth = 0 }
 
 export default function OrgChart() {
   const { data } = useData();
-  const { isAuthenticated } = useAuth() || {};
+  const { isAuthenticated, user } = useAuth() || {};
   const toast = useToast();
   const [search, setSearch] = useState('');
   const [view, setView] = useState('tree');
@@ -237,9 +238,10 @@ export default function OrgChart() {
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4 text-sm">
-              {[['Email', selected.email], ['Phone', selected.phone], ['Manager', selected.manager], ['Experience', `${selected.experience || 0} years`], ['Join Date', selected.joinDate], ['CTC', `₹${(selected.ctc / 100000).toFixed(1)}L`]].map(([k, v]) => (
+              {[['Email', selected.email], ['Phone', selected.phone], ['Manager', selected.manager], ['Experience', `${selected.experience || 0} years`], ['Join Date', selected.joinDate]].map(([k, v]) => (
                 <div key={k}><p className="text-xs text-text-secondary">{k}</p><p className="text-text font-medium">{v || '-'}</p></div>
               ))}
+              <div><p className="text-xs text-text-secondary">CTC</p><p className="text-text font-medium"><SensitiveValue type="currency" value={selected.ctc} id={`orgchart-ctc-${selected.id}`} canReveal={['ceo', 'hr_manager', 'admin'].includes((user?.role || '').toLowerCase())} /></p></div>
             </div>
             <div><p className="text-xs text-text-secondary mb-1">Skills</p><div className="flex flex-wrap gap-1.5">{selected.skills?.map(s => <span key={s} className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">{s}</span>)}</div></div>
           </div>

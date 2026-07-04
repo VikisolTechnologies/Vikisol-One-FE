@@ -44,7 +44,7 @@ export default function Topbar({ onOpenMobileSidebar }) {
   return (
     <header className="topbar h-16 bg-surface-2 border-b border-border flex items-center justify-between px-3 md:px-6 sticky top-0 z-30">
       <div className="flex items-center gap-2 min-w-0">
-        <button onClick={onOpenMobileSidebar} className="p-2 -ml-1 hover:bg-surface-3 rounded-xl text-text-secondary hover:text-text md:hidden flex-shrink-0">
+        <button onClick={onOpenMobileSidebar} aria-label="Open menu" className="p-2 -ml-1 hover:bg-surface-3 rounded-xl text-text-secondary hover:text-text md:hidden flex-shrink-0">
           <Menu size={20} />
         </button>
         {/* Greeting */}
@@ -61,7 +61,7 @@ export default function Topbar({ onOpenMobileSidebar }) {
           <input type="text" value={searchQuery} onChange={e => { setSearchQuery(e.target.value); setShowSearch(true); }} onFocus={() => setShowSearch(true)}
             placeholder={searchPlaceholders[placeholderIdx]}
             className="bg-surface-3 border border-border rounded-xl pl-10 pr-4 py-2 text-sm text-text w-72 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder-text-secondary/40" />
-          {searchQuery && <button onClick={() => { setSearchQuery(''); setShowSearch(false); }} className="absolute right-3 text-text-secondary hover:text-text"><X size={14} /></button>}
+          {searchQuery && <button onClick={() => { setSearchQuery(''); setShowSearch(false); }} aria-label="Clear search" className="absolute right-3 text-text-secondary hover:text-text"><X size={14} /></button>}
           <AnimatePresence>
             {showSearch && searchResults.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}
@@ -79,14 +79,14 @@ export default function Topbar({ onOpenMobileSidebar }) {
         </div>
 
         {/* Theme toggle with animation */}
-        <button onClick={toggleTheme} className="p-2.5 hover:bg-surface-3 rounded-xl transition-all text-text-secondary hover:text-text">
+        <button onClick={toggleTheme} aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} className="p-2.5 hover:bg-surface-3 rounded-xl transition-all text-text-secondary hover:text-text">
           <motion.div key={theme} initial={{ rotate: -30, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} transition={{ duration: 0.15 }}>
             {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
           </motion.div>
         </button>
 
         {/* Notifications */}
-        <button onClick={() => { setShowNotif(!showNotif); setShowProfile(false); }} className="p-2.5 hover:bg-surface-3 rounded-xl transition-all text-text-secondary hover:text-text relative">
+        <button onClick={() => { setShowNotif(!showNotif); setShowProfile(false); }} aria-label="Notifications" aria-expanded={showNotif} className="p-2.5 hover:bg-surface-3 rounded-xl transition-all text-text-secondary hover:text-text relative">
           <Bell size={17} />
           {stats.unreadNotifications > 0 && (
             <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-danger text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
@@ -97,7 +97,7 @@ export default function Topbar({ onOpenMobileSidebar }) {
 
         {/* Profile */}
         <div className="relative">
-          <button onClick={() => { setShowProfile(!showProfile); setShowNotif(false); }} className="flex items-center gap-2.5 p-1.5 hover:bg-surface-3 rounded-xl transition-all">
+          <button onClick={() => { setShowProfile(!showProfile); setShowNotif(false); }} aria-label="User menu" aria-expanded={showProfile} className="flex items-center gap-2.5 p-1.5 hover:bg-surface-3 rounded-xl transition-all">
             <div className="relative">
               <Avatar name={user?.name} size="sm" />
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-success rounded-full border-2 border-surface-2" />

@@ -21,6 +21,7 @@ import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPasswor
 import { getEmployeeDocuments } from '../../api/documents';
 import { DOCUMENT_TYPES, generateDocument } from '../../api/documentEngine';
 import SensitiveValue from '../../components/ui/SensitiveValue';
+import { TableSkeleton } from '../../components/ui/Skeleton';
 import { downloadFile } from '../../api/client';
 
 const APP_ROLES = ['CEO', 'ADMIN', 'HR_MANAGER', 'MANAGER', 'RECRUITER', 'FINANCE', 'EMPLOYEE'];
@@ -318,9 +319,9 @@ export default function EmployeeDirectory() {
     { key: 'joinDate', label: 'Joined' },
     { key: 'actions', label: '', sortable: false, render: (_, row) => (
       <div className="flex items-center gap-1 relative">
-        <button onClick={(e) => { e.stopPropagation(); openView(row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><Eye size={14} /></button>
-        <button onClick={(e) => { e.stopPropagation(); openEdit(row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><Edit3 size={14} /></button>
-        <button onClick={(e) => { e.stopPropagation(); setContextMenu(contextMenu?.id === row.id ? null : row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><MoreVertical size={14} /></button>
+        <button onClick={(e) => { e.stopPropagation(); openView(row); }} aria-label={`View ${row.name}`} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><Eye size={14} /></button>
+        <button onClick={(e) => { e.stopPropagation(); openEdit(row); }} aria-label={`Edit ${row.name}`} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><Edit3 size={14} /></button>
+        <button onClick={(e) => { e.stopPropagation(); setContextMenu(contextMenu?.id === row.id ? null : row); }} aria-label={`More actions for ${row.name}`} aria-haspopup="true" aria-expanded={contextMenu?.id === row.id} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><MoreVertical size={14} /></button>
         {contextMenu?.id === row.id && (
           <div className="absolute right-0 top-full mt-1 w-52 bg-surface-2 border border-border rounded-xl shadow-2xl py-1 z-50" onMouseLeave={() => setContextMenu(null)}>
             {row.status === 'Active' ? (
@@ -382,7 +383,7 @@ export default function EmployeeDirectory() {
         onClearFilters={() => setFilters({})} placeholder="Search by name, ID, email, department..." />
 
       <Card padding={false}>
-        <DataTable columns={columns} data={filtered} pageSize={12} onRowClick={openView} />
+        {employeesLoading ? <TableSkeleton rows={8} cols={6} /> : <DataTable columns={columns} data={filtered} pageSize={12} onRowClick={openView} />}
       </Card>
 
       {/* Add Employee Modal */}
@@ -577,7 +578,7 @@ export default function EmployeeDirectory() {
           <div className="space-y-4">
             <div className="flex items-center gap-3 p-3 bg-surface-3 rounded-xl">
               <Avatar name={hikeEmp.name} size="md" />
-              <div><p className="font-medium text-text">{hikeEmp.name}</p><p className="text-xs text-text-secondary">Current CTC: ₹{hikeEmp.ctc ? (hikeEmp.ctc / 100000).toFixed(1) : '-'}L</p></div>
+              <div><p className="font-medium text-text">{hikeEmp.name}</p><p className="text-xs text-text-secondary">Current CTC: <SensitiveValue type="currency" value={hikeEmp.ctc} id={`hike-current-ctc-${hikeEmp.id}`} canReveal={canManageCompensation} /></p></div>
             </div>
             <Input label="New Annual CTC (₹) *" type="number" value={hikeForm.newAnnualCtc} onChange={e => setHikeForm(p => ({ ...p, newAnnualCtc: e.target.value }))} placeholder="e.g. 1500000" />
             <Input label="Effective Date *" type="date" value={hikeForm.effectiveDate} onChange={e => setHikeForm(p => ({ ...p, effectiveDate: e.target.value }))} />
