@@ -56,13 +56,16 @@ export function adaptDocument(d) {
   };
 }
 
-// Step 1: upload the raw file bytes, returns the stored fileUrl
-export async function uploadFile(file) {
+// Step 1: upload the raw file bytes, returns the stored fileUrl. Files are organized in
+// Cloudinary under employees/{entityId}/documents/ - entityId should be a stable identifier
+// (the employee's UUID), never their name (names change, IDs don't).
+export async function uploadFile(file, entityId) {
   const formData = new FormData();
   formData.append('file', file);
   const token = localStorage.getItem('vikisol_token');
   const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
-  const res = await fetch(`${BASE_URL}/files/upload/documents`, {
+  const params = new URLSearchParams({ entityId: entityId || 'unspecified', documentType: 'documents' });
+  const res = await fetch(`${BASE_URL}/files/upload?${params}`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: formData,
@@ -96,7 +99,7 @@ export async function uploadDocument({ employeeId, title, category, description,
   let fileSize = 0;
   let mimeType = null;
   if (file) {
-    fileUrl = await uploadFile(file);
+    fileUrl = await uploadFile(file, employeeId);
     fileName = file.name;
     fileSize = file.size;
     mimeType = file.type;
