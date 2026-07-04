@@ -10,7 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { getMyAttendance, getTeamAttendance } from '../../api/attendance';
+import { getMyAttendance, getTeamAttendance, computeLiveWorkingHours } from '../../api/attendance';
 
 const ATTENDANCE_DATA = [
   { date: 'Mon', present: 210, absent: 15, late: 12, wfh: 8 },
@@ -55,6 +55,15 @@ export default function AttendancePage() {
 
   // Live: punched-in state derives from today's attendance record (no check-out time yet)
   const liveIsPunchedIn = !!todayAttendance && !!todayAttendance.checkInTime && todayAttendance.checkInTime !== '-' && (!todayAttendance.checkOutTime || todayAttendance.checkOutTime === '-');
+
+  // Ticks the "Working: Xh Ym" display every minute while punched in, instead of freezing at
+  // whatever value was fetched at check-in/last refresh.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!isLive || !liveIsPunchedIn) return;
+    const interval = setInterval(() => forceTick(t => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, [isLive, liveIsPunchedIn]);
 
   useEffect(() => {
     if (!isLive) return;
@@ -140,7 +149,9 @@ export default function AttendancePage() {
 
   const displayPunchedIn = isLive ? liveIsPunchedIn : punchedIn;
   const displayPunchInTime = isLive ? (todayAttendance?.punchIn || '--:--') : punchInTime;
-  const displayWorkingHours = isLive ? (todayAttendance?.hours || '-') : workingHours;
+  const displayWorkingHours = isLive
+    ? (liveIsPunchedIn && todayAttendance?.checkInTimeRaw ? computeLiveWorkingHours(todayAttendance.checkInTimeRaw) : (todayAttendance?.hours || '-'))
+    : workingHours;
 
   const weekSummary = useMemo(() => {
     const log = isLive && liveWeekLog ? liveWeekLog : myWeekLog;

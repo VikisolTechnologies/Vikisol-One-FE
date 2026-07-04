@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, CalendarDays, CheckCircle, Bell, FolderKanban, IndianRupee, TrendingUp, FileText, Send } from 'lucide-react';
 import StatCard from '../../components/ui/StatCard';
@@ -9,6 +9,7 @@ import Button from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
+import { computeLiveWorkingHours } from '../../api/attendance';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
@@ -23,7 +24,19 @@ export default function EmployeeDashboard() {
   const livePunchedIn = !!todayAttendance && todayAttendance.punchIn !== '-' && (todayAttendance.punchOut === '-' || !todayAttendance.punchOut);
   const punchedIn = isLiveAttendance ? livePunchedIn : mockPunchedIn;
   const punchInTime = isLiveAttendance ? (todayAttendance?.punchIn || '--:--') : mockPunchInTime;
-  const workingHours = isLiveAttendance ? (todayAttendance?.hours || '-') : '7h 22m';
+
+  // Ticks "Today's Hours" every minute while punched in, instead of freezing at the value fetched
+  // at the last check-in/page load.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    if (!isLiveAttendance || !livePunchedIn) return;
+    const interval = setInterval(() => forceTick(t => t + 1), 60000);
+    return () => clearInterval(interval);
+  }, [isLiveAttendance, livePunchedIn]);
+
+  const workingHours = isLiveAttendance
+    ? (livePunchedIn && todayAttendance?.checkInTimeRaw ? computeLiveWorkingHours(todayAttendance.checkInTimeRaw) : (todayAttendance?.hours || '-'))
+    : '7h 22m';
 
   const handlePunch = async () => {
     if (!isLiveAttendance) {

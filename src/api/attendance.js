@@ -38,12 +38,27 @@ export function adaptAttendance(a) {
     empId: a.employeeId,
     punchIn: formatTime(a.checkInTime),
     punchOut: formatTime(a.checkOutTime),
+    // Raw "HH:mm:ss" checkInTime, kept alongside the formatted punchIn so the UI can compute a
+    // client-side ticking "Working: Xh Ym" display between refetches, not just a static snapshot.
+    checkInTimeRaw: a.checkInTime,
     hours: formatHours(a.workingHours),
     overtimeHours: a.overtimeHours,
     status: STATUS_TO_FE[a.status] || a.status,
     mode: a.source === 'WEB' ? 'Office' : a.source === 'WFH' ? 'WFH' : a.source || '-',
     isRegularized: a.isRegularized,
   };
+}
+
+// Computes elapsed time since check-in as "Xh Ym", for live-ticking display while still punched in.
+export function computeLiveWorkingHours(checkInTimeRaw) {
+  if (!checkInTimeRaw) return '-';
+  const [h, m, s] = checkInTimeRaw.split(':').map(Number);
+  const checkIn = new Date();
+  checkIn.setHours(h, m, s || 0, 0);
+  const diffMs = Date.now() - checkIn.getTime();
+  if (diffMs < 0) return '0h 0m';
+  const totalMinutes = Math.floor(diffMs / 60000);
+  return `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`;
 }
 
 export function adaptSummary(s) {
