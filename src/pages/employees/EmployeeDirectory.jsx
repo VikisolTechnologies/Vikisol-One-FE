@@ -19,6 +19,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter, generateExperienceLetter, generateRelievingLetter } from '../../api/employees';
 import { getEmployeeDocuments } from '../../api/documents';
+import { DOCUMENT_TYPES, generateDocument } from '../../api/documentEngine';
 import { toFileUrl } from '../../api/client';
 
 const APP_ROLES = ['CEO', 'ADMIN', 'HR_MANAGER', 'MANAGER', 'RECRUITER', 'FINANCE', 'EMPLOYEE'];
@@ -222,6 +223,37 @@ export default function EmployeeDirectory() {
     }
   };
 
+  // Generic document generation - covers every document type Document Studio supports (not just
+  // the 3 with dedicated buttons above), via the backend's generic /documents/generate endpoint.
+  const [genDocEmp, setGenDocEmp] = useState(null);
+  const [genDocType, setGenDocType] = useState('OFFER_LETTER');
+  const [genDocFields, setGenDocFields] = useState({});
+  const [genDocBusy, setGenDocBusy] = useState(false);
+
+  const openGenerateDocModal = (emp) => {
+    setContextMenu(null);
+    setGenDocEmp(emp);
+    setGenDocType('OFFER_LETTER');
+    setGenDocFields({});
+  };
+
+  const genDocTypeConfig = DOCUMENT_TYPES.find(t => t.value === genDocType);
+
+  const handleGenerateDocument = async () => {
+    if (employeesSource !== 'live') { toast.error('Connect to the live backend to generate documents'); return; }
+    setGenDocBusy(true);
+    try {
+      const fileUrl = await generateDocument({ documentType: genDocType, employeeId: genDocEmp.id, fields: genDocFields });
+      toast.success(`${genDocTypeConfig?.label || genDocType} generated`);
+      window.open(fileUrl, '_blank');
+      setGenDocEmp(null);
+    } catch (err) {
+      toast.error(err.message || 'Failed to generate document');
+    } finally {
+      setGenDocBusy(false);
+    }
+  };
+
   const openHikeModal = (emp) => {
     setHikeForm({ newAnnualCtc: emp.ctc || '', effectiveDate: '', reason: '' });
     setHikeEmp(emp);
@@ -296,9 +328,7 @@ export default function EmployeeDirectory() {
               <button onClick={() => handleActivate(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><UserCheck size={14} /> Activate</button>
             )}
             <button onClick={() => handleResetPassword(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><Key size={14} /> Reset Password</button>
-            <button onClick={() => handleGenerateLetter(row, 'Offer Letter')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><FileText size={14} /> Generate Offer Letter</button>
-            <button onClick={() => handleGenerateLetter(row, 'Experience Letter')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><FileText size={14} /> Experience Letter</button>
-            <button onClick={() => handleGenerateLetter(row, 'Relieving Letter')} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><FileText size={14} /> Relieving Letter</button>
+            <button onClick={() => openGenerateDocModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><FileText size={14} /> Generate Document...</button>
             {canManageCompensation && <hr className="border-border my-1" />}
             {canManageCompensation && <button onClick={() => openHikeModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><TrendingUp size={14} /> Issue Hike</button>}
             {canManageCompensation && <button onClick={() => openResignModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-warning hover:bg-warning/10"><LogOut size={14} /> Record Resignation</button>}
@@ -327,6 +357,24 @@ export default function EmployeeDirectory() {
           <Button icon={UserPlus} size="sm" onClick={() => setShowAdd(true)}>Add Employee</Button>
         </div>
       </div>
+
+      {/* Generate Document Modal - covers every Document Studio document type generically */}
+      <Modal open={!!genDocEmp} onClose={() => setGenDocEmp(null)} title={`Generate Document for ${genDocEmp?.name || ''}`} size="md">
+        <div className="space-y-4">
+          <Select label="Document Type" value={genDocType} onChange={e => { setGenDocType(e.target.value); setGenDocFields({}); }} options={DOCUMENT_TYPES} />
+          {genDocTypeConfig?.fields.map(f => (
+            <Input key={f.key} label={f.label} type={f.type || 'text'}
+              value={genDocFields[f.key] || ''}
+              onChange={e => setGenDocFields(prev => ({ ...prev, [f.key]: e.target.value }))} />
+          ))}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setGenDocEmp(null)}>Cancel</Button>
+            <Button icon={FileText} disabled={genDocBusy} onClick={handleGenerateDocument}>
+              {genDocBusy ? 'Generating...' : 'Generate'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <SearchFilter searchValue={search} onSearch={setSearch} filters={filterConfig} activeFilters={filters}
         onFilterChange={(key, val) => setFilters(prev => ({ ...prev, [key]: val }))}
