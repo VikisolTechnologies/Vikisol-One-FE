@@ -20,7 +20,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter, generateExperienceLetter, generateRelievingLetter } from '../../api/employees';
 import { getEmployeeDocuments } from '../../api/documents';
 import { DOCUMENT_TYPES, generateDocument } from '../../api/documentEngine';
-import { toFileUrl } from '../../api/client';
+import { downloadFile } from '../../api/client';
 
 const APP_ROLES = ['CEO', 'ADMIN', 'HR_MANAGER', 'MANAGER', 'RECRUITER', 'FINANCE', 'EMPLOYEE'];
 const ONBOARDING_STEPS = [
@@ -217,7 +217,7 @@ export default function EmployeeDirectory() {
     try {
       const fileUrl = await generator(emp.id);
       toast.success(`${type} generated`);
-      window.open(fileUrl, '_blank');
+      await downloadFile(fileUrl);
     } catch (err) {
       toast.error(err.message || `Failed to generate ${type.toLowerCase()}`);
     }
@@ -245,7 +245,7 @@ export default function EmployeeDirectory() {
     try {
       const fileUrl = await generateDocument({ documentType: genDocType, employeeId: genDocEmp.id, fields: genDocFields });
       toast.success(`${genDocTypeConfig?.label || genDocType} generated`);
-      window.open(fileUrl, '_blank');
+      await downloadFile(fileUrl);
       setGenDocEmp(null);
     } catch (err) {
       toast.error(err.message || 'Failed to generate document');
@@ -542,10 +542,13 @@ export default function EmployeeDirectory() {
                   {(employeesSource === 'live' ? (empDocuments || []) : ['Offer Letter', 'Appointment Letter', 'NDA', 'ID Proof', 'Address Proof'].map(name => ({ id: name, name, fileUrl: null }))).map(d => (
                     <div key={d.id} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
                       <div className="flex items-center gap-2"><FileText size={14} className="text-primary" /><span className="text-sm text-text">{d.name}</span></div>
-                      <Button size="sm" variant="ghost" onClick={() => {
-                        const url = toFileUrl(d.fileUrl);
-                        if (!url) { toast.error('No file stored for this document'); return; }
-                        window.open(url, '_blank');
+                      <Button size="sm" variant="ghost" onClick={async () => {
+                        if (!d.fileUrl) { toast.error('No file stored for this document'); return; }
+                        try {
+                          await downloadFile(d.fileUrl, d.name);
+                        } catch (err) {
+                          toast.error(err.message || 'Failed to download document');
+                        }
                       }}>Download</Button>
                     </div>
                   ))}

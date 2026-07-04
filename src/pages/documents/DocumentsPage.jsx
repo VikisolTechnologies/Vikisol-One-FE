@@ -12,7 +12,7 @@ import SearchFilter from '../../components/ui/SearchFilter';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { toFileUrl } from '../../api/client';
+import { downloadFile } from '../../api/client';
 
 const categories = ['All', 'Employment', 'Legal', 'Compensation', 'Benefits', 'Policy', 'Performance', 'Disciplinary', 'Training', 'General'];
 
@@ -56,10 +56,13 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleDownload = (doc) => {
-    const url = toFileUrl(doc.fileUrl);
-    if (!url) { toast.error('No file is stored for this document'); return; }
-    window.open(url, '_blank');
+  const handleDownload = async (doc) => {
+    if (!doc.fileUrl) { toast.error('No file is stored for this document'); return; }
+    try {
+      await downloadFile(doc.fileUrl, doc.name);
+    } catch (err) {
+      toast.error(err.message || 'Failed to download document');
+    }
   };
 
   const handleDelete = async (doc) => {

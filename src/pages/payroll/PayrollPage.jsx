@@ -12,6 +12,7 @@ import SearchFilter from '../../components/ui/SearchFilter';
 import ApprovalTimeline from '../../components/ui/ApprovalTimeline';
 import { useData } from '../../context/DataContext';
 import { generatePayslipPdf } from '../../api/payroll';
+import { downloadFile } from '../../api/client';
 import { usePayroll } from '../../context/PayrollEngine';
 import { useApproval } from '../../context/ApprovalEngine';
 import { useToast } from '../../components/ui/Toast';
@@ -202,7 +203,7 @@ export default function PayrollPage() {
                   setDownloadingPayslip(true);
                   try {
                     const fileUrl = await generatePayslipPdf(selected.id);
-                    window.open(fileUrl, '_blank');
+                    await downloadFile(fileUrl);
                   } catch (err) {
                     toast.error(err.message || 'Failed to generate payslip PDF');
                   } finally {

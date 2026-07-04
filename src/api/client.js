@@ -61,6 +61,39 @@ async function request(path, { method = 'GET', body, params, auth = true } = {})
   return json?.data;
 }
 
+// window.open()/a plain <a href> navigation can't attach an Authorization header, so any
+// endpoint requiring auth (e.g. /documents/{id}/download) would 401 if opened directly.
+// Fetches with the JWT attached, then triggers a real browser download from the resulting blob -
+// the standard pattern for authenticated file downloads in an SPA.
+export async function downloadFile(relativeOrAbsoluteUrl, suggestedFileName) {
+  const url = toFileUrl(relativeOrAbsoluteUrl);
+  const token = getToken();
+  const res = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let message = `Download failed with status ${res.status}`;
+    try {
+      const json = await res.json();
+      message = json?.message || message;
+    } catch { /* body wasn't JSON (likely a raw file stream) */ }
+    throw new ApiError(message, res.status, null);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  const fileName = match?.[1] || suggestedFileName || 'document.pdf';
+
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 export class ApiError extends Error {
   constructor(message, status, payload) {
     super(message);
