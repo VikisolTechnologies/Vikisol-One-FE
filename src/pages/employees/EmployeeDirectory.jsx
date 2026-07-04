@@ -20,6 +20,7 @@ import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter, generateExperienceLetter, generateRelievingLetter } from '../../api/employees';
 import { getEmployeeDocuments } from '../../api/documents';
 import { DOCUMENT_TYPES, generateDocument } from '../../api/documentEngine';
+import SensitiveValue from '../../components/ui/SensitiveValue';
 import { downloadFile } from '../../api/client';
 
 const APP_ROLES = ['CEO', 'ADMIN', 'HR_MANAGER', 'MANAGER', 'RECRUITER', 'FINANCE', 'EMPLOYEE'];
@@ -462,8 +463,13 @@ export default function EmployeeDirectory() {
             <Tabs tabs={[
               { id: 'personal', label: 'Personal', content: (
                 <div className="grid grid-cols-3 gap-4 text-sm">
-                  {[['Email', selectedEmp.email], ['Phone', selectedEmp.phone], ['Date of Birth', selectedEmp.dob], ['Gender', selectedEmp.gender], ['Blood Group', selectedEmp.bloodGroup], ['Marital Status', selectedEmp.maritalStatus], ['Address', selectedEmp.address], ['PAN', selectedEmp.pan], ['Aadhar', selectedEmp.aadhar]].map(([k, v]) => (
-                    <div key={k}><p className="text-xs text-text-secondary">{k}</p><p className="text-text font-medium mt-0.5">{v || '-'}</p></div>
+                  {[['Email', selectedEmp.email], ['Phone', selectedEmp.phone], ['Date of Birth', selectedEmp.dob], ['Gender', selectedEmp.gender], ['Blood Group', selectedEmp.bloodGroup], ['Marital Status', selectedEmp.maritalStatus], ['Address', selectedEmp.address], ['PAN', selectedEmp.pan, 'pan'], ['Aadhar', selectedEmp.aadhar, 'aadhaar']].map(([k, v, sensitiveType]) => (
+                    <div key={k}>
+                      <p className="text-xs text-text-secondary">{k}</p>
+                      <p className="text-text font-medium mt-0.5">
+                        {sensitiveType ? <SensitiveValue type={sensitiveType} value={v} id={`${k}-${selectedEmp.id}`} canReveal={canManageCompensation} /> : (v || '-')}
+                      </p>
+                    </div>
                   ))}
                   {selectedEmp.emergencyContact && (
                     <div className="col-span-3 p-3 bg-surface-3 rounded-lg">
@@ -479,9 +485,10 @@ export default function EmployeeDirectory() {
               )},
               { id: 'employment', label: 'Employment', content: (
                 <div className="grid grid-cols-3 gap-4 text-sm">
-                  {[['Department', selectedEmp.department], ['Designation', selectedEmp.designation], ['Manager', selectedEmp.manager], ['Join Date', selectedEmp.joinDate], ['Experience', `${selectedEmp.experience || 0} years`], ['Employment Type', selectedEmp.employmentType], ['Notice Period', selectedEmp.noticePeriod], ['CTC', `₹${(selectedEmp.ctc / 100000).toFixed(1)}L`], ['Location', selectedEmp.location]].map(([k, v]) => (
+                  {[['Department', selectedEmp.department], ['Designation', selectedEmp.designation], ['Manager', selectedEmp.manager], ['Join Date', selectedEmp.joinDate], ['Experience', `${selectedEmp.experience || 0} years`], ['Employment Type', selectedEmp.employmentType], ['Notice Period', selectedEmp.noticePeriod], ['Location', selectedEmp.location]].map(([k, v]) => (
                     <div key={k}><p className="text-xs text-text-secondary">{k}</p><p className="text-text font-medium mt-0.5">{v || '-'}</p></div>
                   ))}
+                  <div><p className="text-xs text-text-secondary">CTC</p><p className="text-text font-medium mt-0.5"><SensitiveValue type="currency" value={selectedEmp.ctc} id={`ctc-${selectedEmp.id}`} canReveal={canManageCompensation} /></p></div>
                   <div className="col-span-3">
                     <p className="text-xs text-text-secondary mb-2">Skills</p>
                     <div className="flex flex-wrap gap-1.5">{selectedEmp.skills?.map(s => <span key={s} className="px-2.5 py-1 bg-primary/10 text-primary text-xs rounded-full font-medium">{s}</span>)}</div>
@@ -519,8 +526,13 @@ export default function EmployeeDirectory() {
               )},
               { id: 'bank', label: 'Bank & Tax', content: (
                 <div className="grid grid-cols-2 gap-4 text-sm">
-                  {[['Bank Name', selectedEmp.bankName], ['Account No', selectedEmp.bankAccount], ['IFSC Code', selectedEmp.ifsc], ['PAN', selectedEmp.pan]].map(([k, v]) => (
-                    <div key={k}><p className="text-xs text-text-secondary">{k}</p><p className="text-text font-medium mt-0.5">{v || '-'}</p></div>
+                  {[['Bank Name', selectedEmp.bankName], ['Account No', selectedEmp.bankAccount, 'account'], ['IFSC Code', selectedEmp.ifsc], ['PAN', selectedEmp.pan, 'pan']].map(([k, v, sensitiveType]) => (
+                    <div key={k}>
+                      <p className="text-xs text-text-secondary">{k}</p>
+                      <p className="text-text font-medium mt-0.5">
+                        {sensitiveType ? <SensitiveValue type={sensitiveType} value={v} id={`bank-tab-${k}-${selectedEmp.id}`} canReveal={canManageCompensation} /> : (v || '-')}
+                      </p>
+                    </div>
                   ))}
                 </div>
               )},

@@ -8,6 +8,7 @@ import Avatar from '../../components/ui/Avatar';
 import { useData } from '../../context/DataContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar } from 'recharts';
 import { useState, useMemo } from 'react';
+import SensitiveValue from '../../components/ui/SensitiveValue';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 
@@ -114,7 +115,7 @@ export default function CEODashboard() {
         <div className="cursor-pointer" onClick={() => navigate('/projects')}><StatCard icon={Briefcase} label="Active Projects" value={stats.activeProjects} change={`${data.projects.length} total`} color="info" delay={1} /></div>
         <div className="cursor-pointer" onClick={() => navigate('/resources')}><StatCard icon={GitBranch} label="Billable" value={billableCount} change={`${Math.round(billableCount/stats.active*100)}% utilization`} color="success" delay={2} /></div>
         <div className="cursor-pointer" onClick={() => navigate('/resources')}><StatCard icon={AlertTriangle} label="Bench" value={benchCount} change="Needs allocation" changeType="negative" color="danger" delay={3} /></div>
-        <div className="cursor-pointer" onClick={() => navigate('/payroll')}><StatCard icon={IndianRupee} label="Monthly Payroll" value={`₹${(stats.totalPayroll / 100000).toFixed(1)}L`} color="primary" delay={4} /></div>
+        <div className="cursor-pointer" onClick={() => navigate('/payroll')}><StatCard icon={IndianRupee} label="Monthly Payroll" value={<SensitiveValue type="currency" value={stats.totalPayroll} id="dashboard-monthly-payroll" />} color="primary" delay={4} showSparkline={false} /></div>
         <div className="cursor-pointer" onClick={() => navigate('/recruitment')}><StatCard icon={Target} label="Hiring Pipeline" value={stats.totalCandidates} change={`${data.candidates.filter(c => c.stage === 'Offered').length} offered`} color="warning" delay={5} /></div>
       </div>
 

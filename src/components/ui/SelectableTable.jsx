@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Printer } from 'lucide-react';
 import Button from './Button';
+import EmptyState from './EmptyState';
 
 export default function SelectableTable({ columns, data, pageSize = 10, onRowClick, selected = [], onSelectChange, actions }) {
   const [sortKey, setSortKey] = useState(null);
@@ -90,7 +91,7 @@ export default function SelectableTable({ columns, data, pageSize = 10, onRowCli
             ))}
           </tbody>
         </table>
-        {paged.length === 0 && <p className="text-center py-10 text-text-secondary text-sm">No records found</p>}
+        {paged.length === 0 && <EmptyState title="No records found" description="There's nothing to show here yet." />}
       </div>
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">
