@@ -110,6 +110,14 @@ export async function generateOfferLetter(id) {
   return api.post(`/employees/${id}/generate-offer-letter`);
 }
 
+export async function generateExperienceLetter(id) {
+  return api.post(`/employees/${id}/generate-experience-letter`);
+}
+
+export async function generateRelievingLetter(id) {
+  return api.post(`/employees/${id}/generate-relieving-letter`);
+}
+
 // Lightweight manager list for dropdowns - available to any authenticated role (e.g. recruiters
 // picking a reporting manager for an offer), unlike the full employee list.
 export async function getManagerOptions() {

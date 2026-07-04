@@ -11,6 +11,7 @@ import Breadcrumb from '../../components/ui/Breadcrumb';
 import SearchFilter from '../../components/ui/SearchFilter';
 import ApprovalTimeline from '../../components/ui/ApprovalTimeline';
 import { useData } from '../../context/DataContext';
+import { generatePayslipPdf } from '../../api/payroll';
 import { usePayroll } from '../../context/PayrollEngine';
 import { useApproval } from '../../context/ApprovalEngine';
 import { useToast } from '../../components/ui/Toast';
@@ -32,6 +33,7 @@ export default function PayrollPage() {
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
   const [selected, setSelected] = useState(null);
+  const [downloadingPayslip, setDownloadingPayslip] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [payrollStatus, setPayrollStatus] = useState('Draft');
 
@@ -192,7 +194,24 @@ export default function PayrollPage() {
               <p className="text-3xl font-bold text-primary">₹{(selected.netPay || 0).toLocaleString()}</p>
             </div>
             <div className="flex gap-2 flex-wrap border-t border-border pt-4">
-              <Button icon={Download} onClick={() => toast.info('Payslip PDF download is not available yet')}>Download PDF</Button>
+              <Button
+                icon={Download}
+                disabled={downloadingPayslip || payslipsSource !== 'live'}
+                onClick={async () => {
+                  if (payslipsSource !== 'live') { toast.error('Connect to the live backend to download payslips'); return; }
+                  setDownloadingPayslip(true);
+                  try {
+                    const fileUrl = await generatePayslipPdf(selected.id);
+                    window.open(fileUrl, '_blank');
+                  } catch (err) {
+                    toast.error(err.message || 'Failed to generate payslip PDF');
+                  } finally {
+                    setDownloadingPayslip(false);
+                  }
+                }}
+              >
+                {downloadingPayslip ? 'Generating...' : 'Download PDF'}
+              </Button>
               <Button variant="secondary" icon={Mail} onClick={() => toast.info('Payslip email is not available yet')}>Email</Button>
               <Button variant="secondary" icon={Printer} onClick={() => window.print()}>Print</Button>
             </div>

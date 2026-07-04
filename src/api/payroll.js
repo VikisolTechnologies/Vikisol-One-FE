@@ -67,6 +67,11 @@ export async function getPayslip(employeeId, month, year) {
   return adaptPayslip(await api.get(`/payroll/payslip/${employeeId}`, { month, year }));
 }
 
+// Generates a real branded payslip PDF via the Document Studio engine and returns its URL.
+export async function generatePayslipPdf(payslipId) {
+  return api.post(`/payroll/payslip/${payslipId}/generate-pdf`);
+}
+
 export async function runPayroll(month, year) {
   return adaptPayrollSummary(await api.post('/payroll/run', { month, year }));
 }
