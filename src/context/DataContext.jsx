@@ -17,6 +17,7 @@ import * as recruitmentApi from '../api/recruitment';
 import * as announcementsApi from '../api/announcements';
 import * as auditLogsApi from '../api/auditLogs';
 import { useAuth } from './AuthContext';
+import { logError } from '../utils/logger';
 
 const DataContext = createContext(null);
 
@@ -64,17 +65,20 @@ export function DataProvider({ children }) {
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [assetsSource, setAssetsSource] = useState('mock'); // 'mock' | 'live'
   const [assetsLoading, setAssetsLoading] = useState(false);
+  const [assetsError, setAssetsError] = useState(null);
   const [payslipsSource, setPayslipsSource] = useState('mock'); // 'mock' | 'live'
   const [payslipsLoading, setPayslipsLoading] = useState(false);
   const [projectsSource, setProjectsSource] = useState('mock'); // 'mock' | 'live'
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [timesheetsSource, setTimesheetsSource] = useState('mock'); // 'mock' | 'live'
   const [timesheetsLoading, setTimesheetsLoading] = useState(false);
+  const [timesheetsError, setTimesheetsError] = useState(null);
   const [holidaysSource, setHolidaysSource] = useState('mock'); // 'mock' | 'live'
   const [announcementsSource, setAnnouncementsSource] = useState('mock');
   const [announcementsLoading, setAnnouncementsLoading] = useState(false);
   const [auditLogsSource, setAuditLogsSource] = useState('mock');
   const [auditLogsLoading, setAuditLogsLoading] = useState(false);
+  const [auditLogsError, setAuditLogsError] = useState(null);
   const [holidaysLoading, setHolidaysLoading] = useState(false);
   const [notificationsSource, setNotificationsSource] = useState('mock'); // 'mock' | 'live'
   const [notificationsLoading, setNotificationsLoading] = useState(false);
@@ -84,8 +88,27 @@ export function DataProvider({ children }) {
   const [jobPostings, setJobPostings] = useState([]);
   const [documentsSource, setDocumentsSource] = useState('mock'); // 'mock' | 'live'
   const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [documentsError, setDocumentsError] = useState(null);
   const [visibleModules, setVisibleModules] = useState(null); // null = not loaded yet, fall back to mock ROLE_PERMISSIONS
   const { isAuthenticated } = useAuth() || {};
+
+  // Lazy-load registry: assets/timesheets/documents/auditLogs are only fetched once a page that
+  // actually needs them calls ensureLoad(domain) (see the effects below, each gated on
+  // `requested.<domain>`) - instead of every domain being fetched eagerly at app boot regardless
+  // of route. Other domains (employees, tickets, candidates, etc.) stay eager for now because
+  // they're read by the always-mounted Topbar (global search) or multiple dashboards on first
+  // paint - converting those safely needs decoupling global search from a preloaded in-memory
+  // array first (a separate, larger change - see the Phase 3 report for why this wasn't done here).
+  const [requested, setRequested] = useState({});
+  const ensureLoad = useCallback((domain) => {
+    setRequested(prev => (prev[domain] ? prev : { ...prev, [domain]: true }));
+  }, []);
+  // Bumping a retryToken re-runs the corresponding effect even if `requested` is already true -
+  // used by the "Retry" button on an error state.
+  const [retryTokens, setRetryTokens] = useState({});
+  const retryLoad = useCallback((domain) => {
+    setRetryTokens(prev => ({ ...prev, [domain]: (prev[domain] || 0) + 1 }));
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) { setVisibleModules(null); return; }
@@ -179,20 +202,25 @@ export function DataProvider({ children }) {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !requested.assets) return;
     setAssetsLoading(true);
+    setAssetsError(null);
     assetsApi.getAllAssets({ size: 500 })
       .catch(() => assetsApi.getAvailableAssets().then(items => ({ items })))
       .then((result) => {
         setData(prev => ({ ...prev, assets: result.items }));
         setAssetsSource('live');
       })
-      .catch(() => {
-        // Current role can't access any asset endpoint - keep mock data for this module
+      .catch((err) => {
+        // Current role can't access any asset endpoint, or a real network/server error - keep
+        // mock data for display but surface the error so the page can show a retry option
+        // instead of silently looking like intentional demo mode.
         setAssetsSource('mock');
+        setAssetsError(err?.message || 'Failed to load assets');
+        logError('assets.load', err);
       })
       .finally(() => setAssetsLoading(false));
-  }, [isAuthenticated]);
+  }, [isAuthenticated, requested.assets, retryTokens.assets]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -227,8 +255,9 @@ export function DataProvider({ children }) {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !requested.timesheets) return;
     setTimesheetsLoading(true);
+    setTimesheetsError(null);
     const end = new Date();
     const start = new Date(end.getTime() - 90 * 24 * 60 * 60 * 1000);
     const startStr = start.toISOString().split('T')[0];
@@ -240,12 +269,15 @@ export function DataProvider({ children }) {
         setData(prev => ({ ...prev, timesheets: items }));
         setTimesheetsSource('live');
       })
-      .catch(() => {
-        // Current role can't access any timesheet endpoint - keep mock data for this module
+      .catch((err) => {
+        // Current role can't access any timesheet endpoint, or a real error - keep mock data for
+        // display but surface it so the page can offer a retry instead of looking like demo mode.
         setTimesheetsSource('mock');
+        setTimesheetsError(err?.message || 'Failed to load timesheets');
+        logError('timesheets.load', err);
       })
       .finally(() => setTimesheetsLoading(false));
-  }, [isAuthenticated]);
+  }, [isAuthenticated, requested.timesheets, retryTokens.timesheets]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -276,18 +308,27 @@ export function DataProvider({ children }) {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !requested.auditLogs) return;
     // Only CEO/ADMIN can call this - other roles will 403 and silently keep the mock/empty view,
     // which is fine since they can't see the Audit Logs tab in the UI anyway.
     setAuditLogsLoading(true);
+    setAuditLogsError(null);
     auditLogsApi.getAuditLogs({ size: 200 })
       .then((result) => {
         setData(prev => ({ ...prev, auditLogs: result.items }));
         setAuditLogsSource('live');
       })
-      .catch(() => setAuditLogsSource('mock'))
+      .catch((err) => {
+        setAuditLogsSource('mock');
+        // A 403 here is expected/normal for non-CEO/Admin roles - only surface a retry-able error
+        // for genuine failures (network/5xx), not authorization rejections.
+        if (err?.status !== 403) {
+          setAuditLogsError(err?.message || 'Failed to load audit logs');
+          logError('auditLogs.load', err);
+        }
+      })
       .finally(() => setAuditLogsLoading(false));
-  }, [isAuthenticated]);
+  }, [isAuthenticated, requested.auditLogs, retryTokens.auditLogs]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -328,19 +369,22 @@ export function DataProvider({ children }) {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !requested.documents) return;
     setDocumentsLoading(true);
+    setDocumentsError(null);
     documentsApi.getUnverifiedDocuments()
       .catch(() => documentsApi.getMyDocuments())
       .then((docs) => {
         setData(prev => ({ ...prev, documents: docs }));
         setDocumentsSource('live');
       })
-      .catch(() => {
+      .catch((err) => {
         setDocumentsSource('mock');
+        setDocumentsError(err?.message || 'Failed to load documents');
+        logError('documents.load', err);
       })
       .finally(() => setDocumentsLoading(false));
-  }, [isAuthenticated]);
+  }, [isAuthenticated, requested.documents, retryTokens.documents]);
 
   const crud = useCallback((collection) => ({
     getAll: () => data[collection],
@@ -852,14 +896,17 @@ export function DataProvider({ children }) {
     employeesSource, employeesLoading, lookups,
     leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances,
     attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut,
-    ticketsSource, ticketsLoading, assetsSource, assetsLoading,
+    ticketsSource, ticketsLoading, assetsSource, assetsLoading, assetsError,
     payslipsSource, payslipsLoading,
-    holidaysSource, holidaysLoading, announcementsSource, announcementsLoading, auditLogsSource, auditLogsLoading, notificationsSource, notificationsLoading, unreadCount,
-    projectsSource, projectsLoading, timesheetsSource, timesheetsLoading,
-    documentsSource, documentsLoading,
+    holidaysSource, holidaysLoading, announcementsSource, announcementsLoading, auditLogsSource, auditLogsLoading, auditLogsError, notificationsSource, notificationsLoading, unreadCount,
+    projectsSource, projectsLoading, timesheetsSource, timesheetsLoading, timesheetsError,
+    documentsSource, documentsLoading, documentsError,
     candidatesSource, candidatesLoading, jobPostings, visibleModules,
     departmentsCrud, designationsCrud, leaveTypesCrud,
-  }), [data, stats, employees, leaveRequests, timesheets, tickets, candidates, projects, assets, payslips, documents, announcements, notifications, holidays, markNotificationRead, markAllNotificationsRead, employeesSource, employeesLoading, lookups, leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances, attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut, ticketsSource, ticketsLoading, assetsSource, assetsLoading, payslipsSource, payslipsLoading, holidaysSource, holidaysLoading, announcementsSource, announcementsLoading, auditLogsSource, auditLogsLoading, notificationsSource, notificationsLoading, unreadCount, projectsSource, projectsLoading, timesheetsSource, timesheetsLoading, documentsSource, documentsLoading, candidatesSource, candidatesLoading, jobPostings, departmentsCrud, designationsCrud, leaveTypesCrud]);
+    // Lazy-load API: pages call ensureLoad('assets'|'timesheets'|'documents'|'auditLogs') on mount
+    // to trigger that domain's fetch, and retryLoad(domain) to re-run it after a failure.
+    ensureLoad, retryLoad,
+  }), [data, stats, employees, leaveRequests, timesheets, tickets, candidates, projects, assets, payslips, documents, announcements, notifications, holidays, markNotificationRead, markAllNotificationsRead, employeesSource, employeesLoading, lookups, leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances, attendanceSource, attendanceLoading, todayAttendance, attendanceCheckIn, attendanceCheckOut, ticketsSource, ticketsLoading, assetsSource, assetsLoading, assetsError, payslipsSource, payslipsLoading, holidaysSource, holidaysLoading, announcementsSource, announcementsLoading, auditLogsSource, auditLogsLoading, auditLogsError, notificationsSource, notificationsLoading, unreadCount, projectsSource, projectsLoading, timesheetsSource, timesheetsLoading, timesheetsError, documentsSource, documentsLoading, documentsError, candidatesSource, candidatesLoading, jobPostings, departmentsCrud, designationsCrud, leaveTypesCrud, ensureLoad, retryLoad]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

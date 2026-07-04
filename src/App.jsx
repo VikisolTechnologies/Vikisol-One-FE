@@ -8,6 +8,7 @@ import { ConfirmProvider } from './components/ui/ConfirmDialog';
 import { ApprovalProvider } from './context/ApprovalEngine';
 import { PayrollProvider } from './context/PayrollEngine';
 import AppLayout from './components/layout/AppLayout';
+import Loader from './components/ui/Loader';
 // Login loads eagerly - it's the first thing every unauthenticated visitor sees.
 // Every other page is route-split so the initial bundle only contains what's needed to log in
 // and render the shell; each page's code loads on first visit to that route.
@@ -36,7 +37,7 @@ const CompanyBranding = lazy(() => import('./pages/admin/CompanyBranding'));
 const DocumentStudio = lazy(() => import('./pages/admin/DocumentStudio'));
 
 function PageFallback() {
-  return <div className="flex items-center justify-center h-full min-h-[50vh]"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>;
+  return <div className="flex items-center justify-center h-full min-h-[50vh]"><Loader /></div>;
 }
 
 export default function App() {

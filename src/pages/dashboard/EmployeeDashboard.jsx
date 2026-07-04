@@ -14,9 +14,11 @@ import SensitiveValue from '../../components/ui/SensitiveValue';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
-  const { data, attendanceSource, todayAttendance, attendanceCheckIn, attendanceCheckOut, leaveBalances } = useData();
+  const { data, attendanceSource, todayAttendance, attendanceCheckIn, attendanceCheckOut, leaveBalances, ensureLoad } = useData();
   const navigate = useNavigate();
   const toast = useToast();
+
+  useEffect(() => { ensureLoad('timesheets'); }, [ensureLoad]);
 
   const isLiveAttendance = attendanceSource === 'live';
   const [mockPunchedIn, setMockPunchedIn] = useState(true);

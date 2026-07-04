@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { FileText, Download, Plus, Upload, Trash2, Eye, Archive, CheckCircle } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -9,6 +9,8 @@ import Input from '../../components/ui/Input';
 import { Select } from '../../components/ui/Input';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import SearchFilter from '../../components/ui/SearchFilter';
+import { TableSkeleton } from '../../components/ui/Skeleton';
+import ErrorState from '../../components/ui/ErrorState';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
@@ -17,7 +19,8 @@ import { downloadFile } from '../../api/client';
 const categories = ['All', 'Employment', 'Legal', 'Compensation', 'Benefits', 'Policy', 'Performance', 'Disciplinary', 'Training', 'General'];
 
 export default function DocumentsPage() {
-  const { data, documents, documentsSource, documentsLoading } = useData();
+  const { data, documents, documentsSource, documentsLoading, documentsError, ensureLoad, retryLoad } = useData();
+  useEffect(() => { ensureLoad('documents'); }, [ensureLoad]);
   const toast = useToast();
   const confirm = useConfirm();
   const [search, setSearch] = useState('');
@@ -132,7 +135,11 @@ export default function DocumentsPage() {
       </div>
 
       <SearchFilter searchValue={search} onSearch={setSearch} filters={[]} activeFilters={{}} onFilterChange={() => {}} onClearFilters={() => {}} placeholder="Search documents..." />
-      <Card padding={false}><DataTable columns={columns} data={filtered} pageSize={12} onRowClick={setSelected} /></Card>
+      <Card padding={false}>
+        {documentsLoading ? <TableSkeleton rows={8} cols={5} />
+          : documentsError ? <ErrorState message={documentsError} onRetry={() => retryLoad('documents')} />
+          : <DataTable columns={columns} data={filtered} pageSize={12} onRowClick={setSelected} />}
+      </Card>
 
       <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Upload Document">
         <div className="space-y-4">

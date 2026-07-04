@@ -5,6 +5,8 @@ import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Input, { Select } from '../../components/ui/Input';
 import SelectableTable from '../../components/ui/SelectableTable';
+import { TableSkeleton } from '../../components/ui/Skeleton';
+import ErrorState from '../../components/ui/ErrorState';
 import BulkActions from '../../components/ui/BulkActions';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import SearchFilter from '../../components/ui/SearchFilter';
@@ -37,7 +39,8 @@ function formatHoursHM(decimalHours) {
 }
 
 export default function TimesheetPage() {
-  const { data, timesheets, timesheetsSource, timesheetsLoading } = useData();
+  const { data, timesheets, timesheetsSource, timesheetsLoading, timesheetsError, ensureLoad, retryLoad } = useData();
+  useEffect(() => { ensureLoad('timesheets'); }, [ensureLoad]);
   const { approve, reject, bulkApprove, bulkReject, isManager, isCEO } = useApproval();
   const toast = useToast();
   const confirm = useConfirm();
@@ -368,7 +371,9 @@ export default function TimesheetPage() {
         ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => setFilters({})} />
 
         <Card padding={false}>
-          <SelectableTable columns={teamColumns} data={filteredTeam} pageSize={12} selected={selectedIds} onSelectChange={setSelectedIds} onRowClick={setShowDetail} />
+          {timesheetsLoading ? <TableSkeleton rows={8} cols={6} />
+            : timesheetsError ? <ErrorState message={timesheetsError} onRetry={() => retryLoad('timesheets')} />
+            : <SelectableTable columns={teamColumns} data={filteredTeam} pageSize={12} selected={selectedIds} onSelectChange={setSelectedIds} onRowClick={setShowDetail} />}
         </Card>
 
         <BulkActions selectedCount={selectedIds.length} onApprove={handleBulkApprove} onReject={handleBulkReject} onExport={() => { toast.info('Export is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />

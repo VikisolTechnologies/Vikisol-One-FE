@@ -1,3 +1,5 @@
+import { logError } from '../utils/logger';
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
 
 // For turning a stored relative fileUrl (e.g. "/files/documents/xyz.pdf") into an absolute link.
@@ -21,6 +23,18 @@ export function setUnauthorizedHandler(fn) {
   onUnauthorized = fn;
 }
 
+// Classifies a failure into the categories the request spec calls for (network, auth, authz,
+// server, timeout, validation) so callers/logs can distinguish "you're not allowed to do this"
+// from "the server is down" instead of every failure looking like an identical generic error.
+function classifyStatus(status) {
+  if (status === 401) return 'authentication';
+  if (status === 403) return 'authorization';
+  if (status === 400 || status === 422) return 'validation';
+  if (status === 408) return 'timeout';
+  if (status >= 500) return 'server';
+  return 'unknown';
+}
+
 async function request(path, { method = 'GET', body, params, auth = true } = {}) {
   const url = new URL(BASE_URL + path);
   if (params) {
@@ -35,15 +49,28 @@ async function request(path, { method = 'GET', body, params, auth = true } = {})
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(url.toString(), {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(url.toString(), {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (err) {
+    // fetch() itself throws on DNS failure/offline/CORS - this is a genuine network error, not
+    // an API response at all, so it needs its own category rather than falling through below.
+    const networkError = new ApiError('Network error - check your connection and try again', 0, null);
+    networkError.category = 'network';
+    logError('api.network_error', networkError, { path, method });
+    throw networkError;
+  }
 
   if (res.status === 401) {
     if (onUnauthorized) onUnauthorized();
-    throw new ApiError('Session expired, please log in again', 401, null);
+    const authError = new ApiError('Session expired, please log in again', 401, null);
+    authError.category = 'authentication';
+    logError('api.auth_error', authError, { path, method });
+    throw authError;
   }
 
   let json = null;
@@ -55,7 +82,13 @@ async function request(path, { method = 'GET', body, params, auth = true } = {})
 
   if (!res.ok || (json && json.success === false)) {
     const message = json?.message || `Request failed with status ${res.status}`;
-    throw new ApiError(message, res.status, json);
+    const apiError = new ApiError(message, res.status, json);
+    apiError.category = classifyStatus(res.status);
+    // 403s are routine (a role trying an action it doesn't have) - log as a warning-level event
+    // via a distinct name rather than the generic error bucket, so real server errors aren't
+    // drowned out by expected permission checks in whatever log sink eventually reads this.
+    logError(apiError.category === 'authorization' ? 'api.permission_denied' : 'api.request_failed', apiError, { path, method });
+    throw apiError;
   }
 
   return json?.data;

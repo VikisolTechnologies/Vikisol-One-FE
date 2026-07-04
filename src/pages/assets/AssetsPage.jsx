@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Monitor, Laptop, Plus, Edit3, Trash2, RotateCcw, Wrench, QrCode, Printer } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -10,12 +10,19 @@ import { Select } from '../../components/ui/Input';
 import StatCard from '../../components/ui/StatCard';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import SearchFilter from '../../components/ui/SearchFilter';
+import { TableSkeleton } from '../../components/ui/Skeleton';
+import ErrorState from '../../components/ui/ErrorState';
 import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 
 export default function AssetsPage() {
-  const { data, assets, assetsSource, assetsLoading } = useData();
+  const { data, assets, assetsSource, assetsLoading, assetsError, ensureLoad, retryLoad } = useData();
+
+  // Assets are lazy-loaded - this is the domain fetch trigger, not part of DataContext's
+  // eager app-boot fetch chain (see the Phase 3 report for why only a handful of domains were
+  // safely convertible to this pattern).
+  useEffect(() => { ensureLoad('assets'); }, [ensureLoad]);
   const toast = useToast();
   const confirm = useConfirm();
   const [search, setSearch] = useState('');
@@ -132,7 +139,11 @@ export default function AssetsPage() {
         { key: 'type', label: 'Type', options: ['Laptop','Monitor','Keyboard','Mouse','Headset','ID Card','SIM','Software License','Access Card'] },
         { key: 'status', label: 'Status', options: ['Assigned','Available','Under Repair','Disposed','In Transit'] },
       ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => setFilters({})} />
-      <Card padding={false}><DataTable columns={columns} data={filtered} pageSize={12} onRowClick={setSelected} /></Card>
+      <Card padding={false}>
+        {assetsLoading ? <TableSkeleton rows={8} cols={5} />
+          : assetsError ? <ErrorState message={assetsError} onRetry={() => retryLoad('assets')} />
+          : <DataTable columns={columns} data={filtered} pageSize={12} onRowClick={setSelected} />}
+      </Card>
 
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Asset">
         <div className="grid grid-cols-2 gap-4">

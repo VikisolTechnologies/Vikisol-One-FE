@@ -7,6 +7,8 @@ import Tabs from '../../components/ui/Tabs';
 import Badge from '../../components/ui/Badge';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import DataTable from '../../components/ui/DataTable';
+import { TableSkeleton } from '../../components/ui/Skeleton';
+import ErrorState from '../../components/ui/ErrorState';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
@@ -421,7 +423,8 @@ function AnnouncementsSettings() {
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
-  const { auditLogs, data, holidays, holidaysSource, holidaysLoading, auditLogsSource, auditLogsLoading } = useData();
+  const { auditLogs, data, holidays, holidaysSource, holidaysLoading, auditLogsSource, auditLogsLoading, auditLogsError, ensureLoad, retryLoad } = useData();
+  useEffect(() => { ensureLoad('auditLogs'); }, [ensureLoad]);
   const { user } = useAuth();
   const isCEO = user?.role === 'ceo';
   const toast = useToast();
@@ -559,17 +562,18 @@ export default function SettingsPage() {
         )},
         { id: 'audit', label: 'Audit Logs', content: (
           <div className="space-y-3">
-            {auditLogsLoading && <p className="text-xs text-text-secondary">Loading from server...</p>}
-            {!auditLogsLoading && auditLogsSource === 'mock' && <p className="text-xs text-warning">(demo data - live backend unavailable or insufficient permissions)</p>}
+            {!auditLogsLoading && !auditLogsError && auditLogsSource === 'mock' && <p className="text-xs text-warning">(demo data - live backend unavailable or insufficient permissions)</p>}
             <Input placeholder="Search by action, user, target or IP..." value={auditSearch} onChange={e => setAuditSearch(e.target.value)} className="max-w-sm" />
             <Card padding={false}>
-              <DataTable columns={[
-                { key: 'action', label: 'Action', render: (v) => <span className="font-medium text-text">{v}</span> },
-                { key: 'user', label: 'User' },
-                { key: 'target', label: 'Target' },
-                { key: 'timestamp', label: 'Time', render: (v) => new Date(v).toLocaleString() },
-                { key: 'ip', label: 'IP Address', render: (v) => <span className="font-mono text-xs">{v}</span> },
-              ]} data={filteredAuditLogs} pageSize={10} />
+              {auditLogsLoading ? <TableSkeleton rows={6} cols={5} />
+                : auditLogsError ? <ErrorState message={auditLogsError} onRetry={() => retryLoad('auditLogs')} />
+                : <DataTable columns={[
+                    { key: 'action', label: 'Action', render: (v) => <span className="font-medium text-text">{v}</span> },
+                    { key: 'user', label: 'User' },
+                    { key: 'target', label: 'Target' },
+                    { key: 'timestamp', label: 'Time', render: (v) => new Date(v).toLocaleString() },
+                    { key: 'ip', label: 'IP Address', render: (v) => <span className="font-mono text-xs">{v}</span> },
+                  ]} data={filteredAuditLogs} pageSize={10} />}
             </Card>
           </div>
         )},

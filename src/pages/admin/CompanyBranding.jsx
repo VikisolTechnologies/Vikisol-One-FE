@@ -7,6 +7,7 @@ import Breadcrumb from '../../components/ui/Breadcrumb';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../context/AuthContext';
 import { getBranding, updateBranding, uploadBrandingAsset } from '../../api/branding';
+import Loader from '../../components/ui/Loader';
 
 // Every generated HR document (offer letters, payslips, certificates...) reads these settings
 // automatically via the backend's BrandingService - changing something here takes effect on the
@@ -146,7 +147,7 @@ export default function CompanyBranding() {
     return (
       <div className="space-y-5">
         <Breadcrumb items={[{ label: 'Company Branding' }]} />
-        <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+        <Loader fullPage />
       </div>
     );
   }

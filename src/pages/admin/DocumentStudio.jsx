@@ -8,6 +8,7 @@ import Input from '../../components/ui/Input';
 import { Select } from '../../components/ui/Input';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import EmptyState from '../../components/ui/EmptyState';
+import Loader from '../../components/ui/Loader';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useAuth } from '../../context/AuthContext';
@@ -217,7 +218,7 @@ export default function DocumentStudio() {
         </div>
 
         {templatesLoading ? (
-          <div className="flex items-center justify-center py-16"><div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+          <Loader fullPage />
         ) : templates.length === 0 ? (
           <Card><EmptyState icon={FileText} title="No templates yet" description="Create the first template for this document type." action={() => setShowEditor(true)} actionLabel="New Template" /></Card>
         ) : (
