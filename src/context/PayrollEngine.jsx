@@ -152,8 +152,13 @@ export function PayrollProvider({ children }) {
     };
   }, [data.payslips]);
 
+  // Phase 5 finding: fresh object literal every render. calcSalaryStructure/calcLOP are stable
+  // module-level functions (not recreated), so only generatePayslip/generateBulkPayroll/
+  // payrollSummary actually vary.
+  const value = useMemo(() => ({ generatePayslip, generateBulkPayroll, calcSalaryStructure, calcLOP, payrollSummary }), [generatePayslip, generateBulkPayroll, payrollSummary]);
+
   return (
-    <PayrollContext.Provider value={{ generatePayslip, generateBulkPayroll, calcSalaryStructure, calcLOP, payrollSummary }}>
+    <PayrollContext.Provider value={value}>
       {children}
     </PayrollContext.Provider>
   );

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { login as loginApi, logout as logoutApi, fetchMe } from '../api/auth';
 import { setUnauthorizedHandler } from '../api/client';
 
@@ -54,8 +54,13 @@ export function AuthProvider({ children }) {
     clearSession();
   }, [clearSession]);
 
+  // Previously a fresh object literal every render (Phase 5 finding) - with 21 consumer files,
+  // this meant every one of them re-rendered on any AuthProvider re-render regardless of whether
+  // the auth state they actually use changed.
+  const value = useMemo(() => ({ user, login, logout, isAuthenticated: !!user, authLoading }), [user, login, logout, authLoading]);
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, authLoading }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

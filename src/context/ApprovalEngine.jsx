@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback } from 'react';
+import { createContext, useContext, useCallback, useMemo } from 'react';
 import { useData } from './DataContext';
 import { useAuth } from './AuthContext';
 import { useToast } from '../components/ui/Toast';
@@ -139,12 +139,17 @@ export function ApprovalProvider({ children }) {
   const isHRManager = user?.role === 'hr_manager';
   const isManager = ['ceo', 'hr_manager', 'manager', 'admin'].includes(user?.role);
 
+  // Phase 5 finding: fresh object literal every render. canApprove/createApprovalEntry are
+  // stable module-level functions, so only the useCallback-memoized actions and the 3 role
+  // booleans actually vary.
+  const value = useMemo(() => ({
+    approve, reject, submit, override, bulkApprove, bulkReject,
+    getApprovalTimeline, canApprove, createApprovalEntry,
+    isCEO, isHRManager, isManager,
+  }), [approve, reject, submit, override, bulkApprove, bulkReject, getApprovalTimeline, isCEO, isHRManager, isManager]);
+
   return (
-    <ApprovalContext.Provider value={{
-      approve, reject, submit, override, bulkApprove, bulkReject,
-      getApprovalTimeline, canApprove, createApprovalEntry,
-      isCEO, isHRManager, isManager,
-    }}>
+    <ApprovalContext.Provider value={value}>
       {children}
     </ApprovalContext.Provider>
   );
