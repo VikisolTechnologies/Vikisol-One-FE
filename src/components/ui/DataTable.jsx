@@ -94,7 +94,7 @@ export default function DataTable({ columns, data, pageSize = 10, onRowClick, ac
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10 bg-surface-2">
             <tr className="border-b border-border">
               {selectable && <th className="py-3 px-3 w-10"><input type="checkbox" checked={allPageSelected} onChange={toggleAll} className="rounded accent-primary" /></th>}
               {columns.map(col => (
@@ -112,7 +112,7 @@ export default function DataTable({ columns, data, pageSize = 10, onRowClick, ac
           <tbody>
             {paged.map((row, i) => (
               <tr key={row.id || i} onClick={() => !selectable && onRowClick?.(row)}
-                className={`border-b border-border/50 hover:bg-surface-3/50 transition-colors ${onRowClick && !selectable ? 'cursor-pointer' : ''} ${selectable && selected.includes(row.id) ? 'bg-primary/5' : ''}`}>
+                className={`border-b border-border/50 hover:bg-surface-3/70 hover:shadow-sm transition-all ${i % 2 === 1 ? 'bg-surface-2/40' : ''} ${onRowClick && !selectable ? 'cursor-pointer' : ''} ${selectable && selected.includes(row.id) ? 'bg-primary/5' : ''}`}>
                 {selectable && <td className="py-3 px-3"><input type="checkbox" checked={selected.includes(row.id)} onChange={() => toggleOne(row.id)} className="rounded accent-primary" /></td>}
                 {columns.map(col => (
                   <td key={col.key} className="py-3 px-4 text-text" onClick={selectable ? () => col.key !== 'actions' && onRowClick?.(row) : undefined}>

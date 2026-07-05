@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useMemo } from 'react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 
 function MiniSparkline({ color = '#FF6B35' }) {
   const points = useMemo(() => Array.from({ length: 7 }, () => Math.random() * 24 + 4), []);
@@ -24,7 +25,11 @@ const colorMap = {
   default: { bg: 'bg-surface-3', text: 'text-text-secondary', icon: 'text-text-secondary', border: 'hover:border-border', hex: '#94A3B8' },
 };
 
-export default function StatCard({ icon: Icon, label, value, change, changeType = 'positive', color = 'primary', delay = 0, showSparkline = true }) {
+// `updatedAt` is optional - when provided, the card grows a divider + timestamp footer (matches
+// the enterprise KPI-card reference: title / value / divider / trend / "Updated X mins ago").
+// Omitting it keeps the card in its original compact form, so existing dashboard consumers that
+// don't want the extra footer row are unaffected.
+export default function StatCard({ icon: Icon, label, value, change, changeType = 'positive', color = 'primary', delay = 0, showSparkline = true, updatedAt }) {
   const c = colorMap[color] || colorMap.primary;
 
   return (
@@ -32,33 +37,39 @@ export default function StatCard({ icon: Icon, label, value, change, changeType 
       initial={{ opacity: 0, y: 16, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ delay: delay * 0.06, duration: 0.35, ease: 'easeOut' }}
-      className={`bg-surface-2 border border-border rounded-xl p-5 min-h-[128px] flex flex-col justify-between ${c.border} transition-all duration-200 group hover-glow cursor-pointer`}
+      className={`bg-surface-2 border border-border rounded-xl p-6 min-h-[152px] flex flex-col justify-between ${c.border} transition-all duration-200 group hover-glow cursor-pointer`}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] text-text-secondary font-semibold uppercase tracking-wider">{label}</p>
+          <p className="text-[11px] text-text-secondary font-semibold uppercase tracking-wider">{label}</p>
           <motion.p
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: delay * 0.06 + 0.15, duration: 0.3 }}
-            className="text-2xl font-bold text-text mt-1.5 tracking-tight tabular-nums truncate"
+            className="text-[26px] leading-tight font-bold text-text mt-2 tracking-tight tabular-nums truncate"
             title={typeof value === 'string' ? value : undefined}
           >
             {value}
           </motion.p>
-          {change && (
-            <p className={`text-[11px] mt-1 font-medium truncate ${changeType === 'positive' ? 'text-success' : 'text-danger'}`}>
-              {changeType === 'positive' ? '↑' : '↓'} {change}
-            </p>
-          )}
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.bg} group-hover:scale-110 transition-transform duration-200`}>
-            <Icon size={18} className={c.icon} />
+        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${c.bg} group-hover:scale-110 transition-transform duration-200`}>
+            <Icon size={19} className={c.icon} />
           </div>
           {showSparkline && <MiniSparkline color={c.hex} />}
         </div>
       </div>
+
+      {(change || updatedAt) && (
+        <div className={updatedAt ? 'pt-3 mt-3 border-t border-border/60' : ''}>
+          {change && (
+            <p className={`text-xs font-medium flex items-center gap-1 truncate ${changeType === 'positive' ? 'text-success' : 'text-danger'}`}>
+              {changeType === 'positive' ? <ArrowUp size={12} /> : <ArrowDown size={12} />} {change}
+            </p>
+          )}
+          {updatedAt && <p className="text-[10px] text-text-secondary/70 mt-1.5">{updatedAt}</p>}
+        </div>
+      )}
     </motion.div>
   );
 }

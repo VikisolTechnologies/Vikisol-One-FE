@@ -1,15 +1,15 @@
 import { useState, useMemo } from 'react';
-import { Download, IndianRupee, Calculator, FileText, TrendingUp, Mail, Lock, Unlock, Eye, Send, Check, QrCode, Printer } from 'lucide-react';
+import { Download, IndianRupee, Calculator, TrendingUp, Mail, Lock, Unlock, Eye, Send, Printer, Share2, RefreshCw } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import StatCard from '../../components/ui/StatCard';
 import DataTable from '../../components/ui/DataTable';
+import RowActionsMenu from '../../components/ui/RowActionsMenu';
 import BulkActions from '../../components/ui/BulkActions';
 import Modal from '../../components/ui/Modal';
 import Badge from '../../components/ui/Badge';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import SearchFilter from '../../components/ui/SearchFilter';
-import ApprovalTimeline from '../../components/ui/ApprovalTimeline';
 import { useData } from '../../context/DataContext';
 import { generatePayslipPdf } from '../../api/payroll';
 import { downloadFile } from '../../api/client';
@@ -19,20 +19,34 @@ import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { useAuth } from '../../context/AuthContext';
 import SensitiveValue from '../../components/ui/SensitiveValue';
-import { formatCurrency } from '../../utils/format';
+import SensitivityToggle from '../../components/ui/SensitivityToggle';
+import useSensitivityToggle from '../../hooks/useSensitivityToggle';
+import { formatDateTime } from '../../utils/format';
 import Skeleton, { TableSkeleton } from '../../components/ui/Skeleton';
 
+function timeAgo(iso) {
+  if (!iso) return 'Updated just now';
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 1) return 'Updated just now';
+  if (mins < 60) return `Updated ${mins} min${mins === 1 ? '' : 's'} ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `Updated ${hrs} hr${hrs === 1 ? '' : 's'} ago`;
+  return `Updated ${Math.round(hrs / 24)}d ago`;
+}
+
 export default function PayrollPage() {
-  const { data, payslips: payslipsCrud, stats, payslipsSource, payslipsLoading } = useData();
+  const { data, payslips: payslipsCrud, payslipsSource, payslipsLoading } = useData();
   const { generateBulkPayroll, payrollSummary: mockPayrollSummary } = usePayroll();
-  const { isCEO, isHRManager, isManager } = useApproval();
+  const { isCEO, isHRManager } = useApproval();
   const toast = useToast();
   const confirm = useConfirm();
   const { user } = useAuth();
 
   const isEmployee = (user?.role || '').toLowerCase() === 'employee';
+  const [revealed, toggleRevealed] = useSensitivityToggle('payroll');
   const [runningPayroll, setRunningPayroll] = useState(false);
   const [liveSummary, setLiveSummary] = useState(null);
+  const [lastUpdated] = useState(new Date().toISOString());
 
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
@@ -41,7 +55,6 @@ export default function PayrollPage() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [payrollStatus, setPayrollStatus] = useState('Draft');
 
-  // Employees see only their own payslips
   const allPayslips = useMemo(() => {
     if (isEmployee) {
       return data.payslips.filter(p => p.empName === user?.name || p.empId === user?.empId);
@@ -51,12 +64,22 @@ export default function PayrollPage() {
 
   const filtered = useMemo(() => allPayslips.filter(p => {
     const s = search.toLowerCase();
-    const matchSearch = !s || p.empName.toLowerCase().includes(s) || p.empId.toLowerCase().includes(s) || (p.department || '').toLowerCase().includes(s);
+    const matchSearch = !s || p.empName.toLowerCase().includes(s) || p.empId.toLowerCase().includes(s) || (p.department || '').toLowerCase().includes(s) || (p.month || '').toLowerCase().includes(s);
     const matchDept = !filters.department || filters.department === 'All' || p.department === filters.department;
     return matchSearch && matchDept;
   }), [allPayslips, search, filters]);
 
   const summary = (payslipsSource === 'live' && liveSummary) || mockPayrollSummary || { totalPayroll: 0, totalGross: 0, totalDeductions: 0, avgSalary: 0, highestSalary: 0, lowestSalary: 0, employeeCount: 0 };
+
+  const downloadPayslip = async (id) => {
+    if (payslipsSource !== 'live') { toast.error('Connect to the live backend to download payslips'); return; }
+    try {
+      const fileUrl = await generatePayslipPdf(id);
+      await downloadFile(fileUrl);
+    } catch (err) {
+      toast.error(err.message || 'Failed to generate payslip PDF');
+    }
+  };
 
   const handleRunPayroll = async () => {
     const ok = await confirm({ title: 'Generate Payroll?', message: `Generate payroll for ${data.employees.filter(e => e.status === 'Active').length} active employees?`, type: 'info', confirmText: 'Generate' });
@@ -99,24 +122,17 @@ export default function PayrollPage() {
     ...(!isEmployee ? [{ key: 'empName', label: 'Employee', render: (v, row) => <div><p className="font-medium text-text text-sm">{v}</p><p className="text-[10px] text-text-secondary">{row.empId} · {row.department}</p></div> }] : []),
     { key: 'month', label: 'Month', render: (v) => v || 'May 2024' },
     ...(isEmployee ? [{ key: 'designation', label: 'Designation' }] : []),
-    { key: 'totalEarnings', label: 'Gross', render: (v, row) => <SensitiveValue type="currency" value={v} id={`gross-${row.id}`} /> },
-    { key: 'totalDeductions', label: 'Deductions', render: (v, row) => <SensitiveValue type="currency" value={v} id={`deductions-${row.id}`} className="text-danger" /> },
-    { key: 'netPay', label: 'Net Pay', render: (v, row) => <SensitiveValue type="currency" value={v} id={`netpay-${row.id}`} className="font-semibold text-primary" /> },
+    { key: 'totalEarnings', label: 'Gross', render: (v) => <SensitiveValue type="currency" value={v} revealed={revealed} /> },
+    { key: 'totalDeductions', label: 'Deductions', render: (v) => <SensitiveValue type="currency" value={v} className="text-danger" revealed={revealed} /> },
+    { key: 'netPay', label: 'Net Pay', render: (v) => <SensitiveValue type="currency" value={v} className="font-semibold text-primary" revealed={revealed} /> },
     { key: 'status', label: 'Status', render: (v) => <Badge dot>{v || 'Paid'}</Badge> },
     { key: 'actions', label: '', sortable: false, render: (_, row) => (
-      <div className="flex gap-1">
-        <button onClick={(e) => { e.stopPropagation(); setSelected(row); }} aria-label={`View payslip for ${row.empName}`} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary"><Eye size={14} /></button>
-        <button onClick={async (e) => {
-          e.stopPropagation();
-          if (payslipsSource !== 'live') { toast.error('Connect to the live backend to download payslips'); return; }
-          try {
-            const fileUrl = await generatePayslipPdf(row.id);
-            await downloadFile(fileUrl);
-          } catch (err) {
-            toast.error(err.message || 'Failed to generate payslip PDF');
-          }
-        }} aria-label={`Download payslip for ${row.empName}`} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary"><Download size={14} /></button>
-      </div>
+      <RowActionsMenu actions={[
+        { label: 'View', icon: Eye, onClick: () => setSelected(row) },
+        { label: 'Download', icon: Download, onClick: () => downloadPayslip(row.id) },
+        { label: 'Print', icon: Printer, onClick: () => { setSelected(row); setTimeout(() => window.print(), 300); } },
+        { label: 'Email', icon: Mail, onClick: () => toast.info('Payslip email is not available yet') },
+      ]} />
     )},
   ];
 
@@ -149,20 +165,31 @@ export default function PayrollPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <StatCard icon={IndianRupee} label="Total Net" value={<SensitiveValue type="currency" value={summary.totalPayroll} id="payroll-total-net" />} delay={0} showSparkline={false} />
-            <StatCard icon={TrendingUp} label="Total Gross" value={<SensitiveValue type="currency" value={summary.totalGross} id="payroll-total-gross" />} color="success" delay={1} showSparkline={false} />
-            <StatCard icon={Calculator} label="Deductions" value={<SensitiveValue type="currency" value={summary.totalDeductions} id="payroll-total-deductions" />} color="warning" delay={2} showSparkline={false} />
-            <StatCard icon={IndianRupee} label="Avg Salary" value={<SensitiveValue type="currency" value={summary.avgSalary} id="payroll-avg-salary" />} color="info" delay={3} showSparkline={false} />
-            <StatCard icon={IndianRupee} label="Highest" value={<SensitiveValue type="currency" value={summary.highestSalary} id="payroll-highest-salary" />} color="primary" delay={4} showSparkline={false} />
-            <StatCard icon={IndianRupee} label="Lowest" value={<SensitiveValue type="currency" value={summary.lowestSalary} id="payroll-lowest-salary" />} color="default" delay={5} showSparkline={false} />
+            <StatCard icon={IndianRupee} label="Total Net" value={<SensitiveValue type="currency" value={summary.totalPayroll} revealed={revealed} />} delay={0} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
+            <StatCard icon={TrendingUp} label="Total Gross" value={<SensitiveValue type="currency" value={summary.totalGross} revealed={revealed} />} color="success" delay={1} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
+            <StatCard icon={Calculator} label="Deductions" value={<SensitiveValue type="currency" value={summary.totalDeductions} revealed={revealed} />} color="warning" delay={2} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
+            <StatCard icon={IndianRupee} label="Avg Salary" value={<SensitiveValue type="currency" value={summary.avgSalary} revealed={revealed} />} color="info" delay={3} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
+            <StatCard icon={IndianRupee} label="Highest" value={<SensitiveValue type="currency" value={summary.highestSalary} revealed={revealed} />} color="primary" delay={4} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
+            <StatCard icon={IndianRupee} label="Lowest" value={<SensitiveValue type="currency" value={summary.lowestSalary} revealed={revealed} />} color="default" delay={5} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
           </div>
         )
       )}
 
       {!isEmployee && (
-        <SearchFilter searchValue={search} onSearch={setSearch} filters={[
-          { key: 'department', label: 'Department', options: data.departments },
-        ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => setFilters({})} />
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex-1 min-w-0">
+            <SearchFilter inline searchValue={search} onSearch={setSearch} placeholder="Search employee, month, payroll..." filters={[
+              { key: 'department', label: 'Department', options: data.departments },
+            ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => { setFilters({}); setSearch(''); }} onExport={() => toast.info('Export is not available yet')} />
+          </div>
+          <SensitivityToggle revealed={revealed} onToggle={toggleRevealed} />
+        </div>
+      )}
+
+      {isEmployee && (
+        <div className="flex justify-end">
+          <SensitivityToggle revealed={revealed} onToggle={toggleRevealed} />
+        </div>
       )}
 
       <Card padding={false}>
@@ -171,51 +198,83 @@ export default function PayrollPage() {
 
       {!isEmployee && <BulkActions selectedCount={selectedIds.length} onExport={() => { toast.info('Export is not available yet'); setSelectedIds([]); }} onEmail={() => { toast.info('Bulk email is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}
 
-      {/* Payslip Modal */}
-      <Modal open={!!selected} onClose={() => setSelected(null)} title="Payslip" size="xl">
+      {/* Payslip Modal - styled as an actual payroll statement document, not a generic dialog */}
+      <Modal open={!!selected} onClose={() => setSelected(null)} title="Payroll Statement" size="xl">
         {selected && (
           <div className="space-y-5">
-            <div className="p-5 bg-surface-3 rounded-xl border border-border">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center"><span className="text-white font-bold">V</span></div>
-                  <div><p className="font-bold text-text tracking-[0.15em]">VIKISOL</p><p className="text-[10px] text-text-secondary">Technology · Talent · Transformation</p></div>
-                </div>
-                <div className="text-right"><p className="text-lg font-bold text-text">PAYSLIP</p><p className="text-xs text-text-secondary">{selected.month || 'May 2024'}</p></div>
-              </div>
-              <hr className="border-border mb-4" />
-              <div className="grid grid-cols-4 gap-4 text-xs">
-                {[['Employee', selected.empName], ['Employee ID', selected.empId], ['Department', selected.department], ['Designation', selected.designation]].map(([k, v]) => (
-                  <div key={k}><p className="text-text-secondary">{k}</p><p className="text-text font-semibold mt-0.5">{v || '-'}</p></div>
-                ))}
-                <div><p className="text-text-secondary">Bank</p><p className="text-text font-semibold mt-0.5">{selected.bankName || 'HDFC Bank'}</p></div>
-                <div><p className="text-text-secondary">Account</p><p className="text-text font-semibold mt-0.5"><SensitiveValue type="account" value={selected.bankAccount || '0000001234'} id={`bank-${selected.id}`} /></p></div>
-                <div><p className="text-text-secondary">PAN</p><p className="text-text font-semibold mt-0.5"><SensitiveValue type="pan" value={selected.pan || 'ABCPD1234E'} id={`pan-${selected.id}`} /></p></div>
-                <div><p className="text-text-secondary">PF No</p><p className="text-text font-semibold mt-0.5">{`PF/${selected.empId}/2024`}</p></div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <h4 className="text-sm font-semibold text-text mb-3 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-success" /> Earnings</h4>
-                <div className="space-y-2">
-                  {(selected.earnings || []).map(e => <div key={e.component} className="flex justify-between text-sm py-1"><span className="text-text-secondary">{e.component}</span><SensitiveValue type="currency" value={e.amount} id={`earn-${selected.id}-${e.component}`} /></div>)}
-                  <hr className="border-border" />
-                  <div className="flex justify-between text-sm font-bold py-1"><span className="text-text">Total Earnings</span><SensitiveValue type="currency" value={selected.totalEarnings} id={`total-earn-${selected.id}`} className="text-success" /></div>
+            <div className="border border-border rounded-xl overflow-hidden">
+              <div className="p-6 bg-gradient-to-r from-primary/10 to-transparent border-b border-border">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20"><span className="text-white font-bold text-xl">V</span></div>
+                    <div>
+                      <p className="font-extrabold text-text text-lg tracking-[0.18em]">VIKISOL</p>
+                      <p className="text-xs text-text-secondary font-medium">Technology &bull; Talent &bull; Transformation</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-text">Payroll Statement</p>
+                    <p className="text-xs text-text-secondary">{selected.month || 'May 2024'}</p>
+                  </div>
                 </div>
               </div>
-              <div>
-                <h4 className="text-sm font-semibold text-text mb-3 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-danger" /> Deductions</h4>
-                <div className="space-y-2">
-                  {(selected.deductions || []).map(d => <div key={d.component} className="flex justify-between text-sm py-1"><span className="text-text-secondary">{d.component}</span><SensitiveValue type="currency" value={d.amount} id={`ded-${selected.id}-${d.component}`} /></div>)}
-                  <hr className="border-border" />
-                  <div className="flex justify-between text-sm font-bold py-1"><span className="text-text">Total Deductions</span><SensitiveValue type="currency" value={selected.totalDeductions} id={`total-ded-${selected.id}`} className="text-danger" /></div>
+
+              <div className="p-6 space-y-6">
+                <div>
+                  <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-2">Employee Details</p>
+                  <div className="grid grid-cols-4 gap-4 text-xs bg-surface-3 rounded-lg p-4">
+                    {[['Employee', selected.empName], ['Employee ID', selected.empId], ['Department', selected.department], ['Designation', selected.designation]].map(([k, v]) => (
+                      <div key={k}><p className="text-text-secondary">{k}</p><p className="text-text font-semibold mt-0.5">{v || '-'}</p></div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider mb-2">Payroll Details</p>
+                  <div className="grid grid-cols-4 gap-4 text-xs bg-surface-3 rounded-lg p-4">
+                    <div><p className="text-text-secondary">Bank</p><p className="text-text font-semibold mt-0.5">{selected.bankName || 'HDFC Bank'}</p></div>
+                    <div><p className="text-text-secondary">Account</p><p className="text-text font-semibold mt-0.5"><SensitiveValue type="account" value={selected.bankAccount || '0000001234'} revealed={revealed} /></p></div>
+                    <div><p className="text-text-secondary">PAN</p><p className="text-text font-semibold mt-0.5"><SensitiveValue type="pan" value={selected.pan || 'ABCPD1234E'} revealed={revealed} /></p></div>
+                    <div><p className="text-text-secondary">PF No</p><p className="text-text font-semibold mt-0.5">{`PF/${selected.empId}/2024`}</p></div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-sm font-semibold text-text mb-3 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-success" /> Earnings</h4>
+                    <div className="space-y-2">
+                      {(selected.earnings || []).map(e => <div key={e.component} className="flex justify-between text-sm py-1"><span className="text-text-secondary">{e.component}</span><SensitiveValue type="currency" value={e.amount} revealed={revealed} /></div>)}
+                      <hr className="border-border" />
+                      <div className="flex justify-between text-sm font-bold py-1"><span className="text-text">Total Earnings</span><SensitiveValue type="currency" value={selected.totalEarnings} className="text-success" revealed={revealed} /></div>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-text mb-3 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-danger" /> Deductions</h4>
+                    <div className="space-y-2">
+                      {(selected.deductions || []).map(d => <div key={d.component} className="flex justify-between text-sm py-1"><span className="text-text-secondary">{d.component}</span><SensitiveValue type="currency" value={d.amount} revealed={revealed} /></div>)}
+                      <hr className="border-border" />
+                      <div className="flex justify-between text-sm font-bold py-1"><span className="text-text">Total Deductions</span><SensitiveValue type="currency" value={selected.totalDeductions} className="text-danger" revealed={revealed} /></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5 bg-primary/5 border border-primary/20 rounded-xl flex items-center justify-between">
+                  <div><p className="text-sm font-semibold text-text">Net Salary</p><p className="text-xs text-text-secondary">Credited to bank account</p></div>
+                  <SensitiveValue type="currency" value={selected.netPay} className="text-3xl font-bold text-primary" revealed={revealed} />
                 </div>
               </div>
+
+              <div className="px-6 py-3 bg-surface-3 border-t border-border flex items-center justify-between text-[10px] text-text-secondary">
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  <span>Generated on {formatDateTime(selected.generatedAt || new Date().toISOString())}</span>
+                  <span>Generated by Vikisol One System</span>
+                  <span>Version 1.0</span>
+                  <span>Document ID: PS-{selected.id}</span>
+                </div>
+                <span>Page 1 of 1</span>
+              </div>
             </div>
-            <div className="p-5 bg-primary/5 border border-primary/20 rounded-xl flex items-center justify-between">
-              <div><p className="text-sm font-semibold text-text">Net Payable</p><p className="text-xs text-text-secondary">Credited to bank</p></div>
-              <SensitiveValue type="currency" value={selected.netPay} id={`netpay-modal-${selected.id}`} className="text-3xl font-bold text-primary" />
-            </div>
+
             <div className="flex gap-2 flex-wrap border-t border-border pt-4">
               <Button
                 icon={Download}
@@ -235,8 +294,10 @@ export default function PayrollPage() {
               >
                 {downloadingPayslip ? 'Generating...' : 'Download PDF'}
               </Button>
-              <Button variant="secondary" icon={Mail} onClick={() => toast.info('Payslip email is not available yet')}>Email</Button>
               <Button variant="secondary" icon={Printer} onClick={() => window.print()}>Print</Button>
+              <Button variant="secondary" icon={Share2} onClick={() => toast.info('Sharing is not available yet')}>Share</Button>
+              <Button variant="secondary" icon={Mail} onClick={() => toast.info('Payslip email is not available yet')}>Email</Button>
+              <Button variant="secondary" icon={RefreshCw} onClick={() => toast.info('Regeneration is not available yet')}>Regenerate</Button>
             </div>
           </div>
         )}

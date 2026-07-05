@@ -10,8 +10,10 @@ import Input from '../../components/ui/Input';
 import { Select, Textarea } from '../../components/ui/Input';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import SearchFilter from '../../components/ui/SearchFilter';
+import EmployeeAutocomplete from '../../components/ui/EmployeeAutocomplete';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
+import { useApproval } from '../../context/ApprovalEngine';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { getProjectMembers, addProjectMember, removeProjectMember } from '../../api/projects';
@@ -26,12 +28,16 @@ function projectColor(id) {
 export default function ProjectsPage() {
   const { data, projects, projectsSource, projectsLoading } = useData();
   const { user } = useAuth();
+  const { isCEO } = useApproval();
   const toast = useToast();
   const confirm = useConfirm();
 
   const isAdmin = ['ceo', 'hr_manager', 'admin'].includes(user?.role);
   const isManager = ['ceo', 'hr_manager', 'manager', 'admin'].includes(user?.role);
   const isEmployee = user?.role === 'employee';
+  // Budget is CEO-only, not just admin/manager - a stricter gate than the general isAdmin check
+  // used elsewhere on this page, per the explicit "only CEO can view project budgets" requirement.
+  const canViewBudget = isCEO;
 
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
@@ -194,8 +200,8 @@ export default function ProjectsPage() {
               <div className="flex items-center gap-1"><Users size={12} /> {p.team} members</div>
               <div className="flex items-center gap-1"><Calendar size={12} /> {p.deadline}</div>
             </div>
-            {/* Budget only visible to CEO/Admin */}
-            {isAdmin && (
+            {/* Budget only visible to CEO */}
+            {canViewBudget && (
               <div className="flex items-center justify-between mt-2 text-xs">
                 <span className="text-text-secondary">Budget: <span className="text-text font-medium">{p.budget}</span></span>
                 <span className="text-text-secondary">Spent: <span className="text-text font-medium">{p.spent}</span></span>
@@ -222,7 +228,7 @@ export default function ProjectsPage() {
           <Input label="Project Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
           <Input label="Client" value={form.client} onChange={e => setForm(p => ({ ...p, client: e.target.value }))} />
           <Input label="Manager" value={form.manager} onChange={e => setForm(p => ({ ...p, manager: e.target.value }))} />
-          <Input label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))} placeholder="e.g. ₹50L" />
+          {canViewBudget && <Input label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))} placeholder="e.g. ₹50L" />}
           <Input label="Deadline" type="date" value={form.deadline} onChange={e => setForm(p => ({ ...p, deadline: e.target.value }))} />
           <Select label="Priority" value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} options={['High','Medium','Low'].map(v => ({ value: v, label: v }))} />
           <Textarea label="Description" className="col-span-2" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
@@ -250,7 +256,7 @@ export default function ProjectsPage() {
             {[
               ['Client', selected.client], ['Status', selected.status], ['Priority', selected.priority],
               ['Manager', selected.manager], ['Team Size', selected.team],
-              ...(isAdmin ? [['Budget', selected.budget], ['Spent', selected.spent]] : []),
+              ...(canViewBudget ? [['Budget', selected.budget], ['Spent', selected.spent]] : []),
               ['Start Date', selected.startDate], ['Deadline', selected.deadline],
               ['Milestones', `${selected.completedMilestones}/${selected.milestones}`], ['Sprints', selected.sprints],
             ].map(([k, v]) => (
@@ -283,9 +289,11 @@ export default function ProjectsPage() {
               )}
               {isManager && (
                 <div className="flex items-end gap-2 mt-3">
-                  <Select label="Add Employee" className="flex-1" value={addMemberForm.employeeId}
-                    onChange={e => setAddMemberForm(p => ({ ...p, employeeId: e.target.value }))}
-                    placeholder="Select employee" options={data.employees.map(e => ({ value: e.id, label: e.name }))} />
+                  <div className="flex-1">
+                    <EmployeeAutocomplete label="Add Employee" employees={data.employees} value={addMemberForm.employeeId}
+                      onChange={id => setAddMemberForm(p => ({ ...p, employeeId: id }))}
+                      excludeIds={(members || []).map(m => m.employeeId)} />
+                  </div>
                   <Input label="Role" className="w-32" value={addMemberForm.role} onChange={e => setAddMemberForm(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Developer" />
                   <Input label="Allocation %" type="number" className="w-28" value={addMemberForm.allocationPercentage} onChange={e => setAddMemberForm(p => ({ ...p, allocationPercentage: parseInt(e.target.value) || 0 }))} min="0" max="100" />
                   <Button size="sm" icon={UserPlus} onClick={handleAddMember} disabled={addingMember}>{addingMember ? 'Adding...' : 'Add'}</Button>
