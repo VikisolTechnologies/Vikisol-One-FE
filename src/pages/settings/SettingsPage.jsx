@@ -13,7 +13,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
-import { updateSetting, getRolePermissionMatrix, updateRolePermissionMatrix } from '../../api/settings';
+import { updateSetting, getSettingsByCategory, getRolePermissionMatrix, updateRolePermissionMatrix } from '../../api/settings';
 import { getCtcBreakupTemplate, updateCtcBreakupTemplate, getCtcCustomLabel, updateCtcCustomLabel } from '../../api/payroll';
 
 const MODULE_LABELS = {
@@ -21,6 +21,7 @@ const MODULE_LABELS = {
   resources: 'Resources', attendance: 'Attendance', leave: 'Leave', payroll: 'Payroll',
   timesheets: 'Timesheets', tickets: 'Tickets', assets: 'Assets', performance: 'Performance',
   'org-chart': 'Org Chart', reports: 'Reports', documents: 'Documents', settings: 'Settings',
+  'background-verification': 'Background Verification', offboarding: 'Offboarding',
 };
 const ROLE_LABELS = {
   CEO: 'CEO', ADMIN: 'Admin', HR_MANAGER: 'HR Manager', MANAGER: 'Manager',
@@ -173,6 +174,73 @@ function CtcBreakupSettings() {
         ) : (
           <p className="text-xs text-text-secondary italic">Only the CEO can change the standard CTC breakup.</p>
         )}
+      </div>
+    </Card>
+  );
+}
+
+// BGV reference contacts are stored as a single JSON-valued row in the generic company-settings
+// key/value store (category "bgv", key "contacts") rather than a dedicated entity/table - the
+// data is small, low-write, and this avoids a whole new backend surface for a simple contact list.
+function BgvContactsSettings() {
+  const toast = useToast();
+  const [contacts, setContacts] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getSettingsByCategory('BGV').then(rows => {
+      const row = rows.find(r => r.key === 'contacts');
+      try { setContacts(row?.value ? JSON.parse(row.value) : []); } catch { setContacts([]); }
+    }).catch(() => { toast.error('Could not load BGV contacts'); setContacts([]); })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const update = (i, patch) => setContacts(prev => prev.map((c, idx) => idx === i ? { ...c, ...patch } : c));
+  const addContact = () => setContacts(prev => [...prev, { name: '', designation: '', department: '', email: '', mobile: '', officePhone: '', active: true }]);
+  const removeContact = (i) => setContacts(prev => prev.filter((_, idx) => idx !== i));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateSetting({ key: 'contacts', value: JSON.stringify(contacts), category: 'BGV', description: 'Background verification reference contacts', dataType: 'JSON' });
+      toast.success('BGV contacts updated');
+    } catch (err) {
+      toast.error(err.message || 'Failed to save BGV contacts');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <Card><p className="text-sm text-text-secondary">Loading...</p></Card>;
+
+  return (
+    <Card>
+      <div className="space-y-4 max-w-3xl">
+        <div>
+          <p className="text-sm font-medium text-text">Background Verification Contacts</p>
+          <p className="text-xs text-text-secondary mt-1">These contacts appear automatically on Experience Letters, Relieving Letters, and exit communications so future employers can verify employment.</p>
+        </div>
+        {contacts.map((c, i) => (
+          <div key={i} className="p-3 bg-surface-3 rounded-xl grid grid-cols-2 md:grid-cols-3 gap-3">
+            <Input label="Name" value={c.name} onChange={e => update(i, { name: e.target.value })} />
+            <Input label="Designation" value={c.designation} onChange={e => update(i, { designation: e.target.value })} />
+            <Input label="Department" value={c.department} onChange={e => update(i, { department: e.target.value })} />
+            <Input label="Official Email" type="email" value={c.email} onChange={e => update(i, { email: e.target.value })} />
+            <Input label="Mobile Number" value={c.mobile} onChange={e => update(i, { mobile: e.target.value })} />
+            <Input label="Office Number (optional)" value={c.officePhone || ''} onChange={e => update(i, { officePhone: e.target.value })} />
+            <div className="col-span-2 md:col-span-3 flex items-center justify-between pt-1">
+              <label className="flex items-center gap-2 text-sm text-text cursor-pointer">
+                <input type="checkbox" checked={!!c.active} onChange={e => update(i, { active: e.target.checked })} /> Active
+              </label>
+              <Button size="sm" variant="ghost" onClick={() => removeContact(i)}>Remove</Button>
+            </div>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={addContact}>+ Add Contact</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Contacts'}</Button>
+        </div>
       </div>
     </Card>
   );
@@ -505,6 +573,7 @@ export default function SettingsPage() {
         { id: 'departments', label: 'Departments & Designations', content: <OrgStructureSettings /> },
         { id: 'leave-types', label: 'Leave Types', content: <LeaveTypesSettings /> },
         { id: 'ctc-breakup', label: 'CTC Breakup', content: <CtcBreakupSettings /> },
+        { id: 'bgv-contacts', label: 'BGV Contacts', content: <BgvContactsSettings /> },
         // "Role Permissions" is the one real permissions feature: it controls which sidebar
         // modules each role can see. A previous "Roles & Permissions" tab duplicated this in
         // name only - every button in it was decorative (toast.info, no backend call) - so it

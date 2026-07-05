@@ -46,6 +46,9 @@ export function adaptEmployee(e) {
     reportingManagerId: e.reportingManagerId,
     isActive: e.isActive,
     accountRole: e.accountRole || null,
+    lifecycleStatus: e.lifecycleStatus || null,
+    costCenter: e.costCenter || null,
+    businessUnit: e.businessUnit || null,
     onboarding: {
       documentsVerified: !!e.onboardingDocumentsVerified,
       assetsAssigned: !!e.onboardingAssetsAssigned,
@@ -185,4 +188,31 @@ export async function changeAccountRole(id, role) {
 // Updates one or more onboarding checklist flags. Pass only the fields you want to change.
 export async function updateOnboardingChecklist(id, { documentsVerified, assetsAssigned, bankDetailsCollected, inductionCompleted } = {}) {
   return adaptEmployee(await api.put(`/employees/${id}/onboarding`, { documentsVerified, assetsAssigned, bankDetailsCollected, inductionCompleted }));
+}
+
+// Manual HR override for the employee's lifecycle status (e.g. PROBATION -> CONFIRMED).
+export async function updateLifecycleStatus(id, status) {
+  return adaptEmployee(await api.put(`/employees/${id}/lifecycle-status`, { status }));
+}
+
+// Chronological feed of an employee's significant lifecycle events (recruitment, BGV, onboarding,
+// offboarding, audit trail) aggregated server-side.
+export async function getEmployeeTimeline(employeeId) {
+  const data = await api.get(`/employees/${employeeId}/timeline`);
+  return (data || []).map(t => ({
+    timestamp: t.timestamp,
+    category: t.category,
+    title: t.title,
+    description: t.description,
+  }));
+}
+
+// Organization transfers - department/reporting manager/location/cost center/business unit moves
+// for existing active employees, tracked as their own history (separate from offboarding).
+export async function initiateTransfer(id, { transferType, newValue, effectiveDate, reason }) {
+  return api.post(`/employees/${id}/transfers`, { transferType, newValue, effectiveDate, reason });
+}
+
+export async function getTransferHistory(id) {
+  return api.get(`/employees/${id}/transfers`);
 }

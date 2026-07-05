@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { UserPlus, Download, Upload, Eye, Edit3, Trash2, MoreVertical, UserCheck, UserX, Key, RefreshCw, FileText, Briefcase, Monitor, TrendingUp, LogOut } from 'lucide-react';
+import { UserPlus, Download, Upload, Eye, Edit3, Trash2, MoreVertical, UserCheck, UserX, Key, RefreshCw, FileText, Briefcase, Monitor, TrendingUp, LogOut, CheckCircle2, XCircle, Clock, UserPlus as UserPlusIcon, Shield, LogIn, ClipboardList, ScrollText, ArrowRightLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -17,7 +17,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter, generateExperienceLetter, generateRelievingLetter } from '../../api/employees';
+import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter, generateExperienceLetter, generateRelievingLetter, getEmployeeTimeline, initiateTransfer, getTransferHistory } from '../../api/employees';
 import { getEmployeeDocuments } from '../../api/documents';
 import { getProfileCompletion } from '../../api/onboarding';
 import { getBackgroundChecks } from '../../api/bgv';
@@ -27,11 +27,29 @@ import { TableSkeleton } from '../../components/ui/Skeleton';
 import { downloadFile } from '../../api/client';
 
 const APP_ROLES = ['CEO', 'ADMIN', 'HR_MANAGER', 'MANAGER', 'RECRUITER', 'FINANCE', 'EMPLOYEE'];
+const SECTION_TO_TAB = {
+  personal: 'personal', education: 'education', employment: 'employment', skills: 'employment',
+  documents: 'documents', bank: 'bank', tax: 'bank', nominee: 'bank',
+};
 const ONBOARDING_STEPS = [
   { key: 'documentsVerified', label: 'Documents Verified' },
   { key: 'assetsAssigned', label: 'IT Assets Assigned' },
   { key: 'bankDetailsCollected', label: 'Bank Details Collected' },
   { key: 'inductionCompleted', label: 'Induction Completed' },
+];
+const TIMELINE_ICONS = {
+  RECRUITMENT: UserPlusIcon,
+  BGV: Shield,
+  ONBOARDING: LogIn,
+  OFFBOARDING: ClipboardList,
+  AUDIT: ScrollText,
+};
+const TRANSFER_TYPES = [
+  { value: 'DEPARTMENT', label: 'Department' },
+  { value: 'REPORTING_MANAGER', label: 'Reporting Manager' },
+  { value: 'LOCATION', label: 'Location' },
+  { value: 'COST_CENTER', label: 'Cost Center' },
+  { value: 'BUSINESS_UNIT', label: 'Business Unit' },
 ];
 
 export default function EmployeeDirectory() {
@@ -58,7 +76,9 @@ export default function EmployeeDirectory() {
   const [selectedEmp, setSelectedEmp] = useState(null);
   const [empDocuments, setEmpDocuments] = useState(null); // null = not loaded for this employee yet
   const [profileCompletion, setProfileCompletion] = useState(null);
+  const [profileTab, setProfileTab] = useState('personal');
   const [bgvChecks, setBgvChecks] = useState(null);
+  const [timeline, setTimeline] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
@@ -70,6 +90,10 @@ export default function EmployeeDirectory() {
   const [resignEmp, setResignEmp] = useState(null);
   const [resignForm, setResignForm] = useState({ lastWorkingDate: '', reason: '' });
   const [resignSubmitting, setResignSubmitting] = useState(false);
+  const [transferEmp, setTransferEmp] = useState(null);
+  const [transferForm, setTransferForm] = useState({ transferType: 'DEPARTMENT', newValue: '', effectiveDate: '', reason: '' });
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferHistory, setTransferHistory] = useState(null);
 
   const allEmps = data.employees;
 
@@ -139,6 +163,9 @@ export default function EmployeeDirectory() {
     setEmpDocuments(null);
     setProfileCompletion(null);
     setBgvChecks(null);
+    setTimeline(null);
+    setTransferHistory(null);
+    setProfileTab('personal');
     if (employeesSource === 'live') {
       try {
         const full = await getEmployee(row.id);
@@ -149,6 +176,8 @@ export default function EmployeeDirectory() {
       getEmployeeDocuments(row.id).then(setEmpDocuments).catch(() => setEmpDocuments([]));
       getProfileCompletion(row.id).then(setProfileCompletion).catch(() => setProfileCompletion(null));
       getBackgroundChecks(row.id).then(setBgvChecks).catch(() => setBgvChecks([]));
+      getEmployeeTimeline(row.id).then(setTimeline).catch(() => setTimeline([]));
+      getTransferHistory(row.id).then(setTransferHistory).catch(() => setTransferHistory([]));
     }
   };
 
@@ -306,6 +335,46 @@ export default function EmployeeDirectory() {
     }
   };
 
+  const openTransferModal = (emp) => {
+    setTransferForm({ transferType: 'DEPARTMENT', newValue: '', effectiveDate: new Date().toISOString().split('T')[0], reason: '' });
+    setTransferEmp(emp);
+    setContextMenu(null);
+  };
+
+  const handleInitiateTransfer = async () => {
+    if (employeesSource !== 'live') { toast.error('Connect to the live backend to record transfers'); return; }
+    if (!transferForm.newValue || !transferForm.effectiveDate) { toast.error('New value and effective date are required'); return; }
+    setTransferSubmitting(true);
+    try {
+      await initiateTransfer(transferEmp.id, transferForm);
+      toast.success(`Transfer recorded for ${transferEmp.name}`);
+      setTransferEmp(null);
+      // Department/manager/location changes affect the employee record itself - refresh both the
+      // row in the directory and, if their profile happens to be open, the profile + history too.
+      const updated = await getEmployee(transferEmp.id);
+      if (selectedEmp?.id === transferEmp.id) {
+        setSelectedEmp(updated);
+        getTransferHistory(transferEmp.id).then(setTransferHistory).catch(() => {});
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to record transfer');
+    } finally {
+      setTransferSubmitting(false);
+    }
+  };
+
+  const currentTransferValue = (emp, type) => {
+    if (!emp) return '';
+    switch (type) {
+      case 'DEPARTMENT': return emp.department || '-';
+      case 'REPORTING_MANAGER': return emp.manager || '-';
+      case 'LOCATION': return emp.location || '-';
+      case 'COST_CENTER': return emp.costCenter || '-';
+      case 'BUSINESS_UNIT': return emp.businessUnit || '-';
+      default: return '-';
+    }
+  };
+
   const filterConfig = [
     { key: 'department', label: 'Department', options: data.departments },
     { key: 'status', label: 'Status', options: ['Active', 'On Leave', 'Notice Period', 'Suspended'] },
@@ -331,7 +400,7 @@ export default function EmployeeDirectory() {
         <button onClick={(e) => { e.stopPropagation(); openEdit(row); }} aria-label={`Edit ${row.name}`} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><Edit3 size={14} /></button>
         <button onClick={(e) => { e.stopPropagation(); setContextMenu(contextMenu?.id === row.id ? null : row); }} aria-label={`More actions for ${row.name}`} aria-haspopup="true" aria-expanded={contextMenu?.id === row.id} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary hover:text-text"><MoreVertical size={14} /></button>
         {contextMenu?.id === row.id && (
-          <div className="absolute right-0 top-full mt-1 w-52 bg-surface-2 border border-border rounded-xl shadow-2xl py-1 z-50" onMouseLeave={() => setContextMenu(null)}>
+          <div className="absolute right-0 top-full mt-1 w-52 bg-surface-2 border border-border rounded-xl shadow-2xl py-1 z-50" onClick={(e) => e.stopPropagation()} onMouseLeave={() => setContextMenu(null)}>
             {row.status === 'Active' ? (
               <button onClick={() => handleSuspend(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><UserX size={14} /> Suspend</button>
             ) : (
@@ -341,6 +410,7 @@ export default function EmployeeDirectory() {
             <button onClick={() => openGenerateDocModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><FileText size={14} /> Generate Document...</button>
             {canManageCompensation && <hr className="border-border my-1" />}
             {canManageCompensation && <button onClick={() => openHikeModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><TrendingUp size={14} /> Issue Hike</button>}
+            {canManageCompensation && <button onClick={() => openTransferModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:bg-surface-3 hover:text-text"><ArrowRightLeft size={14} /> Transfer Employee</button>}
             {canManageCompensation && <button onClick={() => openResignModal(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-warning hover:bg-warning/10"><LogOut size={14} /> Record Resignation</button>}
             <hr className="border-border my-1" />
             <button onClick={() => handleDelete(row)} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-danger hover:bg-danger/10"><Trash2 size={14} /> Delete Employee</button>
@@ -466,6 +536,9 @@ export default function EmployeeDirectory() {
                 <div className="flex gap-2 mt-2">
                   <Badge dot>{selectedEmp.status}</Badge>
                   <Badge variant="default">{selectedEmp.employmentType}</Badge>
+                  {selectedEmp.lifecycleStatus && (
+                    <Badge variant="info">{selectedEmp.lifecycleStatus.replace(/_/g, ' ')}</Badge>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2">
@@ -473,7 +546,31 @@ export default function EmployeeDirectory() {
                 <Button size="sm" variant="secondary" icon={FileText} onClick={() => handleGenerateLetter(selectedEmp, 'Offer Letter')}>Generate Letter</Button>
               </div>
             </div>
-            <Tabs tabs={[
+            {profileCompletion && (
+              <div className="p-4 bg-surface-3 rounded-xl">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-text-secondary font-semibold uppercase tracking-wider">Profile Completion</p>
+                  <span className="text-sm font-bold text-primary">{profileCompletion.percent}%</span>
+                </div>
+                <ProgressBar value={profileCompletion.percent} max={100} color={profileCompletion.percent === 100 ? 'success' : 'warning'} />
+                {profileCompletion.sections?.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+                    {profileCompletion.sections.map(s => (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() => setProfileTab(SECTION_TO_TAB[s.key] || 'personal')}
+                        className={`flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg text-left ${s.done ? 'text-success hover:bg-success/10' : 'text-danger hover:bg-danger/10'}`}
+                      >
+                        {s.done ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <Tabs active={profileTab} onChange={setProfileTab} tabs={[
               { id: 'personal', label: 'Personal', content: (
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   {[['Email', selectedEmp.email], ['Phone', selectedEmp.phone], ['Date of Birth', selectedEmp.dob], ['Gender', selectedEmp.gender], ['Blood Group', selectedEmp.bloodGroup], ['Marital Status', selectedEmp.maritalStatus], ['Address', selectedEmp.address], ['PAN', selectedEmp.pan, 'pan'], ['Aadhar', selectedEmp.aadhar, 'aadhaar']].map(([k, v, sensitiveType]) => (
@@ -535,6 +632,30 @@ export default function EmployeeDirectory() {
                       </div>
                     </div>
                   )}
+                  {employeesSource === 'live' && (
+                    <div className="col-span-3 p-3 bg-surface-3 rounded-lg">
+                      <p className="text-xs text-text-secondary font-semibold mb-2">Transfer History</p>
+                      {transferHistory === null && <p className="text-xs text-text-secondary">Loading...</p>}
+                      {transferHistory?.length === 0 && <p className="text-xs text-text-secondary">No transfers recorded yet.</p>}
+                      {transferHistory && transferHistory.length > 0 && (
+                        <div className="space-y-2">
+                          {transferHistory.map(t => (
+                            <div key={t.id} className="flex items-center justify-between px-3 py-2 bg-surface-2 rounded-lg text-sm">
+                              <div>
+                                <span className="text-text font-medium">{TRANSFER_TYPES.find(tt => tt.value === t.transferType)?.label || t.transferType}</span>
+                                <span className="text-text-secondary">: {t.previousValue || '-'} &rarr; {t.newValue}</span>
+                                {t.reason && <p className="text-xs text-text-secondary mt-0.5">"{t.reason}"</p>}
+                              </div>
+                              <div className="text-right text-xs text-text-secondary shrink-0 ml-3">
+                                <p>{t.effectiveDate}</p>
+                                {t.initiatedByName && <p>by {t.initiatedByName}</p>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )},
               { id: 'bank', label: 'Bank & Tax', content: (
@@ -564,20 +685,6 @@ export default function EmployeeDirectory() {
                   {employeesSource !== 'live' && <p className="text-xs text-warning">(demo data - live backend required)</p>}
                   {employeesSource === 'live' && (
                     <>
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-xs text-text-secondary font-semibold uppercase tracking-wider">Profile Completion</p>
-                          {profileCompletion && <span className="text-sm font-bold text-primary">{profileCompletion.percent}%</span>}
-                        </div>
-                        {profileCompletion ? (
-                          <>
-                            <ProgressBar value={profileCompletion.percent} max={100} color={profileCompletion.percent === 100 ? 'success' : 'warning'} />
-                            {profileCompletion.missing.length > 0 && (
-                              <p className="text-xs text-text-secondary mt-2">Missing: {profileCompletion.missing.join(', ')}</p>
-                            )}
-                          </>
-                        ) : <p className="text-xs text-text-secondary">Loading...</p>}
-                      </div>
                       <div>
                         <p className="text-xs text-text-secondary font-semibold uppercase tracking-wider mb-2">Background Verification</p>
                         {bgvChecks === null && <p className="text-xs text-text-secondary">Loading...</p>}
@@ -616,6 +723,37 @@ export default function EmployeeDirectory() {
                   ))}
                 </div>
               )},
+              { id: 'timeline', label: 'Timeline', content: (
+                <div className="space-y-3">
+                  {employeesSource !== 'live' && <p className="text-xs text-warning">(demo data - live backend required)</p>}
+                  {employeesSource === 'live' && timeline === null && <p className="text-xs text-text-secondary">Loading...</p>}
+                  {employeesSource === 'live' && timeline?.length === 0 && <p className="text-xs text-text-secondary">No timeline events recorded yet.</p>}
+                  {employeesSource === 'live' && timeline && timeline.length > 0 && (
+                    <div className="relative pl-6">
+                      <div className="absolute left-[7px] top-1 bottom-1 w-px bg-border" />
+                      {timeline.map((t, i) => {
+                        const Icon = TIMELINE_ICONS[t.category] || Clock;
+                        return (
+                          <div key={i} className="relative pb-4 last:pb-0">
+                            <div className="absolute -left-6 top-0.5 w-3.5 h-3.5 rounded-full bg-surface-3 border-2 border-primary flex items-center justify-center" />
+                            <div className="flex items-start gap-2">
+                              <Icon size={14} className="text-primary mt-0.5 shrink-0" />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-sm font-medium text-text">{t.title}</p>
+                                  <Badge variant="default">{t.category}</Badge>
+                                </div>
+                                {t.description && <p className="text-xs text-text-secondary mt-0.5">{t.description}</p>}
+                                <p className="text-[11px] text-text-secondary/70 mt-0.5">{t.timestamp ? new Date(t.timestamp).toLocaleString() : ''}</p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )},
             ]} />
           </div>
         )}
@@ -650,6 +788,40 @@ export default function EmployeeDirectory() {
             <Textarea label="Reason / Notes" value={resignForm.reason} onChange={e => setResignForm(p => ({ ...p, reason: e.target.value }))} placeholder="Optional context for HR records" />
             <p className="text-xs text-text-secondary">This marks {resignEmp.name} as on notice and emails a resignation acknowledgement to {resignEmp.email}.</p>
             <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setResignEmp(null)}>Cancel</Button><Button onClick={handleRecordResignation} disabled={resignSubmitting}>{resignSubmitting ? 'Sending...' : 'Record Resignation'}</Button></div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Transfer Employee Modal */}
+      <Modal open={!!transferEmp} onClose={() => setTransferEmp(null)} title="Transfer Employee">
+        {transferEmp && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 p-3 bg-surface-3 rounded-xl">
+              <Avatar name={transferEmp.name} size="md" />
+              <div><p className="font-medium text-text">{transferEmp.name}</p><p className="text-xs text-text-secondary">{transferEmp.designation}</p></div>
+            </div>
+            <Select label="Transfer Type" value={transferForm.transferType}
+              onChange={e => setTransferForm(p => ({ ...p, transferType: e.target.value, newValue: '' }))}
+              options={TRANSFER_TYPES} />
+            <div>
+              <p className="text-xs text-text-secondary mb-1">Current Value</p>
+              <p className="text-sm text-text font-medium">{currentTransferValue(transferEmp, transferForm.transferType)}</p>
+            </div>
+            {transferForm.transferType === 'DEPARTMENT' && (
+              <Select label="New Department *" value={transferForm.newValue} onChange={e => setTransferForm(p => ({ ...p, newValue: e.target.value }))} options={deptOptions} />
+            )}
+            {transferForm.transferType === 'REPORTING_MANAGER' && (
+              <Select label="New Reporting Manager *" value={transferForm.newValue}
+                onChange={e => setTransferForm(p => ({ ...p, newValue: e.target.value }))}
+                options={allEmps.filter(e => e.id !== transferEmp.id).map(e => ({ value: e.id, label: e.name }))} />
+            )}
+            {['LOCATION', 'COST_CENTER', 'BUSINESS_UNIT'].includes(transferForm.transferType) && (
+              <Input label="New Value *" value={transferForm.newValue} onChange={e => setTransferForm(p => ({ ...p, newValue: e.target.value }))}
+                placeholder={transferForm.transferType === 'LOCATION' ? 'e.g. Bangalore' : 'e.g. CC-104'} />
+            )}
+            <Input label="Effective Date *" type="date" value={transferForm.effectiveDate} onChange={e => setTransferForm(p => ({ ...p, effectiveDate: e.target.value }))} />
+            <Textarea label="Reason / Notes" value={transferForm.reason} onChange={e => setTransferForm(p => ({ ...p, reason: e.target.value }))} placeholder="Optional context for HR records" />
+            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setTransferEmp(null)}>Cancel</Button><Button onClick={handleInitiateTransfer} disabled={transferSubmitting}>{transferSubmitting ? 'Saving...' : 'Record Transfer'}</Button></div>
           </div>
         )}
       </Modal>

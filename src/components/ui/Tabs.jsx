@@ -1,7 +1,9 @@
 import { useState } from 'react';
 
-export default function Tabs({ tabs, defaultTab }) {
-  const [active, setActive] = useState(defaultTab || tabs[0]?.id);
+export default function Tabs({ tabs, defaultTab, active: controlledActive, onChange }) {
+  const [internalActive, setInternalActive] = useState(defaultTab || tabs[0]?.id);
+  const active = controlledActive ?? internalActive;
+  const setActive = onChange ?? setInternalActive;
   const current = tabs.find(t => t.id === active);
 
   return (
