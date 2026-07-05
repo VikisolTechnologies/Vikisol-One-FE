@@ -58,7 +58,7 @@ export default function EmployeeDirectory() {
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
-  const [addForm, setAddForm] = useState({ name: '', email: '', department: 'Development', designation: '', location: 'Hyderabad', phone: '', employmentType: 'Full Time' });
+  const [addForm, setAddForm] = useState({ name: '', email: '', personalEmail: '', personalMobile: '', department: 'Development', designation: '', location: 'Hyderabad', phone: '', employmentType: 'Full Time' });
   const [editForm, setEditForm] = useState({});
   const [hikeEmp, setHikeEmp] = useState(null);
   const [hikeForm, setHikeForm] = useState({ newAnnualCtc: '', effectiveDate: '', reason: '' });
@@ -88,7 +88,7 @@ export default function EmployeeDirectory() {
       await employees.create({ ...addForm, empId, id: Date.now(), status: 'Active', joinDate: new Date().toISOString().split('T')[0], ctc: 600000, skills: [], manager: 'Rohit Sharma' });
       toast.success(`Employee ${addForm.name} created successfully`);
       setShowAdd(false);
-      setAddForm({ name: '', email: '', department: 'Development', designation: '', location: 'Hyderabad', phone: '', employmentType: 'Full Time' });
+      setAddForm({ name: '', email: '', personalEmail: '', personalMobile: '', department: 'Development', designation: '', location: 'Hyderabad', phone: '', employmentType: 'Full Time' });
     } catch (err) {
       toast.error(err.message || 'Failed to create employee');
     }
@@ -390,7 +390,9 @@ export default function EmployeeDirectory() {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add New Employee" size="lg">
         <div className="grid grid-cols-2 gap-4">
           <Input label="Full Name *" value={addForm.name} onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))} placeholder="Enter full name" />
-          <Input label="Email *" type="email" value={addForm.email} onChange={e => setAddForm(p => ({ ...p, email: e.target.value }))} placeholder="email@vikisol.in" />
+          <Input label="Official Email *" type="email" value={addForm.email} onChange={e => setAddForm(p => ({ ...p, email: e.target.value }))} placeholder="email@vikisol.in" />
+          <Input label="Personal Email" type="email" value={addForm.personalEmail || ''} onChange={e => setAddForm(p => ({ ...p, personalEmail: e.target.value }))} placeholder="used only for the activation link" />
+          <Input label="Personal Mobile" value={addForm.personalMobile || ''} onChange={e => setAddForm(p => ({ ...p, personalMobile: e.target.value }))} placeholder="+91 XXXXX XXXXX" />
           {employeesSource === 'live' ? (
             <Select label="Department" value={addForm.departmentId || ''} onChange={e => setAddForm(p => ({ ...p, departmentId: e.target.value }))} options={deptOptions} />
           ) : (
@@ -402,7 +404,7 @@ export default function EmployeeDirectory() {
             <Input label="Designation" value={addForm.designation} onChange={e => setAddForm(p => ({ ...p, designation: e.target.value }))} placeholder="e.g. Senior Developer" />
           )}
           <Select label="Location" value={addForm.location} onChange={e => setAddForm(p => ({ ...p, location: e.target.value }))} options={['Hyderabad','Bangalore','Pune','Noida','Chennai','Mumbai','Remote'].map(l => ({ value: l, label: l }))} />
-          <Input label="Phone" value={addForm.phone} onChange={e => setAddForm(p => ({ ...p, phone: e.target.value }))} placeholder="+91 XXXXX XXXXX" />
+          <Input label="Official Phone" value={addForm.phone} onChange={e => setAddForm(p => ({ ...p, phone: e.target.value }))} placeholder="+91 XXXXX XXXXX" />
           <Select label="Employment Type" value={addForm.employmentType} onChange={e => setAddForm(p => ({ ...p, employmentType: e.target.value }))} options={[{ value: 'Full Time', label: 'Full Time' }, { value: 'Contract', label: 'Contract' }, { value: 'Intern', label: 'Intern' }]} />
         </div>
         <div className="flex justify-end gap-2 mt-6">
@@ -417,7 +419,9 @@ export default function EmployeeDirectory() {
           <>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Full Name" value={editForm.name || ''} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} />
-              <Input label="Email" value={editForm.email || ''} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} />
+              <Input label="Official Email" value={editForm.email || ''} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} />
+              <Input label="Personal Email" type="email" value={editForm.personalEmail || ''} onChange={e => setEditForm(p => ({ ...p, personalEmail: e.target.value }))} />
+              <Input label="Personal Mobile" value={editForm.personalMobile || ''} onChange={e => setEditForm(p => ({ ...p, personalMobile: e.target.value }))} />
               {employeesSource === 'live' ? (
                 <Select label="Department" value={editForm.departmentId || ''} onChange={e => setEditForm(p => ({ ...p, departmentId: e.target.value }))} options={deptOptions} />
               ) : (
@@ -429,7 +433,7 @@ export default function EmployeeDirectory() {
                 <Input label="Designation" value={editForm.designation || ''} onChange={e => setEditForm(p => ({ ...p, designation: e.target.value }))} />
               )}
               <Select label="Location" value={editForm.location || ''} onChange={e => setEditForm(p => ({ ...p, location: e.target.value }))} options={['Hyderabad','Bangalore','Pune','Noida','Chennai','Mumbai','Remote'].map(l => ({ value: l, label: l }))} />
-              <Input label="Phone" value={editForm.phone || ''} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} />
+              <Input label="Official Phone" value={editForm.phone || ''} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} />
               <Select label="Status" value={editForm.status || ''} onChange={e => setEditForm(p => ({ ...p, status: e.target.value }))} options={['Active','On Leave','Notice Period','Suspended'].map(s => ({ value: s, label: s }))} />
               <Select label="Employment Type" value={editForm.employmentType || ''} onChange={e => setEditForm(p => ({ ...p, employmentType: e.target.value }))} options={[{ value: 'Full Time', label: 'Full Time' }, { value: 'Contract', label: 'Contract' }, { value: 'Intern', label: 'Intern' }]} />
             </div>

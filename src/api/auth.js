@@ -13,3 +13,11 @@ export async function fetchMe() {
 export function logout() {
   setToken(null);
 }
+
+export async function inspectActivationToken(token) {
+  return api.noAuth.get(`/auth/activate/${token}`);
+}
+
+export async function activateAccount(token, password) {
+  return api.noAuth.post('/auth/activate', { token, password });
+}

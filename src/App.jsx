@@ -13,6 +13,7 @@ import Loader from './components/ui/Loader';
 // Every other page is route-split so the initial bundle only contains what's needed to log in
 // and render the shell; each page's code loads on first visit to that route.
 import Login from './pages/Login';
+import ActivateAccount from './pages/ActivateAccount';
 
 const DashboardRouter = lazy(() => import('./pages/dashboard/DashboardRouter'));
 const EmployeeDirectory = lazy(() => import('./pages/employees/EmployeeDirectory'));
@@ -20,6 +21,7 @@ const LeaveManagement = lazy(() => import('./pages/leave/LeaveManagement'));
 const AttendancePage = lazy(() => import('./pages/attendance/AttendancePage'));
 const PayrollPage = lazy(() => import('./pages/payroll/PayrollPage'));
 const RecruitmentPage = lazy(() => import('./pages/recruitment/RecruitmentPage'));
+const AssessmentsPage = lazy(() => import('./pages/recruitment/AssessmentsPage'));
 const NewHiresPage = lazy(() => import('./pages/recruitment/NewHiresPage'));
 const TimesheetPage = lazy(() => import('./pages/timesheets/TimesheetPage'));
 const ProjectsPage = lazy(() => import('./pages/projects/ProjectsPage'));
@@ -53,6 +55,7 @@ export default function App() {
                     <Suspense fallback={<PageFallback />}>
                       <Routes>
                         <Route path="/login" element={<Login />} />
+                        <Route path="/activate" element={<ActivateAccount />} />
                         <Route element={<AppLayout />}>
                           <Route path="/" element={<DashboardRouter />} />
                           <Route path="/dashboard" element={<Navigate to="/" replace />} />
@@ -61,6 +64,7 @@ export default function App() {
                           <Route path="/attendance" element={<AttendancePage />} />
                           <Route path="/payroll" element={<PayrollPage />} />
                           <Route path="/recruitment" element={<RecruitmentPage />} />
+                          <Route path="/assessments" element={<AssessmentsPage />} />
                           <Route path="/new-hires" element={<NewHiresPage />} />
                           <Route path="/timesheets" element={<TimesheetPage />} />
                           <Route path="/projects" element={<ProjectsPage />} />

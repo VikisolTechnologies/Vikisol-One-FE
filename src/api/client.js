@@ -192,6 +192,7 @@ export const api = {
   patch: (path, body) => request(path, { method: 'PATCH', body }),
   del: (path) => request(path, { method: 'DELETE' }),
   noAuth: {
+    get: (path, params) => request(path, { method: 'GET', params, auth: false }),
     post: (path, body) => request(path, { method: 'POST', body, auth: false }),
   },
 };
