@@ -19,6 +19,8 @@ import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter, generateExperienceLetter, generateRelievingLetter } from '../../api/employees';
 import { getEmployeeDocuments } from '../../api/documents';
+import { getProfileCompletion } from '../../api/onboarding';
+import { getBackgroundChecks } from '../../api/bgv';
 import { DOCUMENT_TYPES, generateDocument } from '../../api/documentEngine';
 import SensitiveValue from '../../components/ui/SensitiveValue';
 import { TableSkeleton } from '../../components/ui/Skeleton';
@@ -55,6 +57,8 @@ export default function EmployeeDirectory() {
   const [filters, setFilters] = useState({});
   const [selectedEmp, setSelectedEmp] = useState(null);
   const [empDocuments, setEmpDocuments] = useState(null); // null = not loaded for this employee yet
+  const [profileCompletion, setProfileCompletion] = useState(null);
+  const [bgvChecks, setBgvChecks] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
@@ -133,6 +137,8 @@ export default function EmployeeDirectory() {
   const openView = async (row) => {
     setSelectedEmp(row);
     setEmpDocuments(null);
+    setProfileCompletion(null);
+    setBgvChecks(null);
     if (employeesSource === 'live') {
       try {
         const full = await getEmployee(row.id);
@@ -141,6 +147,8 @@ export default function EmployeeDirectory() {
         // keep the lightweight row data if the detail fetch fails
       }
       getEmployeeDocuments(row.id).then(setEmpDocuments).catch(() => setEmpDocuments([]));
+      getProfileCompletion(row.id).then(setProfileCompletion).catch(() => setProfileCompletion(null));
+      getBackgroundChecks(row.id).then(setBgvChecks).catch(() => setBgvChecks([]));
     }
   };
 
@@ -549,6 +557,43 @@ export default function EmployeeDirectory() {
                       <p className="text-xs text-text-secondary">{edu.institution} &middot; {edu.year}</p>
                     </div>
                   ))}
+                </div>
+              )},
+              { id: 'onboarding-bgv', label: 'Onboarding & BGV', content: (
+                <div className="space-y-4">
+                  {employeesSource !== 'live' && <p className="text-xs text-warning">(demo data - live backend required)</p>}
+                  {employeesSource === 'live' && (
+                    <>
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs text-text-secondary font-semibold uppercase tracking-wider">Profile Completion</p>
+                          {profileCompletion && <span className="text-sm font-bold text-primary">{profileCompletion.percent}%</span>}
+                        </div>
+                        {profileCompletion ? (
+                          <>
+                            <ProgressBar value={profileCompletion.percent} max={100} color={profileCompletion.percent === 100 ? 'success' : 'warning'} />
+                            {profileCompletion.missing.length > 0 && (
+                              <p className="text-xs text-text-secondary mt-2">Missing: {profileCompletion.missing.join(', ')}</p>
+                            )}
+                          </>
+                        ) : <p className="text-xs text-text-secondary">Loading...</p>}
+                      </div>
+                      <div>
+                        <p className="text-xs text-text-secondary font-semibold uppercase tracking-wider mb-2">Background Verification</p>
+                        {bgvChecks === null && <p className="text-xs text-text-secondary">Loading...</p>}
+                        {bgvChecks && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {bgvChecks.map(c => (
+                              <div key={c.id} className="flex items-center justify-between px-3 py-2 bg-surface-3 rounded-lg text-sm">
+                                <span className="text-text">{c.checkType.replace(/_/g, ' ')}</span>
+                                <Badge variant={{ PENDING: 'default', SUBMITTED: 'info', IN_REVIEW: 'warning', APPROVED: 'success', REJECTED: 'danger' }[c.status]} dot>{c.status.replace(/_/g, ' ')}</Badge>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               )},
               { id: 'documents', label: 'Documents', content: (

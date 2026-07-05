@@ -7,10 +7,12 @@ import ProgressBar from '../../components/ui/ProgressBar';
 import Avatar from '../../components/ui/Avatar';
 import { useData } from '../../context/DataContext';
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, BarChart, Bar } from 'recharts';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import SensitiveValue from '../../components/ui/SensitiveValue';
 import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
+import { ShieldCheck, FileWarning } from 'lucide-react';
+import { getDashboardStats } from '../../api/reports';
 
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -29,6 +31,11 @@ export default function CEODashboard() {
   const navigate = useNavigate();
   const { data, stats } = useData();
   const [quickActions, setQuickActions] = useState(false);
+  const [onboardingStats, setOnboardingStats] = useState(null);
+
+  useEffect(() => {
+    getDashboardStats().then(setOnboardingStats).catch(() => {});
+  }, []);
 
   // Real headcount growth + payroll cost trend, computed from actual employee join dates and payslips
   const revenueData = useMemo(() => {
@@ -118,6 +125,16 @@ export default function CEODashboard() {
         <div className="cursor-pointer" onClick={() => navigate('/payroll')}><StatCard icon={IndianRupee} label="Monthly Payroll" value={<SensitiveValue type="currency" value={stats.totalPayroll} id="dashboard-monthly-payroll" />} color="primary" delay={4} showSparkline={false} /></div>
         <div className="cursor-pointer" onClick={() => navigate('/recruitment')}><StatCard icon={Target} label="Hiring Pipeline" value={stats.totalCandidates} change={`${data.candidates.filter(c => c.stage === 'Offered').length} offered`} color="warning" delay={5} /></div>
       </div>
+
+      {/* Onboarding & Compliance - only rendered once the real backend stats have loaded, since
+          these 3 counts (unlike the rest of this page) aren't derivable from client-side mock data */}
+      {onboardingStats && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="cursor-pointer" onClick={() => navigate('/employees')}><StatCard icon={UserX} label="Pending Onboarding" value={onboardingStats.pendingOnboardingCount} change="Incomplete profiles" changeType="negative" color="warning" delay={0} showSparkline={false} /></div>
+          <div className="cursor-pointer" onClick={() => navigate('/background-verification')}><StatCard icon={ShieldCheck} label="Pending BGV" value={onboardingStats.pendingBgvCount} change="Not fully cleared" changeType="negative" color="danger" delay={1} showSparkline={false} /></div>
+          <div className="cursor-pointer" onClick={() => navigate('/documents')}><StatCard icon={FileWarning} label="Pending Documents" value={onboardingStats.pendingDocumentsCount} change="No documents on file" changeType="negative" color="warning" delay={2} showSparkline={false} /></div>
+        </div>
+      )}
 
       {/* Pending Approvals - CEO's primary action area */}
       <Card title="Pending Approvals" subtitle="Items requiring your attention">

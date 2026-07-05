@@ -11,6 +11,9 @@ export function adaptDashboardStats(d) {
     departmentWiseCount: d.departmentWiseCount || {},
     genderDistribution: d.genderDistribution || {},
     employmentTypeDistribution: d.employmentTypeDistribution || {},
+    pendingOnboardingCount: d.pendingOnboardingCount || 0,
+    pendingBgvCount: d.pendingBgvCount || 0,
+    pendingDocumentsCount: d.pendingDocumentsCount || 0,
   };
 }
 
