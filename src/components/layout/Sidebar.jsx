@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { ROLE_PERMISSIONS } from '../../data/mock';
-import { LayoutDashboard, Users, UserPlus, FolderKanban, Clock, CalendarDays, IndianRupee, Ticket, Monitor, TrendingUp, BarChart3, FileText, Settings, HelpCircle, ChevronLeft, LogOut, GitBranch, Network, UserCheck, ClipboardCheck, Palette, LayoutTemplate } from 'lucide-react';
+import { LayoutDashboard, Users, UserPlus, FolderKanban, Clock, CalendarDays, IndianRupee, Ticket, Monitor, TrendingUp, BarChart3, FileText, Settings, HelpCircle, ChevronLeft, LogOut, GitBranch, Network, UserCheck, ClipboardCheck, Palette, LayoutTemplate, Trophy, ShieldCheck } from 'lucide-react';
 
 const sections = [
   { title: 'MAIN', items: [
@@ -16,7 +16,9 @@ const sections = [
     { id: 'leave', label: 'Leave', icon: CalendarDays },
     { id: 'payroll', label: 'Payroll', icon: IndianRupee },
     { id: 'recruitment', label: 'Recruitment', icon: UserPlus },
+    { id: 'assessments', label: 'Arena Assessments', icon: Trophy },
     { id: 'new-hires', label: 'New Hires', icon: ClipboardCheck },
+    { id: 'background-verification', label: 'Background Verification', icon: ShieldCheck },
     { id: 'timesheets', label: 'Timesheets', icon: Clock },
   ]},
   { title: 'OPERATIONS', items: [

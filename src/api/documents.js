@@ -74,7 +74,11 @@ export async function createDocumentRecord({ employeeId, title, fileUrl, fileNam
   const body = {
     employeeId,
     title,
-    type: CATEGORY_TO_TYPE[category] || 'OTHER',
+    // `category` is usually a UI-friendly label (Employment/Legal/...) mapped via CATEGORY_TO_TYPE,
+    // but callers that already know the exact backend enum (e.g. the onboarding wizard, which
+    // uses ID_PROOF/ADDRESS_PROOF/TAX_FORM directly) can pass it straight through instead of it
+    // silently collapsing to OTHER.
+    type: CATEGORY_TO_TYPE[category] || category || 'OTHER',
     fileUrl,
     fileName: fileName || null,
     fileSize: fileSize || 0,

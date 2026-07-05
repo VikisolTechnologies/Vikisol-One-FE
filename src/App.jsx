@@ -24,6 +24,7 @@ const PayrollPage = lazy(() => import('./pages/payroll/PayrollPage'));
 const RecruitmentPage = lazy(() => import('./pages/recruitment/RecruitmentPage'));
 const AssessmentsPage = lazy(() => import('./pages/recruitment/AssessmentsPage'));
 const NewHiresPage = lazy(() => import('./pages/recruitment/NewHiresPage'));
+const BackgroundVerificationPage = lazy(() => import('./pages/bgv/BackgroundVerificationPage'));
 const TimesheetPage = lazy(() => import('./pages/timesheets/TimesheetPage'));
 const ProjectsPage = lazy(() => import('./pages/projects/ProjectsPage'));
 const TicketsPage = lazy(() => import('./pages/tickets/TicketsPage'));
@@ -68,6 +69,7 @@ export default function App() {
                           <Route path="/recruitment" element={<RecruitmentPage />} />
                           <Route path="/assessments" element={<AssessmentsPage />} />
                           <Route path="/new-hires" element={<NewHiresPage />} />
+                          <Route path="/background-verification" element={<BackgroundVerificationPage />} />
                           <Route path="/timesheets" element={<TimesheetPage />} />
                           <Route path="/projects" element={<ProjectsPage />} />
                           <Route path="/tickets" element={<TicketsPage />} />
