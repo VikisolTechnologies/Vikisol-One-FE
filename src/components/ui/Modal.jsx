@@ -9,9 +9,19 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
   const dialogRef = useRef(null);
   const titleId = useRef(`modal-title-${idCounter++}`).current;
 
-  // Escape-to-close, body scroll lock, and a basic focus trap - every modal in the app previously
-  // had none of these (a real accessibility gap: keyboard users could Tab out of an open modal
-  // into the page behind it, and there was no way to close via keyboard at all).
+  // `onClose` is passed as a fresh arrow function by nearly every caller (`onClose={() =>
+  // setX(null)}`), so its identity changes on every parent re-render - including on every
+  // keystroke into a controlled input inside the modal (each keystroke's setState re-renders the
+  // parent, which recreates the closure). Previously this effect depended on `[open, onClose]`,
+  // so it tore down and re-ran on every keystroke, which re-executed `focusable()?.[0]?.focus()`
+  // and stole focus away from whatever the user was typing into (usually onto the header's close
+  // button, 1-2 keystrokes before the Escape-key listener - re-attached with the same stale timing
+  // - ended up closing the modal entirely). Fix: keep a ref to the latest onClose so the effect
+  // itself only needs to depend on `open`, and only runs its setup/teardown once per open/close
+  // transition, not once per render.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
 
@@ -25,7 +35,7 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
     focusable()?.[0]?.focus();
 
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') { onClose?.(); return; }
+      if (e.key === 'Escape') { onCloseRef.current?.(); return; }
       if (e.key !== 'Tab') return;
       const nodes = focusable();
       if (!nodes || nodes.length === 0) return;
@@ -41,7 +51,7 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
       document.body.style.overflow = originalOverflow;
       previouslyFocused?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   return (
     <AnimatePresence>

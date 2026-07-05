@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Plus, Filter, Eye, Edit3, Trash2, Mail, Calendar, MoreVertical, UserCheck, XCircle, FileText, Send } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { Plus, Filter, Eye, Edit3, Trash2, Mail, Calendar, MoreVertical, UserCheck, XCircle, FileText, Send, PencilLine } from 'lucide-react';
 import { previewCtcBreakup } from '../../api/payroll';
 import { getManagerOptions } from '../../api/employees';
 import Card from '../../components/ui/Card';
@@ -14,17 +14,26 @@ import ProgressBar from '../../components/ui/ProgressBar';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import SearchFilter from '../../components/ui/SearchFilter';
 import Tabs from '../../components/ui/Tabs';
+import StatCard from '../../components/ui/StatCard';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import SensitiveValue from '../../components/ui/SensitiveValue';
+import { getRecruiterDashboard, getCandidate } from '../../api/recruitment';
+import ScheduleInterviewModal from './ScheduleInterviewModal';
+import InterviewFeedbackModal from './InterviewFeedbackModal';
+import CandidateEditModal from './CandidateEditModal';
+import CandidateInterviewsTab from './CandidateInterviewsTab';
 
 const stages = ['Applied', 'Screening', 'Technical', 'Manager', 'HR', 'Offered', 'Hired', 'Rejected'];
 
 export default function RecruitmentPage() {
-  const { data, candidates, candidatesSource, candidatesLoading, lookups } = useData();
+  const { data, candidates, candidatesSource, candidatesLoading, lookups, jobPostings } = useData();
+  const { user } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
+  const isRecruiter = (user?.role || '').toLowerCase() === 'recruiter';
 
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
@@ -37,10 +46,22 @@ export default function RecruitmentPage() {
   const [offerBreakup, setOfferBreakup] = useState(null);
   const [offerSubmitting, setOfferSubmitting] = useState(false);
   const [managerOptions, setManagerOptions] = useState([]);
+  const [scheduleModal, setScheduleModal] = useState(null); // { candidate, interview? }
+  const [feedbackInterview, setFeedbackInterview] = useState(null);
+  const [editModalCandidate, setEditModalCandidate] = useState(null);
+  const [dashboardStats, setDashboardStats] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     getManagerOptions().then(setManagerOptions).catch(() => setManagerOptions([]));
   }, []);
+
+  useEffect(() => {
+    if (!isRecruiter || candidatesSource !== 'live') return;
+    getRecruiterDashboard().then(setDashboardStats).catch(() => setDashboardStats(null));
+  }, [isRecruiter, candidatesSource, refreshKey]);
+
+  const refreshAfterInterviewChange = useCallback(() => setRefreshKey(k => k + 1), []);
 
   useEffect(() => {
     if (!offerForm.offeredCtc || Number(offerForm.offeredCtc) <= 0) { setOfferBreakup(null); return; }
@@ -136,11 +157,10 @@ export default function RecruitmentPage() {
     }
   };
 
-  // A real scheduleInterview API exists (see api/recruitment.js) but needs a proper form
-  // (date/time/interviewer/mode) - a single click can't supply that, so this is honestly
-  // labeled as not-yet-available rather than faking a toast success with no real interview created.
-  const handleScheduleInterview = () => {
-    toast.info('Interview scheduling form is not available yet');
+  const handleScheduleInterview = (candidate) => {
+    if (candidatesSource !== 'live') { toast.error('Connect to the live backend to schedule interviews'); return; }
+    if (!candidate.jobPostingId) { toast.error('This candidate has no linked job posting to schedule against'); return; }
+    setScheduleModal({ candidate });
   };
 
   const stageData = stages.slice(0, 6).map(s => ({ stage: s, count: allCandidates.filter(c => c.stage === s).length }));
@@ -176,6 +196,19 @@ export default function RecruitmentPage() {
           <Button icon={Plus} size="sm" onClick={() => setShowAdd(true)}>Add Candidate</Button>
         </div>
       </div>
+
+      {isRecruiter && dashboardStats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StatCard icon={Calendar} label="Upcoming Interviews" value={dashboardStats.upcomingInterviews} color="info" showSparkline={false} />
+          <StatCard icon={MoreVertical} label="Pending Feedback" value={dashboardStats.pendingFeedback} color="warning" showSparkline={false} />
+          <StatCard icon={FileText} label="Offers Pending" value={dashboardStats.offersPending} color="primary" showSparkline={false} />
+          <StatCard icon={XCircle} label="Rejected" value={dashboardStats.rejectedCandidates} color="danger" showSparkline={false} />
+          <StatCard icon={UserCheck} label="Waiting for Scheduling" value={dashboardStats.waitingForScheduling} color="default" showSparkline={false} />
+          <StatCard icon={Send} label="Waiting for HR Approval" value={dashboardStats.waitingForHrApproval} color="warning" showSparkline={false} />
+          <StatCard icon={Send} label="Waiting for Manager Approval" value={dashboardStats.waitingForManagerApproval} color="warning" showSparkline={false} />
+          <StatCard icon={FileText} label="Waiting for Offer" value={dashboardStats.waitingForOffer} color="success" showSparkline={false} />
+        </div>
+      )}
 
       <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
         {stageData.map(s => <Card key={s.stage} hoverable><p className="text-[10px] text-text-secondary font-medium uppercase">{s.stage}</p><p className="text-2xl font-bold text-text mt-1">{s.count}</p></Card>)}
@@ -238,14 +271,14 @@ export default function RecruitmentPage() {
         <div className="flex justify-end gap-2 mt-6"><Button variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Button><Button onClick={handleCreate}>Add Candidate</Button></div>
       </Modal>
 
-      <Modal open={!!selected} onClose={() => setSelected(null)} title="Candidate Profile" size="lg">
+      <Modal open={!!selected} onClose={() => setSelected(null)} title="Candidate Profile" size="xl">
         {selected && (
           <div className="space-y-5">
             <div className="flex items-center gap-4 p-4 bg-surface-3 rounded-xl">
               <Avatar name={selected.name} size="lg" />
               <div className="flex-1"><h3 className="text-lg font-bold text-text">{selected.name}</h3><p className="text-sm text-primary">{selected.role}</p><p className="text-xs text-text-secondary">{selected.email} &middot; {selected.phone}</p><div className="flex gap-2 mt-2"><Badge>{selected.stage}</Badge><Badge variant="default">{selected.source}</Badge></div></div>
               <div className="flex flex-col gap-2">
-                <Button size="sm" icon={Calendar} onClick={() => { handleScheduleInterview(selected); setSelected(null); }}>Schedule Interview</Button>
+                <Button size="sm" icon={Calendar} onClick={() => handleScheduleInterview(selected)}>Schedule Interview</Button>
                 <Button size="sm" variant="secondary" icon={Mail} onClick={() => toast.info('Direct email to candidates is not available yet')}>Send Email</Button>
                 {selected.stage === 'HR' && !selected.convertedEmployeeId && selected.status !== 'PENDING_APPROVAL' && (
                   <Button size="sm" variant="secondary" icon={FileText} onClick={() => openOfferModal(selected)}>{selected.status === 'REVISION_REQUESTED' ? 'Resubmit Proposal' : 'Submit for Approval'}</Button>
@@ -260,23 +293,75 @@ export default function RecruitmentPage() {
                 <p className="text-xs text-text-secondary mt-0.5">{selected.managerRemarks}</p>
               </div>
             )}
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              {[['Experience', selected.experience], ['Notice Period', selected.noticePeriod], ['Current Company', selected.currentCompany], ['Location', selected.location], ['Applied Date', selected.appliedDate], ['Score', `${selected.score}%`], ['Interviewer', selected.interviewer]].map(([k, v]) => (
-                <div key={k}><p className="text-xs text-text-secondary">{k}</p><p className="text-text font-medium mt-0.5">{v || '-'}</p></div>
-              ))}
-              <div><p className="text-xs text-text-secondary">Current CTC</p><p className="text-text font-medium mt-0.5"><SensitiveValue type="currency" value={selected.currentCTC} id={`candidate-current-ctc-${selected.id}`} /></p></div>
-              <div><p className="text-xs text-text-secondary">Expected CTC</p><p className="text-text font-medium mt-0.5"><SensitiveValue type="currency" value={selected.expectedCTC} id={`candidate-expected-ctc-${selected.id}`} /></p></div>
-            </div>
-            {selected.feedback && <div className="p-3 bg-surface-3 rounded-lg"><p className="text-xs text-text-secondary mb-1">Feedback</p><p className="text-sm text-text">{selected.feedback}</p></div>}
-            <div className="flex gap-2">
-              {stages.slice(0, 6).filter(s => s !== selected.stage && s !== 'Rejected').map(s => (
-                <button key={s} onClick={() => { moveStage(selected, s); setSelected(null); }} className="px-3 py-1.5 text-xs font-medium bg-surface-3 rounded-lg hover:bg-surface-4 text-text-secondary hover:text-text">Move to {s}</button>
-              ))}
-              <button onClick={() => { handleReject(selected); setSelected(null); }} className="px-3 py-1.5 text-xs font-medium bg-danger/10 rounded-lg hover:bg-danger/20 text-danger">Reject</button>
-            </div>
+
+            <Tabs tabs={[
+              { id: 'profile', label: 'Profile', content: (
+                <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <Button size="sm" variant="ghost" icon={PencilLine} onClick={() => setEditModalCandidate(selected)}>Edit Candidate</Button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    {[['Experience', selected.experience], ['Notice Period', selected.noticePeriod], ['Current Company', selected.currentCompany], ['Current Location', selected.currentLocation || '-'], ['Preferred Location', selected.preferredLocation || '-'], ['Applied Date', selected.appliedDate], ['Score', `${selected.score}%`], ['Priority', selected.priority || '-'], ['Business Unit', selected.businessUnit || '-']].map(([k, v]) => (
+                      <div key={k}><p className="text-xs text-text-secondary">{k}</p><p className="text-text font-medium mt-0.5">{v || '-'}</p></div>
+                    ))}
+                    <div><p className="text-xs text-text-secondary">Current CTC</p><p className="text-text font-medium mt-0.5"><SensitiveValue type="currency" value={selected.currentCTC} id={`candidate-current-ctc-${selected.id}`} /></p></div>
+                    <div><p className="text-xs text-text-secondary">Expected CTC</p><p className="text-text font-medium mt-0.5"><SensitiveValue type="currency" value={selected.expectedCTC} id={`candidate-expected-ctc-${selected.id}`} /></p></div>
+                  </div>
+                  {selected.feedback && <div className="p-3 bg-surface-3 rounded-lg"><p className="text-xs text-text-secondary mb-1">Notes</p><p className="text-sm text-text">{selected.feedback}</p></div>}
+                  <div className="flex gap-2 flex-wrap">
+                    {stages.slice(0, 6).filter(s => s !== selected.stage && s !== 'Rejected').map(s => (
+                      <button key={s} onClick={() => { moveStage(selected, s); setSelected(null); }} className="px-3 py-1.5 text-xs font-medium bg-surface-3 rounded-lg hover:bg-surface-4 text-text-secondary hover:text-text">Move to {s}</button>
+                    ))}
+                    <button onClick={() => { handleReject(selected); setSelected(null); }} className="px-3 py-1.5 text-xs font-medium bg-danger/10 rounded-lg hover:bg-danger/20 text-danger">Reject</button>
+                  </div>
+                </div>
+              )},
+              ...(candidatesSource === 'live' ? [{ id: 'interviews', label: 'Interviews & Timeline', content: (
+                <CandidateInterviewsTab
+                  key={refreshKey}
+                  candidate={selected}
+                  onReschedule={(interview) => setScheduleModal({ candidate: selected, interview, mode: 'reschedule' })}
+                  onEdit={(interview) => setScheduleModal({ candidate: selected, interview, mode: 'edit' })}
+                  onClone={(interview) => setScheduleModal({ candidate: selected, interview, mode: 'clone' })}
+                  onFeedback={(interview) => setFeedbackInterview(interview)}
+                />
+              )}] : []),
+            ]} />
           </div>
         )}
       </Modal>
+
+      <ScheduleInterviewModal
+        open={!!scheduleModal}
+        onClose={() => setScheduleModal(null)}
+        candidate={scheduleModal?.candidate}
+        jobPostingId={scheduleModal?.candidate?.jobPostingId}
+        employees={data.employees}
+        interview={scheduleModal?.interview}
+        mode={scheduleModal?.mode}
+        nextRound={1}
+        onScheduled={refreshAfterInterviewChange}
+      />
+      <InterviewFeedbackModal
+        open={!!feedbackInterview}
+        onClose={() => setFeedbackInterview(null)}
+        interview={feedbackInterview}
+        onSubmitted={refreshAfterInterviewChange}
+      />
+      <CandidateEditModal
+        open={!!editModalCandidate}
+        onClose={() => setEditModalCandidate(null)}
+        candidate={editModalCandidate}
+        employees={data.employees}
+        jobPostings={jobPostings}
+        onUpdated={async () => {
+          refreshAfterInterviewChange();
+          if (editModalCandidate) {
+            const fresh = await getCandidate(editModalCandidate.id).catch(() => null);
+            if (fresh) setSelected(fresh);
+          }
+        }}
+      />
 
       <Modal open={!!offerCandidate} onClose={() => setOfferCandidate(null)} title="Submit Offer Proposal for Approval" size="lg">
         {offerCandidate && (

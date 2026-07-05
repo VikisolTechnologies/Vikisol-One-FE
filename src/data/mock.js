@@ -28,13 +28,13 @@ export const NAV_ITEMS = [
 ];
 
 export const ROLE_PERMISSIONS = {
-  ceo: ['dashboard', 'employees', 'recruitment', 'assessments', 'new-hires', 'background-verification', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'company-branding', 'document-studio', 'settings', 'notifications'],
+  ceo: ['dashboard', 'employees', 'recruitment', 'assessments', 'new-hires', 'background-verification', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'company-branding', 'document-studio', 'company-integrations', 'settings', 'notifications'],
   hr_manager: ['dashboard', 'employees', 'recruitment', 'assessments', 'new-hires', 'background-verification', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'company-branding', 'document-studio', 'settings'],
   manager: ['dashboard', 'employees', 'new-hires', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'tickets', 'performance', 'org-chart', 'reports'],
   employee: ['dashboard', 'projects', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'performance', 'documents'],
   recruiter: ['dashboard', 'recruitment', 'assessments', 'reports'],
   finance: ['dashboard', 'payroll', 'reports'],
-  admin: ['dashboard', 'employees', 'recruitment', 'assessments', 'new-hires', 'background-verification', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'company-branding', 'document-studio', 'settings'],
+  admin: ['dashboard', 'employees', 'recruitment', 'assessments', 'new-hires', 'background-verification', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'company-branding', 'document-studio', 'company-integrations', 'settings'],
 };
 
 export const TIMESHEET_DATA = {

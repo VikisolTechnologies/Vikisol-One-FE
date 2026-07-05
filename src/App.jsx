@@ -38,6 +38,7 @@ const HelpCenter = lazy(() => import('./pages/HelpCenter'));
 const OrgChart = lazy(() => import('./pages/OrgChart'));
 const ResourceAllocation = lazy(() => import('./pages/ResourceAllocation'));
 const CompanyBranding = lazy(() => import('./pages/admin/CompanyBranding'));
+const CompanyIntegrations = lazy(() => import('./pages/admin/CompanyIntegrations'));
 const DocumentStudio = lazy(() => import('./pages/admin/DocumentStudio'));
 
 function PageFallback() {
@@ -83,6 +84,7 @@ export default function App() {
                           <Route path="/org-chart" element={<OrgChart />} />
                           <Route path="/resources" element={<ResourceAllocation />} />
                           <Route path="/company-branding" element={<CompanyBranding />} />
+                          <Route path="/company-integrations" element={<CompanyIntegrations />} />
                           <Route path="/document-studio" element={<DocumentStudio />} />
                         </Route>
                         <Route path="*" element={<Navigate to="/" replace />} />
