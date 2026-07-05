@@ -27,8 +27,17 @@ export function adaptEmployee(e) {
     dob: e.dateOfBirth,
     gender: e.gender,
     address: e.currentAddress,
+    permanentAddress: e.permanentAddress,
+    profilePictureUrl: e.profilePictureUrl,
+    maritalStatus: e.maritalStatus,
+    nationality: e.nationality,
+    bloodGroup: e.bloodGroup,
+    languagesKnown: e.languagesKnown,
     pan: e.panNumber,
     aadhar: e.aadharNumber,
+    uan: e.uanNumber,
+    pfNumber: e.pfNumber,
+    esiNumber: e.esiNumber,
     bankName: e.bankName,
     bankAccount: e.bankAccountNumber,
     ifsc: e.ifscCode,
@@ -45,6 +54,9 @@ export function adaptEmployee(e) {
     },
     emergencyContact: e.emergencyContactName
       ? { name: e.emergencyContactName, phone: e.emergencyContactPhone, relation: e.emergencyContactRelation }
+      : null,
+    nominee: e.nomineeName
+      ? { name: e.nomineeName, relation: e.nomineeRelation, dob: e.nomineeDateOfBirth, sharePercentage: e.nomineeSharePercentage, gender: e.nomineeGender }
       : null,
     skills: [],
     education: [],
@@ -71,12 +83,29 @@ export function toEmployeeRequest(form) {
     employmentStatus: STATUS_TO_BE[form.status] || 'ACTIVE',
     city: form.location || null,
     currentAddress: form.address || null,
+    permanentAddress: form.permanentAddress || null,
+    profilePictureUrl: form.profilePictureUrl || null,
+    maritalStatus: form.maritalStatus || null,
+    nationality: form.nationality || null,
+    bloodGroup: form.bloodGroup || null,
+    languagesKnown: form.languagesKnown || null,
     panNumber: form.pan || null,
     aadharNumber: form.aadhar || null,
+    uanNumber: form.uan || null,
+    pfNumber: form.pfNumber || null,
+    esiNumber: form.esiNumber || null,
     bankName: form.bankName || null,
     bankAccountNumber: form.bankAccount || null,
     ifscCode: form.ifsc || null,
     ctc: form.ctc || null,
+    emergencyContactName: form.emergencyContact?.name || form.emergencyContactName || null,
+    emergencyContactPhone: form.emergencyContact?.phone || form.emergencyContactPhone || null,
+    emergencyContactRelation: form.emergencyContact?.relation || form.emergencyContactRelation || null,
+    nomineeName: form.nominee?.name || form.nomineeName || null,
+    nomineeRelation: form.nominee?.relation || form.nomineeRelation || null,
+    nomineeDateOfBirth: form.nominee?.dob || form.nomineeDateOfBirth || null,
+    nomineeSharePercentage: form.nominee?.sharePercentage || form.nomineeSharePercentage || null,
+    nomineeGender: form.nominee?.gender || form.nomineeGender || null,
   };
 }
 
@@ -91,6 +120,10 @@ export async function getAllEmployees({ page = 0, size = 100 } = {}) {
 
 export async function getEmployee(id) {
   return adaptEmployee(await api.get(`/employees/${id}`));
+}
+
+export async function getMyProfile() {
+  return adaptEmployee(await api.get('/employees/me'));
 }
 
 export async function createEmployee(form) {

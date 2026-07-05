@@ -16,6 +16,7 @@ import Login from './pages/Login';
 import ActivateAccount from './pages/ActivateAccount';
 
 const DashboardRouter = lazy(() => import('./pages/dashboard/DashboardRouter'));
+const OnboardingWizard = lazy(() => import('./pages/onboarding/OnboardingWizard'));
 const EmployeeDirectory = lazy(() => import('./pages/employees/EmployeeDirectory'));
 const LeaveManagement = lazy(() => import('./pages/leave/LeaveManagement'));
 const AttendancePage = lazy(() => import('./pages/attendance/AttendancePage'));
@@ -58,6 +59,7 @@ export default function App() {
                         <Route path="/activate" element={<ActivateAccount />} />
                         <Route element={<AppLayout />}>
                           <Route path="/" element={<DashboardRouter />} />
+                          <Route path="/onboarding" element={<OnboardingWizard />} />
                           <Route path="/dashboard" element={<Navigate to="/" replace />} />
                           <Route path="/employees" element={<EmployeeDirectory />} />
                           <Route path="/leave" element={<LeaveManagement />} />
