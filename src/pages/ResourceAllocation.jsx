@@ -141,13 +141,28 @@ export default function ResourceAllocation() {
       <div className="flex items-center gap-2"><h1 className="text-xl font-bold text-text">Resource Allocation</h1>{!membersByEmployee && <span className="text-sm text-warning">(demo data)</span>}</div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <StatCard icon={Users} label="Total" value={stats.total} delay={0} />
-        <StatCard icon={Briefcase} label="Allocated" value={stats.allocated} color="success" delay={1} />
-        <StatCard icon={TrendingUp} label="Billable" value={stats.billable} color="info" delay={2} />
-        <StatCard icon={Clock} label="Non-Billable" value={stats.nonBillable} color="warning" delay={3} />
-        <StatCard icon={AlertTriangle} label="Bench" value={stats.bench} color="danger" delay={4} />
-        <StatCard icon={TrendingUp} label="Utilization" value={`${stats.utilizationPct}%`} color="primary" delay={5} />
+        <div className={`cursor-pointer rounded-xl transition-all ${!filters.benchStatus && !filters.utilizationType ? 'ring-2 ring-primary' : ''}`} onClick={() => setFilters({})}>
+          <StatCard icon={Users} label="Total" value={stats.total} delay={0} />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${filters.benchStatus === 'Allocated' ? 'ring-2 ring-success' : ''}`} onClick={() => setFilters({ benchStatus: 'Allocated' })}>
+          <StatCard icon={Briefcase} label="Allocated" value={stats.allocated} color="success" delay={1} />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${filters.utilizationType === 'Billable' ? 'ring-2 ring-info' : ''}`} onClick={() => setFilters({ utilizationType: 'Billable' })}>
+          <StatCard icon={TrendingUp} label="Billable" value={stats.billable} color="info" delay={2} />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${filters.utilizationType === 'Non-Billable' ? 'ring-2 ring-warning' : ''}`} onClick={() => setFilters({ utilizationType: 'Non-Billable' })}>
+          <StatCard icon={Clock} label="Non-Billable" value={stats.nonBillable} color="warning" delay={3} />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${filters.benchStatus === 'Bench' ? 'ring-2 ring-danger' : ''}`} onClick={() => setFilters({ benchStatus: 'Bench' })}>
+          <StatCard icon={AlertTriangle} label="Bench" value={stats.bench} color="danger" delay={4} />
+        </div>
+        {/* Not clickable/filterable - "Utilization %" is a computed ratio (billable / total), not
+            a status any individual employee row has, so there's nothing to filter the table to. */}
+        <StatCard icon={TrendingUp} label="Utilization" value={`${stats.utilizationPct}%`} color="primary" delay={5} showSparkline={false} />
       </div>
+      {(filters.benchStatus || filters.utilizationType) && (
+        <button onClick={() => setFilters({})} className="text-xs text-primary hover:underline">Clear filter (showing {filtered.length} of {resources.length})</button>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card title="Utilization Breakdown">

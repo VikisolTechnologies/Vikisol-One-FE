@@ -53,6 +53,7 @@ export function adaptCandidate(c) {
   if (!c) return null;
   return {
     id: c.id,
+    candidateCode: c.candidateCode || null,
     name: `${c.firstName || ''} ${c.lastName || ''}`.trim(),
     email: c.email,
     phone: c.phone,

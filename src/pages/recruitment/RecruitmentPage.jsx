@@ -102,7 +102,32 @@ export default function RecruitmentPage() {
     }
   };
 
-  const allCandidates = data.candidates;
+  const employeeName = (id) => id ? data.employees.find(e => e.id === id)?.name : null;
+
+  const NEXT_ACTION_BY_STATUS = {
+    NEW: 'Move to Screening', SCREENING: 'Move to Technical', SHORTLISTED: 'Schedule Interview',
+    INTERVIEW_SCHEDULED: 'Complete Interview', INTERVIEWED: 'Submit for Approval',
+    PENDING_APPROVAL: 'Awaiting HR Manager Approval', REVISION_REQUESTED: 'Recruiter to Resubmit',
+    SELECTED: 'Awaiting Offer Acceptance', OFFER_MADE: 'Awaiting Offer Acceptance',
+    OFFER_ACCEPTED: 'Awaiting Joining', JOINED: 'Closed - Joined', OFFER_DECLINED: 'Closed - Declined', REJECTED: 'Closed - Rejected',
+  };
+  const nextActionFor = (candidate) => NEXT_ACTION_BY_STATUS[candidate.status] || '-';
+
+  const daysSince = (dateStr) => {
+    if (!dateStr) return '-';
+    const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+    return days <= 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'}`;
+  };
+
+  const myEmployeeId = useMemo(() => data.employees.find(e => e.email === user?.email)?.id || null, [data.employees, user]);
+  const [ownerFilter, setOwnerFilter] = useState('mine'); // 'mine' | 'all' - recruiters default to their own pipeline
+
+  const allCandidatesRaw = data.candidates;
+  const allCandidates = useMemo(() => {
+    if (ownerFilter === 'all' || !myEmployeeId) return allCandidatesRaw;
+    return allCandidatesRaw.filter(c => c.assignedRecruiterId === myEmployeeId);
+  }, [allCandidatesRaw, ownerFilter, myEmployeeId]);
+
   const filtered = useMemo(() => {
     return allCandidates.filter(c => {
       const s = search.toLowerCase();
@@ -174,6 +199,7 @@ export default function RecruitmentPage() {
     { key: 'stage', label: 'Stage', render: (v) => <Badge>{v}</Badge> },
     { key: 'score', label: 'Score', render: (v) => <div className="flex items-center gap-2"><ProgressBar value={v} max={100} size="sm" color={v >= 80 ? 'success' : v >= 60 ? 'warning' : 'danger'} /><span className="text-xs font-semibold">{v}%</span></div> },
     { key: 'source', label: 'Source' },
+    { key: 'assignedRecruiterId', label: 'Recruiter', render: (v) => employeeName(v) || '-' },
     { key: 'actions', label: '', sortable: false, render: (_, row) => (
       <div className="flex gap-1">
         <button onClick={(e) => { e.stopPropagation(); setSelected(row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary"><Eye size={14} /></button>
@@ -189,6 +215,10 @@ export default function RecruitmentPage() {
       <div className="flex items-center justify-between">
         <div><h1 className="text-xl font-bold text-text">Recruitment Pipeline</h1><p className="text-sm text-text-secondary">{allCandidates.length} candidates</p></div>
         <div className="flex gap-2">
+          <div className="flex bg-surface-3 rounded-lg p-0.5">
+            <button onClick={() => setOwnerFilter('mine')} className={`px-3 py-1.5 text-xs font-medium rounded-md ${ownerFilter === 'mine' ? 'bg-primary text-white' : 'text-text-secondary'}`}>My Candidates</button>
+            <button onClick={() => setOwnerFilter('all')} className={`px-3 py-1.5 text-xs font-medium rounded-md ${ownerFilter === 'all' ? 'bg-primary text-white' : 'text-text-secondary'}`}>All Candidates</button>
+          </div>
           <div className="flex bg-surface-3 rounded-lg p-0.5">
             <button onClick={() => setView('kanban')} className={`px-3 py-1.5 text-xs font-medium rounded-md ${view === 'kanban' ? 'bg-primary text-white' : 'text-text-secondary'}`}>Kanban</button>
             <button onClick={() => setView('table')} className={`px-3 py-1.5 text-xs font-medium rounded-md ${view === 'table' ? 'bg-primary text-white' : 'text-text-secondary'}`}>Table</button>
@@ -236,7 +266,18 @@ export default function RecruitmentPage() {
                     const nextStage = stages[stages.indexOf(c.stage) + 1];
                     return (
                       <div key={c.id} className="bg-surface-2 border border-border rounded-xl p-4 hover:border-primary/30 transition-colors">
-                        <div className="flex items-center gap-3 mb-2"><Avatar name={c.name} size="sm" /><div className="min-w-0 flex-1"><p className="text-sm font-medium text-text truncate">{c.name}</p><p className="text-xs text-text-secondary">{c.role}</p></div></div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <Avatar name={c.name} size="sm" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-text truncate">{c.name}</p>
+                            <p className="text-xs text-text-secondary truncate">{c.role} &middot; {c.experience}</p>
+                          </div>
+                          {c.priority && c.priority !== 'MEDIUM' && <Badge variant={c.priority === 'URGENT' ? 'danger' : 'warning'} className="flex-shrink-0">{c.priority}</Badge>}
+                        </div>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-text-secondary mb-2">
+                          <span>Recruiter: {employeeName(c.assignedRecruiterId) || '-'}</span>
+                          <span>Notice: {c.noticePeriod}</span>
+                        </div>
                         <div className="flex items-center gap-2 mb-2"><ProgressBar value={c.score} max={100} size="sm" color={c.score >= 80 ? 'success' : 'warning'} /><span className="text-xs font-semibold">{c.score}%</span></div>
                         {c.status === 'PENDING_APPROVAL' && <div className="mb-2 text-[10px] px-2 py-1 bg-warning/10 text-warning rounded-lg font-medium">Awaiting manager approval</div>}
                         {c.status === 'REVISION_REQUESTED' && <div className="mb-2 text-[10px] px-2 py-1 bg-danger/10 text-danger rounded-lg"><p className="font-medium">Manager requested changes:</p><p className="mt-0.5">{c.managerRemarks}</p></div>}
@@ -273,20 +314,42 @@ export default function RecruitmentPage() {
 
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Candidate Profile" size="xl">
         {selected && (
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div className="flex items-center gap-4 p-4 bg-surface-3 rounded-xl">
               <Avatar name={selected.name} size="lg" />
-              <div className="flex-1"><h3 className="text-lg font-bold text-text">{selected.name}</h3><p className="text-sm text-primary">{selected.role}</p><p className="text-xs text-text-secondary">{selected.email} &middot; {selected.phone}</p><div className="flex gap-2 mt-2"><Badge>{selected.stage}</Badge><Badge variant="default">{selected.source}</Badge></div></div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-text">{selected.name}</h3>
+                  <span className="text-[11px] font-mono text-text-secondary bg-surface-4 px-1.5 py-0.5 rounded">{selected.candidateCode || 'CAN-PENDING'}</span>
+                </div>
+                <p className="text-sm text-primary">{selected.role}</p>
+                <p className="text-xs text-text-secondary">{selected.email} &middot; {selected.phone}</p>
+                <div className="flex gap-2 mt-2"><Badge>{selected.stage}</Badge><Badge variant="default">{selected.source}</Badge>{selected.priority && selected.priority !== 'MEDIUM' && <Badge variant={selected.priority === 'URGENT' ? 'danger' : 'warning'}>{selected.priority}</Badge>}</div>
+              </div>
               <div className="flex flex-col gap-2">
-                <Button size="sm" icon={Calendar} onClick={() => handleScheduleInterview(selected)}>Schedule Interview</Button>
+                <Button size="sm" icon={PencilLine} onClick={() => setEditModalCandidate(selected)}>Edit Candidate</Button>
+                <Button size="sm" variant="secondary" icon={Calendar} onClick={() => handleScheduleInterview(selected)}>Schedule Interview</Button>
                 <Button size="sm" variant="secondary" icon={Mail} onClick={() => toast.info('Direct email to candidates is not available yet')}>Send Email</Button>
                 {selected.stage === 'HR' && !selected.convertedEmployeeId && selected.status !== 'PENDING_APPROVAL' && (
                   <Button size="sm" variant="secondary" icon={FileText} onClick={() => openOfferModal(selected)}>{selected.status === 'REVISION_REQUESTED' ? 'Resubmit Proposal' : 'Submit for Approval'}</Button>
                 )}
                 {selected.status === 'PENDING_APPROVAL' && <Badge variant="warning">Awaiting manager approval</Badge>}
+                {/* Only ever shown post-conversion (convertedEmployeeId is set exclusively inside
+                    approveSelection, when a real Employee row is created) - a candidate never has
+                    this before then, per "a candidate is not yet an employee". */}
                 {selected.convertedEmployeeId && <Badge variant="success">Employee {selected.convertedEmployeeId}</Badge>}
               </div>
             </div>
+
+            {/* Always-visible status strip - never buried behind a tab. */}
+            <div className="grid grid-cols-5 gap-3 p-3 bg-surface-2 border border-border rounded-xl text-xs">
+              <div><p className="text-text-secondary">Current Stage</p><p className="text-text font-semibold mt-0.5">{selected.stage}</p></div>
+              <div><p className="text-text-secondary">Recruiter</p><p className="text-text font-semibold mt-0.5">{employeeName(selected.assignedRecruiterId) || '-'}</p></div>
+              <div><p className="text-text-secondary">Hiring Manager</p><p className="text-text font-semibold mt-0.5">{employeeName(selected.hiringManagerId) || '-'}</p></div>
+              <div><p className="text-text-secondary">Next Action</p><p className="text-text font-semibold mt-0.5">{nextActionFor(selected)}</p></div>
+              <div><p className="text-text-secondary">Days Since Applied</p><p className="text-text font-semibold mt-0.5">{daysSince(selected.appliedDate)}</p></div>
+            </div>
+
             {selected.status === 'REVISION_REQUESTED' && selected.managerRemarks && (
               <div className="p-3 bg-danger/5 border border-danger/20 rounded-xl">
                 <p className="text-xs text-danger font-semibold">Manager requested changes</p>
@@ -297,9 +360,6 @@ export default function RecruitmentPage() {
             <Tabs tabs={[
               { id: 'profile', label: 'Profile', content: (
                 <div className="space-y-4">
-                  <div className="flex justify-end">
-                    <Button size="sm" variant="ghost" icon={PencilLine} onClick={() => setEditModalCandidate(selected)}>Edit Candidate</Button>
-                  </div>
                   <div className="grid grid-cols-3 gap-4 text-sm">
                     {[['Experience', selected.experience], ['Notice Period', selected.noticePeriod], ['Current Company', selected.currentCompany], ['Current Location', selected.currentLocation || '-'], ['Preferred Location', selected.preferredLocation || '-'], ['Applied Date', selected.appliedDate], ['Score', `${selected.score}%`], ['Priority', selected.priority || '-'], ['Business Unit', selected.businessUnit || '-']].map(([k, v]) => (
                       <div key={k}><p className="text-xs text-text-secondary">{k}</p><p className="text-text font-medium mt-0.5">{v || '-'}</p></div>
