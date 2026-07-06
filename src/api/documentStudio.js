@@ -36,6 +36,16 @@ export async function archiveTemplate(id) {
   return api.put(`/document-templates/${id}/archive`);
 }
 
+// Deliberate, one-click creation of the built-in default template pack (no-op per type if it
+// already exists) - the production-safe alternative to relying on DataSeeder's dev-only auto-seed.
+export async function seedDefaultTemplates() {
+  return api.post('/document-templates/seed-defaults');
+}
+
+export async function seedOfferLetterTemplate() {
+  return api.post('/document-templates/seed-offer-letter');
+}
+
 export async function listVariables(documentType) {
   return api.get('/template-variables', documentType ? { documentType } : undefined);
 }

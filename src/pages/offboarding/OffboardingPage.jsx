@@ -15,7 +15,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import {
   listOffboardingCases, getOffboardingDashboardStats, getOffboardingCase, getOffboardingForEmployee,
-  advanceOffboardingStage, updateOffboardingChecklistItem, downloadExitPackage, emailExitPackage,
+  advanceOffboardingStage, updateOffboardingChecklistItem, downloadExitPackage, downloadExitPackageMergedPdf, emailExitPackage,
 } from '../../api/offboarding';
 import { UserMinus, Users, Clock, CheckCircle2, ArrowRight, Download, Mail, ChevronLeft } from 'lucide-react';
 
@@ -206,6 +206,14 @@ function CaseDetail({ caseId, readOnly, onChanged, canManage }) {
     }
   };
 
+  const downloadMerged = async () => {
+    try {
+      await downloadExitPackageMergedPdf(detail.employeeId, detail.employeeCode);
+    } catch (err) {
+      toast.error(err.message || 'Failed to download merged exit package PDF');
+    }
+  };
+
   const emailPackage = async () => {
     try {
       await emailExitPackage(detail.employeeId);
@@ -280,7 +288,8 @@ function CaseDetail({ caseId, readOnly, onChanged, canManage }) {
 
         {eligibleForExitPackage && (
           <div className="mt-4 flex gap-2 flex-wrap">
-            <Button variant="secondary" onClick={download}><Download size={15} /> Download Exit Package</Button>
+            <Button variant="secondary" onClick={download}><Download size={15} /> Download Exit Package (ZIP)</Button>
+            <Button variant="secondary" onClick={downloadMerged}><Download size={15} /> Download Merged PDF</Button>
             {canManage && <Button variant="secondary" onClick={emailPackage}><Mail size={15} /> Email Exit Package</Button>}
           </div>
         )}

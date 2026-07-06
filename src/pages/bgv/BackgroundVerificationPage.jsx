@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import DataTable from '../../components/ui/DataTable';
@@ -36,14 +37,35 @@ export default function BackgroundVerificationPage() {
   const { data, employeesLoading } = useData();
   const { user } = useAuth();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
   const canFinalize = ['ceo', 'hr_manager', 'admin'].includes(user?.role);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
+  const [bgvStatusFilter, setBgvStatusFilter] = useState(null);
   const [selected, setSelected] = useState(null);
   const [checks, setChecks] = useState(null);
   const [loadingChecks, setLoadingChecks] = useState(false);
-  // Per-employee overall BGV status, loaded lazily as rows are expanded via bulk fetch below.
+  // Per-employee overall BGV status. Previously only populated lazily when a row was opened, which
+  // meant the KPI cards above (and any status-based filter) were meaningless for the ~always-large
+  // majority of employees nobody had clicked into yet - real bug, this is why "Docs Pending" always
+  // looked huge and the cards weren't wired to filter anything. Fetch every visible employee's
+  // status up front instead.
   const [statusByEmployee, setStatusByEmployee] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(data.employees.map(e =>
+      getBackgroundChecks(e.id).then(result => [e.id, overallStatus(result)]).catch(() => [e.id, null])
+    )).then(pairs => {
+      if (cancelled) return;
+      setStatusByEmployee(prev => {
+        const next = { ...prev };
+        pairs.forEach(([id, status]) => { if (status) next[id] = status; });
+        return next;
+      });
+    });
+    return () => { cancelled = true; };
+  }, [data.employees]);
 
   const overallStatus = (empChecks) => {
     if (!empChecks || empChecks.length === 0) return 'PENDING';
@@ -63,8 +85,10 @@ export default function BackgroundVerificationPage() {
     const matchesSearch = !s || e.name.toLowerCase().includes(s) || e.empId.toLowerCase().includes(s) || e.department.toLowerCase().includes(s);
     const matchesDept = !filters.department || e.department === filters.department;
     const matchesLoc = !filters.location || e.location === filters.location;
-    return matchesSearch && matchesDept && matchesLoc;
-  }), [data.employees, search, filters]);
+    const empStatus = statusByEmployee[e.id];
+    const matchesBgvStatus = !bgvStatusFilter || (bgvStatusFilter === 'DOCS_PENDING' ? !empStatus : empStatus === bgvStatusFilter);
+    return matchesSearch && matchesDept && matchesLoc && matchesBgvStatus;
+  }), [data.employees, search, filters, bgvStatusFilter, statusByEmployee]);
 
   const openEmployee = async (row) => {
     setSelected(row);
@@ -80,6 +104,18 @@ export default function BackgroundVerificationPage() {
       setLoadingChecks(false);
     }
   };
+
+  // Deep-link from HR Task Center's "BGV Pending" list - previously navigated here with no
+  // indication of which employee was clicked, so this always showed the full unfiltered list
+  // instead of the specific candidate. Auto-open the matching employee's BGV modal once the
+  // employee list has loaded.
+  useEffect(() => {
+    const employeeId = searchParams.get('employeeId');
+    if (!employeeId || !data.employees.length || selected) return;
+    const match = data.employees.find(e => e.id === employeeId);
+    if (match) openEmployee(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, data.employees]);
 
   const saveCheck = async (check, patch) => {
     if (FINAL_STATUSES.includes(patch.status) && !canFinalize) {
@@ -99,15 +135,26 @@ export default function BackgroundVerificationPage() {
     }
   };
 
+  // Counts always reflect the search/department/location filters, but never the BGV-status card
+  // filter itself - otherwise clicking "Cleared" would make every other card's count collapse
+  // toward zero, which reads as broken. Matches how Resource Allocation's KPI row behaves.
+  const baseFiltered = useMemo(() => data.employees.filter(e => {
+    const s = search.toLowerCase();
+    const matchesSearch = !s || e.name.toLowerCase().includes(s) || e.empId.toLowerCase().includes(s) || e.department.toLowerCase().includes(s);
+    const matchesDept = !filters.department || e.department === filters.department;
+    const matchesLoc = !filters.location || e.location === filters.location;
+    return matchesSearch && matchesDept && matchesLoc;
+  }), [data.employees, search, filters]);
+
   const dashboardCounts = useMemo(() => {
     const counts = { PENDING: 0, IN_REVIEW: 0, DOCS_PENDING: 0, REJECTED: 0, APPROVED: 0 };
-    filtered.forEach(e => {
+    baseFiltered.forEach(e => {
       const st = statusByEmployee[e.id];
       if (!st) { counts.DOCS_PENDING++; return; }
       counts[st] = (counts[st] || 0) + 1;
     });
     return counts;
-  }, [filtered, statusByEmployee]);
+  }, [baseFiltered, statusByEmployee]);
 
   const columns = [
     { key: 'name', label: 'Employee', render: (v, row) => <div><p className="font-medium text-text text-sm">{v}</p><p className="text-[10px] text-text-secondary">{row.empId} · {row.department}</p></div> },
@@ -128,14 +175,27 @@ export default function BackgroundVerificationPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <StatCard label="Pending" value={dashboardCounts.PENDING} icon={Clock} color="default" />
-        <StatCard label="In Progress" value={dashboardCounts.IN_REVIEW} icon={Loader2} color="warning" />
-        <StatCard label="Docs Pending" value={dashboardCounts.DOCS_PENDING} icon={FileWarning} color="default" />
-        <StatCard label="Failed" value={dashboardCounts.REJECTED} icon={XCircle} color="danger" />
-        <StatCard label="Cleared" value={dashboardCounts.APPROVED} icon={CheckCircle2} color="success" />
+        <div className={`cursor-pointer rounded-xl transition-all ${bgvStatusFilter === 'PENDING' ? 'ring-2 ring-text-secondary' : ''}`} onClick={() => setBgvStatusFilter(f => f === 'PENDING' ? null : 'PENDING')}>
+          <StatCard label="Pending" value={dashboardCounts.PENDING} icon={Clock} color="default" />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${bgvStatusFilter === 'IN_REVIEW' ? 'ring-2 ring-warning' : ''}`} onClick={() => setBgvStatusFilter(f => f === 'IN_REVIEW' ? null : 'IN_REVIEW')}>
+          <StatCard label="In Progress" value={dashboardCounts.IN_REVIEW} icon={Loader2} color="warning" />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${bgvStatusFilter === 'DOCS_PENDING' ? 'ring-2 ring-text-secondary' : ''}`} onClick={() => setBgvStatusFilter(f => f === 'DOCS_PENDING' ? null : 'DOCS_PENDING')}>
+          <StatCard label="Docs Pending" value={dashboardCounts.DOCS_PENDING} icon={FileWarning} color="default" />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${bgvStatusFilter === 'REJECTED' ? 'ring-2 ring-danger' : ''}`} onClick={() => setBgvStatusFilter(f => f === 'REJECTED' ? null : 'REJECTED')}>
+          <StatCard label="Failed" value={dashboardCounts.REJECTED} icon={XCircle} color="danger" />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${bgvStatusFilter === 'APPROVED' ? 'ring-2 ring-success' : ''}`} onClick={() => setBgvStatusFilter(f => f === 'APPROVED' ? null : 'APPROVED')}>
+          <StatCard label="Cleared" value={dashboardCounts.APPROVED} icon={CheckCircle2} color="success" />
+        </div>
       </div>
+      {bgvStatusFilter && (
+        <button onClick={() => setBgvStatusFilter(null)} className="text-xs text-primary hover:underline">Clear BGV status filter (showing {filtered.length} of {baseFiltered.length})</button>
+      )}
 
-      <SearchFilter searchValue={search} onSearch={setSearch} filters={filterConfig} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => { setSearch(''); setFilters({}); }} placeholder="Search employee, department..." />
+      <SearchFilter searchValue={search} onSearch={setSearch} filters={filterConfig} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => { setSearch(''); setFilters({}); setBgvStatusFilter(null); }} placeholder="Search employee, department..." />
 
       <Card padding={false}>
         {employeesLoading ? <TableSkeleton rows={8} cols={4} /> : <DataTable columns={columns} data={filtered} pageSize={12} onRowClick={openEmployee} />}

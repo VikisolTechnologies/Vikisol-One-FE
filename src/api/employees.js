@@ -220,3 +220,9 @@ export async function getEmployeeDashboardSummary(employeeId) {
 export async function getTransferHistory(id) {
   return api.get(`/employees/${id}/transfers`);
 }
+
+// Login/account state for the "Linked Accounts" panel - official vs personal recovery email,
+// lockout/activation status, and whether Microsoft sign-in is even available for this tenant yet.
+export async function getAccountStatus(employeeId) {
+  return api.get(`/employees/${employeeId}/account-status`);
+}

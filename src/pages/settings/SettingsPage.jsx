@@ -15,6 +15,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { updateSetting, getSettingsByCategory, getRolePermissionMatrix, updateRolePermissionMatrix } from '../../api/settings';
 import { getCtcBreakupTemplate, updateCtcBreakupTemplate, getCtcCustomLabel, updateCtcCustomLabel } from '../../api/payroll';
+import { getAuthSettings, updateAuthSettings } from '../../api/auth';
 
 const MODULE_LABELS = {
   dashboard: 'Dashboard', employees: 'Employees', recruitment: 'Recruitment', 'new-hires': 'New Hires', projects: 'Projects',
@@ -489,12 +490,123 @@ function AnnouncementsSettings() {
   );
 }
 
+// CEO/Admin-only tab controlling the org-wide login/security posture. Google Login and MFA are
+// permanently "Coming soon" here - there is no backend implementation for either yet, so these
+// stay disabled rather than pretending a toggle does something. Microsoft Login can be turned on,
+// but has no real effect until real Azure AD credentials are configured server-side - the note
+// beneath it exists so the CEO doesn't wonder why flipping it changes nothing for users.
+function AuthenticationSettings() {
+  const toast = useToast();
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getAuthSettings().then(setSettings).catch(() => toast.error('Could not load authentication settings')).finally(() => setLoading(false));
+  }, []);
+
+  const update = (patch) => setSettings(prev => ({ ...prev, ...patch }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        EMAIL_PASSWORD_ENABLED: String(!!settings.emailPasswordLoginEnabled),
+        MICROSOFT_ENABLED: String(!!settings.microsoftLoginEnabled),
+        LOCKOUT_ENABLED: String(!!settings.accountLockoutEnabled),
+        MAX_FAILED_ATTEMPTS: settings.maxFailedLoginAttempts !== '' && settings.maxFailedLoginAttempts != null ? String(settings.maxFailedLoginAttempts) : '',
+        LOCKOUT_MINUTES: settings.lockoutDurationMinutes !== '' && settings.lockoutDurationMinutes != null ? String(settings.lockoutDurationMinutes) : '',
+        PASSWORD_EXPIRY_DAYS: settings.passwordExpiryDays !== '' && settings.passwordExpiryDays != null ? String(settings.passwordExpiryDays) : '',
+        SESSION_TIMEOUT_MINUTES: settings.sessionTimeoutMinutes !== '' && settings.sessionTimeoutMinutes != null ? String(settings.sessionTimeoutMinutes) : '',
+      };
+      const updated = await updateAuthSettings(payload);
+      setSettings(updated || settings);
+      toast.success('Authentication settings updated');
+    } catch (err) {
+      toast.error(err.message || 'Failed to update authentication settings');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading || !settings) return <Card><p className="text-sm text-text-secondary">Loading...</p></Card>;
+
+  const Toggle = ({ checked, onChange, disabled }) => (
+    <button type="button" disabled={disabled} onClick={() => !disabled && onChange(!checked)}
+      className={`w-12 h-6 rounded-full relative transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${checked ? 'bg-primary' : 'bg-surface-4'}`}>
+      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${checked ? 'left-6' : 'left-0.5'}`} />
+    </button>
+  );
+
+  return (
+    <Card>
+      <div className="max-w-2xl space-y-5">
+        <div>
+          <p className="text-sm font-medium text-text">Authentication & Login</p>
+          <p className="text-xs text-text-secondary mt-1">Controls how employees can sign in and the account-lockout/session policy applied to everyone.</p>
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl">
+          <div><p className="text-sm font-medium text-text">Email + Password Login</p><p className="text-xs text-text-secondary">Standard official-email/password sign-in</p></div>
+          <Toggle checked={!!settings.emailPasswordLoginEnabled} onChange={(v) => update({ emailPasswordLoginEnabled: v })} />
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl">
+          <div>
+            <p className="text-sm font-medium text-text">Microsoft Login</p>
+            <p className="text-xs text-text-secondary">Sign in with a Microsoft/Azure AD account</p>
+            {!settings.microsoftLoginConfigured && (
+              <p className="text-[11px] text-warning mt-1">No effect until real Azure AD credentials are configured for this environment.</p>
+            )}
+          </div>
+          <Toggle checked={!!settings.microsoftLoginEnabled} onChange={(v) => update({ microsoftLoginEnabled: v })} />
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl opacity-60">
+          <div><p className="text-sm font-medium text-text">Google Login</p><p className="text-xs text-text-secondary">Sign in with a Google Workspace account</p></div>
+          <div className="flex items-center gap-2">
+            <Badge variant="default">Coming soon</Badge>
+            <Toggle checked={false} onChange={() => {}} disabled />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl opacity-60">
+          <div><p className="text-sm font-medium text-text">Multi-Factor Authentication</p><p className="text-xs text-text-secondary">Require a second factor at login</p></div>
+          <div className="flex items-center gap-2">
+            <Badge variant="default">Coming soon</Badge>
+            <Toggle checked={false} onChange={() => {}} disabled />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl">
+          <div><p className="text-sm font-medium text-text">Account Lockout</p><p className="text-xs text-text-secondary">Lock an account after repeated failed logins</p></div>
+          <Toggle checked={!!settings.accountLockoutEnabled} onChange={(v) => update({ accountLockoutEnabled: v })} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Max Failed Attempts" type="number" min="1" disabled={!settings.accountLockoutEnabled}
+            value={settings.maxFailedLoginAttempts ?? ''} onChange={e => update({ maxFailedLoginAttempts: e.target.value })} />
+          <Input label="Lockout Duration (minutes)" type="number" min="1" disabled={!settings.accountLockoutEnabled}
+            value={settings.lockoutDurationMinutes ?? ''} onChange={e => update({ lockoutDurationMinutes: e.target.value })} />
+          <Input label="Password Expiry (days, blank = no expiry)" type="number" min="0"
+            value={settings.passwordExpiryDays ?? ''} onChange={e => update({ passwordExpiryDays: e.target.value })} />
+          <Input label="Session Timeout (minutes)" type="number" min="1"
+            value={settings.sessionTimeoutMinutes ?? ''} onChange={e => update({ sessionTimeoutMinutes: e.target.value })} />
+        </div>
+
+        <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Authentication Settings'}</Button>
+      </div>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const { auditLogs, data, holidays, holidaysSource, holidaysLoading, auditLogsSource, auditLogsLoading, auditLogsError, ensureLoad, retryLoad } = useData();
   useEffect(() => { ensureLoad('auditLogs'); }, [ensureLoad]);
   const { user } = useAuth();
   const isCEO = user?.role === 'ceo';
+  const isCEOOrAdmin = ['ceo', 'admin'].includes(user?.role);
   const toast = useToast();
   const [primaryColor, setPrimaryColor] = useState('#FF6A00');
   const [auditSearch, setAuditSearch] = useState('');
@@ -579,6 +691,7 @@ export default function SettingsPage() {
         // name only - every button in it was decorative (toast.info, no backend call) - so it
         // was removed rather than kept alongside the real thing under a near-identical name.
         ...(isCEO ? [{ id: 'role-permissions', label: 'Role Permissions', content: <RolePermissionsSettings /> }] : []),
+        ...(isCEOOrAdmin ? [{ id: 'authentication', label: 'Authentication', content: <AuthenticationSettings /> }] : []),
         { id: 'announcements', label: 'Announcements', content: <AnnouncementsSettings /> },
         { id: 'holidays', label: 'Holidays', content: (
           <Card>

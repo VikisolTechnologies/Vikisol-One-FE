@@ -24,6 +24,21 @@ const COMPANY_FIELDS = [
   { key: 'COMPANY_ADDRESS', label: 'Address', full: true },
 ];
 
+// Company-wide values that used to be hardcoded per-caller (e.g. RecruitmentService's Offer
+// Letter builder) - now read from BrandingService at render time, so CEO/HR can change them here
+// without a code change/redeploy.
+const DOCUMENT_DEFAULT_FIELDS = [
+  { key: 'CEO_NAME', label: 'CEO Name' },
+  { key: 'HR_NAME', label: 'HR Team Name' },
+  { key: 'TAGLINE', label: 'Header Tagline' },
+  { key: 'OFFICE_LOCATION', label: 'Office Location' },
+  { key: 'WORK_START_TIME', label: 'Work Start Time' },
+  { key: 'WORK_END_TIME', label: 'Work End Time' },
+  { key: 'WORK_DAYS', label: 'Work Days' },
+  { key: 'ORIENTATION_CONTACT', label: 'Orientation Contact' },
+  { key: 'FOOTER_TEXT', label: 'Footer Text', full: true },
+];
+
 const ASSET_FIELDS = [
   { key: 'LOGO_URL', assetType: 'logo', label: 'Primary Logo' },
   { key: 'DARK_LOGO_URL', assetType: 'dark-logo', label: 'Dark Logo' },
@@ -89,7 +104,7 @@ export default function CompanyBranding() {
       // Diff against loaded branding so only changed fields are sent - PUT /branding accepts a
       // partial map of BRANDING_<KEY> -> value.
       const changes = {};
-      [...COMPANY_FIELDS, ...ASSET_FIELDS, ...SIGNATURE_FIELDS].forEach(({ key }) => {
+      [...COMPANY_FIELDS, ...DOCUMENT_DEFAULT_FIELDS, ...ASSET_FIELDS, ...SIGNATURE_FIELDS].forEach(({ key }) => {
         const current = fieldValue(form, key);
         const original = fieldValue(branding, key);
         if (current !== original) changes[key] = current;
@@ -166,6 +181,16 @@ export default function CompanyBranding() {
       <Card title="Company Information" action={<Building2 size={16} className="text-text-secondary" />}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {COMPANY_FIELDS.map(f => (
+            <div key={f.key} className={f.full ? 'col-span-2 md:col-span-3' : ''}>
+              <Input label={f.label} value={fieldValue(form, f.key)} onChange={e => setField(f.key, e.target.value)} />
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card title="Document Defaults" subtitle="Used on Offer/Appointment/Joining letters instead of hardcoded values" action={<Building2 size={16} className="text-text-secondary" />}>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {DOCUMENT_DEFAULT_FIELDS.map(f => (
             <div key={f.key} className={f.full ? 'col-span-2 md:col-span-3' : ''}>
               <Input label={f.label} value={fieldValue(form, f.key)} onChange={e => setField(f.key, e.target.value)} />
             </div>

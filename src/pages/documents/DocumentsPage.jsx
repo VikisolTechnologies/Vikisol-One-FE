@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { FileText, Download, Plus, Upload, Trash2, Eye, Archive, CheckCircle } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -23,7 +24,12 @@ export default function DocumentsPage() {
   useEffect(() => { ensureLoad('documents'); }, [ensureLoad]);
   const toast = useToast();
   const confirm = useConfirm();
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  // Deep-link from HR Task Center's "Documents Pending" list - previously navigated here with no
+  // filter applied at all, always showing the full document list instead of the specific
+  // employee's documents. This is a flat, not employee-scoped, list, so pre-filling the search
+  // box with the employee code is the real fix here (matches how a human would find them manually).
+  const [search, setSearch] = useState(() => searchParams.get('search') || '');
   const [filter, setFilter] = useState('All');
   const [showUpload, setShowUpload] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -33,7 +39,7 @@ export default function DocumentsPage() {
   const allDocs = data.documents;
   const filtered = useMemo(() => allDocs.filter(d => {
     const s = search.toLowerCase();
-    const matchSearch = !s || d.name.toLowerCase().includes(s) || (d.employee || '').toLowerCase().includes(s);
+    const matchSearch = !s || d.name.toLowerCase().includes(s) || (d.employee || '').toLowerCase().includes(s) || (d.empId || '').toLowerCase().includes(s);
     const matchCat = filter === 'All' || d.category === filter;
     return matchSearch && matchCat;
   }), [allDocs, search, filter]);

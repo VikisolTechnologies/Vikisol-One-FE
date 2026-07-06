@@ -21,6 +21,7 @@ export default function AssessmentsPage() {
   const [loading, setLoading] = useState(true);
   const [jobPostings, setJobPostings] = useState([]);
   const [moveTarget, setMoveTarget] = useState(null);
+  const [statFilter, setStatFilter] = useState(null); // null | 'PASS' | 'FAIL' | 'MOVED'
   const [form, setForm] = useState({ jobPostingId: '', interviewerName: '', round: 1, scheduledDate: '', scheduledTime: '', duration: 30, mode: 'VIDEO' });
   const [submitting, setSubmitting] = useState(false);
 
@@ -40,6 +41,12 @@ export default function AssessmentsPage() {
     failed: assessments.filter(a => a.status === 'FAIL').length,
     moved: assessments.filter(a => a.movedToInterview).length,
   }), [assessments]);
+
+  const filteredAssessments = useMemo(() => {
+    if (!statFilter) return assessments;
+    if (statFilter === 'MOVED') return assessments.filter(a => a.movedToInterview);
+    return assessments.filter(a => a.status === statFilter);
+  }, [assessments, statFilter]);
 
   const openMoveModal = (row) => {
     setForm({ jobPostingId: '', interviewerName: '', round: 1, scheduledDate: '', scheduledTime: '', duration: 30, mode: 'VIDEO' });
@@ -94,17 +101,28 @@ export default function AssessmentsPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Trophy} label="Total Submissions" value={stats.total} color="primary" showSparkline={false} />
-        <StatCard icon={Trophy} label="Passed" value={stats.passed} color="success" showSparkline={false} />
-        <StatCard icon={Trophy} label="Failed" value={stats.failed} color="danger" showSparkline={false} />
-        <StatCard icon={ArrowRightCircle} label="Moved to Interview" value={stats.moved} color="info" showSparkline={false} />
+        <div className={`cursor-pointer rounded-xl transition-all ${!statFilter ? 'ring-2 ring-primary' : ''}`} onClick={() => setStatFilter(null)}>
+          <StatCard icon={Trophy} label="Total Submissions" value={stats.total} color="primary" showSparkline={false} />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${statFilter === 'PASS' ? 'ring-2 ring-success' : ''}`} onClick={() => setStatFilter(f => f === 'PASS' ? null : 'PASS')}>
+          <StatCard icon={Trophy} label="Passed" value={stats.passed} color="success" showSparkline={false} />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${statFilter === 'FAIL' ? 'ring-2 ring-danger' : ''}`} onClick={() => setStatFilter(f => f === 'FAIL' ? null : 'FAIL')}>
+          <StatCard icon={Trophy} label="Failed" value={stats.failed} color="danger" showSparkline={false} />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${statFilter === 'MOVED' ? 'ring-2 ring-info' : ''}`} onClick={() => setStatFilter(f => f === 'MOVED' ? null : 'MOVED')}>
+          <StatCard icon={ArrowRightCircle} label="Moved to Interview" value={stats.moved} color="info" showSparkline={false} />
+        </div>
       </div>
+      {statFilter && (
+        <button onClick={() => setStatFilter(null)} className="text-xs text-primary hover:underline">Clear filter (showing {filteredAssessments.length} of {assessments.length})</button>
+      )}
 
       <Card padding={false}>
         {loading ? (
           <div className="p-8 text-center text-text-secondary text-sm">Loading assessments...</div>
         ) : (
-          <DataTable columns={columns} data={assessments} pageSize={10} />
+          <DataTable columns={columns} data={filteredAssessments} pageSize={10} />
         )}
       </Card>
 

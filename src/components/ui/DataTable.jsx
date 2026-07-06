@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Download, FileSpreadsheet, Printer } from 'lucide-react';
 import Button from './Button';
 import EmptyState from './EmptyState';
@@ -26,6 +26,15 @@ export default function DataTable({ columns, data, pageSize = 10, onRowClick, ac
   const [sortDir, setSortDir] = useState('asc');
   const [page, setPage] = useState(0);
 
+  // Real bug, confirmed live: applying/clearing a filter (or re-navigating to a page whose data
+  // reloads) changes `data` but never reset this component's own page number. Landing on a page
+  // number that no longer exists in the new, smaller dataset made `.slice()` return an empty
+  // array while the "N total records" header (which reads `data.length` directly, not the sliced
+  // page) kept showing the correct non-zero count - exactly the "shows 2 total records but the
+  // table is empty" symptom reported across Resource Allocation, and likely other filtered tables
+  // using this same component. Reset to page 0 whenever the underlying dataset changes.
+  useEffect(() => { setPage(0); }, [data]);
+
   const sorted = useMemo(() => {
     if (!sortKey) return data;
     return [...data].sort((a, b) => {
@@ -38,7 +47,10 @@ export default function DataTable({ columns, data, pageSize = 10, onRowClick, ac
   }, [data, sortKey, sortDir]);
 
   const totalPages = Math.ceil(sorted.length / pageSize);
-  const paged = sorted.slice(page * pageSize, (page + 1) * pageSize);
+  // Defensive clamp on top of the effect above - covers the one-frame window between data
+  // shrinking and the effect's reset actually re-rendering.
+  const safePage = Math.min(page, Math.max(0, totalPages - 1));
+  const paged = sorted.slice(safePage * pageSize, (safePage + 1) * pageSize);
   const displayColumns = columns.filter(c => c.key !== 'actions');
 
   const toggleSort = (key) => {
@@ -127,20 +139,20 @@ export default function DataTable({ columns, data, pageSize = 10, onRowClick, ac
       </div>
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">
-          <span className="text-xs text-text-secondary">Page {page + 1} of {totalPages} ({data.length} records)</span>
+          <span className="text-xs text-text-secondary">Page {safePage + 1} of {totalPages} ({data.length} records)</span>
           <div className="flex items-center gap-1">
-            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="p-1.5 rounded-lg hover:bg-surface-3 disabled:opacity-30 text-text-secondary"><ChevronLeft size={16} /></button>
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={safePage === 0} className="p-1.5 rounded-lg hover:bg-surface-3 disabled:opacity-30 text-text-secondary"><ChevronLeft size={16} /></button>
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               let pageNum;
               if (totalPages <= 5) pageNum = i;
-              else if (page < 3) pageNum = i;
-              else if (page > totalPages - 4) pageNum = totalPages - 5 + i;
-              else pageNum = page - 2 + i;
+              else if (safePage < 3) pageNum = i;
+              else if (safePage > totalPages - 4) pageNum = totalPages - 5 + i;
+              else pageNum = safePage - 2 + i;
               return (
-                <button key={pageNum} onClick={() => setPage(pageNum)} className={`w-8 h-8 rounded-lg text-xs font-medium ${page === pageNum ? 'bg-primary text-white' : 'hover:bg-surface-3 text-text-secondary'}`}>{pageNum + 1}</button>
+                <button key={pageNum} onClick={() => setPage(pageNum)} className={`w-8 h-8 rounded-lg text-xs font-medium ${safePage === pageNum ? 'bg-primary text-white' : 'hover:bg-surface-3 text-text-secondary'}`}>{pageNum + 1}</button>
               );
             })}
-            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-1.5 rounded-lg hover:bg-surface-3 disabled:opacity-30 text-text-secondary"><ChevronRight size={16} /></button>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={safePage >= totalPages - 1} className="p-1.5 rounded-lg hover:bg-surface-3 disabled:opacity-30 text-text-secondary"><ChevronRight size={16} /></button>
           </div>
         </div>
       )}

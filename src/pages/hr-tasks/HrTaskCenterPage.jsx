@@ -104,7 +104,19 @@ export default function HrTaskCenterPage() {
                         {items.map((item, idx) => (
                           <button
                             key={`${item.employeeId}-${idx}`}
-                            onClick={() => navigate(c.route)}
+                            onClick={() => {
+                              // Real bug fix: this previously navigated to the bare category route
+                              // with no indication of which employee was clicked, landing on the
+                              // full unfiltered list every time. Carry enough identity through the
+                              // URL for each destination page to pick out the right one - BGV opens
+                              // its per-employee modal directly by id, Documents pre-fills its
+                              // search box (it's a flat list, not an employee-scoped view).
+                              const params = new URLSearchParams();
+                              if (item.employeeId) params.set('employeeId', item.employeeId);
+                              if (item.employeeCode) params.set('search', item.employeeCode);
+                              const qs = params.toString();
+                              navigate(qs ? `${c.route}?${qs}` : c.route);
+                            }}
                             className="w-full flex items-center justify-between py-2.5 text-left hover:bg-surface-3 rounded-lg px-2 -mx-2 transition-colors"
                           >
                             <div>

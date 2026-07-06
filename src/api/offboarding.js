@@ -36,6 +36,10 @@ export async function downloadExitPackage(employeeId, employeeCode) {
   return downloadFile(`/employees/${employeeId}/offboarding/exit-package`, `ExitPackage_${employeeCode || employeeId}.zip`);
 }
 
+export async function downloadExitPackageMergedPdf(employeeId, employeeCode) {
+  return downloadFile(`/employees/${employeeId}/offboarding/exit-package/merged-pdf`, `ExitPackage_${employeeCode || employeeId}.pdf`);
+}
+
 export async function emailExitPackage(employeeId) {
   return api.post(`/employees/${employeeId}/offboarding/exit-package/email`);
 }

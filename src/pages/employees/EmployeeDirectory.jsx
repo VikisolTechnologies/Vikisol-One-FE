@@ -17,7 +17,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter, generateExperienceLetter, generateRelievingLetter, getEmployeeTimeline, initiateTransfer, getTransferHistory } from '../../api/employees';
+import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter, generateExperienceLetter, generateRelievingLetter, getEmployeeTimeline, initiateTransfer, getTransferHistory, getAccountStatus } from '../../api/employees';
 import { getEmployeeDocuments } from '../../api/documents';
 import { getProfileCompletion } from '../../api/onboarding';
 import { getBackgroundChecks } from '../../api/bgv';
@@ -60,6 +60,9 @@ export default function EmployeeDirectory() {
   // Hikes/resignations are compensation & exit decisions - HR's call, not a Manager's. Matches
   // the backend's @PreAuthorize on /employees/{id}/hike and /employees/{id}/resign.
   const canManageCompensation = ['ceo', 'hr_manager', 'admin'].includes(user?.role);
+  // Linked Accounts panel: visible to CEO/HR Manager/Admin for anyone, or to the employee
+  // viewing their own profile - same shape of gating as the other privileged tabs in this file.
+  const canViewLinkedAccounts = (emp) => ['ceo', 'hr_manager', 'admin'].includes(user?.role) || (user?.id && emp && user.id === emp.id);
   const toast = useToast();
   const confirm = useConfirm();
   const [roleChangeBusy, setRoleChangeBusy] = useState(false);
@@ -94,6 +97,7 @@ export default function EmployeeDirectory() {
   const [transferForm, setTransferForm] = useState({ transferType: 'DEPARTMENT', newValue: '', effectiveDate: '', reason: '' });
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [transferHistory, setTransferHistory] = useState(null);
+  const [accountStatus, setAccountStatus] = useState(null); // null = not loaded, 'error' = failed/not permitted
 
   const allEmps = data.employees;
 
@@ -165,6 +169,7 @@ export default function EmployeeDirectory() {
     setBgvChecks(null);
     setTimeline(null);
     setTransferHistory(null);
+    setAccountStatus(null);
     setProfileTab('personal');
     if (employeesSource === 'live') {
       try {
@@ -178,6 +183,7 @@ export default function EmployeeDirectory() {
       getBackgroundChecks(row.id).then(setBgvChecks).catch(() => setBgvChecks([]));
       getEmployeeTimeline(row.id).then(setTimeline).catch(() => setTimeline([]));
       getTransferHistory(row.id).then(setTransferHistory).catch(() => setTransferHistory([]));
+      getAccountStatus(row.id).then(setAccountStatus).catch(() => setAccountStatus('error'));
     }
   };
 
@@ -536,8 +542,13 @@ export default function EmployeeDirectory() {
                 <div className="flex gap-2 mt-2">
                   <Badge dot>{selectedEmp.status}</Badge>
                   <Badge variant="default">{selectedEmp.employmentType}</Badge>
-                  {selectedEmp.lifecycleStatus && (
-                    <Badge variant="info">{selectedEmp.lifecycleStatus.replace(/_/g, ' ')}</Badge>
+                  {/* Real bug fix: lifecycleStatus "ACTIVE" next to an already-shown "Active" status
+                      badge read as a duplicate/glitched status pill. Only show the lifecycle badge
+                      when it conveys something the plain status badge doesn't (e.g. PROBATION,
+                      NOTICE_PERIOD, PRE_BOARDING) - and prefix it so it's clearly a different axis
+                      (lifecycle stage) from the employment status badge next to it. */}
+                  {selectedEmp.lifecycleStatus && selectedEmp.lifecycleStatus !== 'ACTIVE' && (
+                    <Badge variant="info">Lifecycle: {selectedEmp.lifecycleStatus.replace(/_/g, ' ')}</Badge>
                   )}
                 </div>
               </div>
@@ -754,6 +765,41 @@ export default function EmployeeDirectory() {
                   )}
                 </div>
               )},
+              ...(canViewLinkedAccounts(selectedEmp) ? [{ id: 'linked-accounts', label: 'Linked Accounts', content: (
+                <div className="space-y-4">
+                  {employeesSource !== 'live' && <p className="text-xs text-warning">(demo data - live backend required)</p>}
+                  {employeesSource === 'live' && accountStatus === null && <p className="text-xs text-text-secondary">Loading...</p>}
+                  {employeesSource === 'live' && accountStatus === 'error' && <p className="text-xs text-danger">Could not load account status (you may not have permission, or this employee has no login account yet).</p>}
+                  {employeesSource === 'live' && accountStatus && accountStatus !== 'error' && (
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div><p className="text-xs text-text-secondary">Official Company Email</p><p className="text-text font-medium mt-0.5">{accountStatus.officialEmail || '-'}</p></div>
+                      <div><p className="text-xs text-text-secondary">Personal Recovery Email</p><p className="text-text font-medium mt-0.5">{accountStatus.personalEmail || '-'}</p></div>
+                      <div>
+                        <p className="text-xs text-text-secondary">Account Status</p>
+                        <div className="mt-0.5">
+                          <Badge variant={{ ACTIVE: 'success', LOCKED: 'danger', PENDING_ACTIVATION: 'warning', DISABLED: 'default', NO_ACCOUNT: 'default' }[accountStatus.accountStatus] || 'default'} dot>
+                            {(accountStatus.accountStatus || 'NO_ACCOUNT').replace(/_/g, ' ')}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div><p className="text-xs text-text-secondary">Failed Login Count</p><p className="text-text font-medium mt-0.5">{accountStatus.failedLoginCount ?? 0}</p></div>
+                      <div><p className="text-xs text-text-secondary">Last Login</p><p className="text-text font-medium mt-0.5">{accountStatus.lastLoginAt ? new Date(accountStatus.lastLoginAt).toLocaleString() : 'Never'}</p></div>
+                      <div><p className="text-xs text-text-secondary">Last Password Change</p><p className="text-text font-medium mt-0.5">{accountStatus.passwordChangedAt ? new Date(accountStatus.passwordChangedAt).toLocaleString() : '-'}</p></div>
+                      {accountStatus.accountStatus === 'LOCKED' && accountStatus.lockedUntil && (
+                        <div><p className="text-xs text-text-secondary">Locked Until</p><p className="text-text font-medium mt-0.5">{new Date(accountStatus.lockedUntil).toLocaleString()}</p></div>
+                      )}
+                      <div className="col-span-2 p-3 bg-surface-3 rounded-lg">
+                        <p className="text-xs text-text-secondary font-semibold mb-1">Microsoft Account</p>
+                        {accountStatus.microsoftLoginAvailable ? (
+                          <p className="text-sm text-text">{accountStatus.microsoftLinked ? 'Linked' : 'Not linked'}{accountStatus.lastMicrosoftAuthAt ? ` · last used ${new Date(accountStatus.lastMicrosoftAuthAt).toLocaleString()}` : ''}</p>
+                        ) : (
+                          <p className="text-sm text-text-secondary">Not configured for this tenant yet.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}] : []),
             ]} />
           </div>
         )}

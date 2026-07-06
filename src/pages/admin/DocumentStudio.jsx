@@ -16,6 +16,7 @@ import { DOCUMENT_TYPES } from '../../api/documentEngine';
 import {
   listTemplatesByType, createDraft, publishTemplate, rollbackTemplate,
   archiveTemplate, duplicateTemplate, previewDocument,
+  seedDefaultTemplates, seedOfferLetterTemplate,
 } from '../../api/documentStudio';
 import { getAllEmployees } from '../../api/employees';
 
@@ -166,6 +167,23 @@ export default function DocumentStudio() {
 
   const openType = (type) => { setSelectedType(type); loadTemplates(type); };
 
+  // "Use Default Template" - a one-click, production-safe alternative to the manual
+  // POST /document-templates/seed-* calls, so nobody administering this app in prod ever needs
+  // to reach for curl/Postman. No-op if a template for this type already exists.
+  const handleUseDefault = async (type) => {
+    setBusy(true);
+    try {
+      if (type === 'OFFER_LETTER') await seedOfferLetterTemplate();
+      else await seedDefaultTemplates();
+      toast.success('Default template ready');
+      loadTemplates(type);
+    } catch (err) {
+      toast.error(err.message || 'Failed to create default template');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleCreateDraft = async () => {
     if (!editorName.trim()) { toast.error('Template name is required'); return; }
     setBusy(true);
@@ -233,13 +251,23 @@ export default function DocumentStudio() {
             <button onClick={() => setSelectedType(null)} className="p-2 rounded-lg hover:bg-surface-3 text-text-secondary"><ChevronLeft size={18} /></button>
             <h1 className="text-xl font-bold text-text">{typeConfig?.label}</h1>
           </div>
-          <Button icon={Plus} onClick={() => setShowEditor(true)}>New Template</Button>
+          <div className="flex gap-2">
+            {templates.length === 0 && (
+              <Button icon={CheckCircle} variant="secondary" disabled={busy} onClick={() => handleUseDefault(selectedType)}>Use Default Template</Button>
+            )}
+            <Button icon={Plus} onClick={() => setShowEditor(true)}>New Template</Button>
+          </div>
         </div>
 
         {templatesLoading ? (
           <Loader fullPage />
         ) : templates.length === 0 ? (
-          <Card><EmptyState icon={FileText} title="No templates yet" description="Create the first template for this document type." action={() => setShowEditor(true)} actionLabel="New Template" /></Card>
+          <Card>
+            <EmptyState icon={FileText} title="No templates yet" description="Start from the built-in default (recommended), or create a blank template from scratch." action={() => setShowEditor(true)} actionLabel="Create Blank Template" />
+            <div className="flex justify-center -mt-2 pb-4">
+              <Button icon={CheckCircle} variant="secondary" disabled={busy} onClick={() => handleUseDefault(selectedType)}>Use Default Template</Button>
+            </div>
+          </Card>
         ) : (
           <div className="space-y-3">
             {templates.map(t => (

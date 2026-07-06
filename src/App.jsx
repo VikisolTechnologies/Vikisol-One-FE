@@ -14,6 +14,8 @@ import Loader from './components/ui/Loader';
 // and render the shell; each page's code loads on first visit to that route.
 import Login from './pages/Login';
 import ActivateAccount from './pages/ActivateAccount';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 const DashboardRouter = lazy(() => import('./pages/dashboard/DashboardRouter'));
 const OnboardingWizard = lazy(() => import('./pages/onboarding/OnboardingWizard'));
@@ -64,6 +66,8 @@ export default function App() {
                       <Routes>
                         <Route path="/login" element={<Login />} />
                         <Route path="/activate" element={<ActivateAccount />} />
+                        <Route path="/forgot-password" element={<ForgotPassword />} />
+                        <Route path="/reset-password" element={<ResetPassword />} />
                         <Route element={<AppLayout />}>
                           <Route path="/" element={<DashboardRouter />} />
                           <Route path="/onboarding" element={<OnboardingWizard />} />

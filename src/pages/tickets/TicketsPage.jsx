@@ -34,7 +34,11 @@ export default function TicketsPage() {
     const s = search.toLowerCase();
     const matchSearch = !s || t.title.toLowerCase().includes(s) || t.id.toLowerCase().includes(s) || t.raisedBy.toLowerCase().includes(s);
     const matchCat = !filters.category || filters.category === 'All' || t.category === filters.category;
-    const matchStatus = !filters.status || filters.status === 'All' || t.status === filters.status;
+    // "Resolved" KPI/filter intentionally covers both Resolved and Closed tickets (see
+    // statusCounts.Resolved below) - matching only an exact "Resolved" string would undercount
+    // relative to what the card itself displays.
+    const matchStatus = !filters.status || filters.status === 'All'
+      || (filters.status === 'Resolved' ? (t.status === 'Resolved' || t.status === 'Closed') : t.status === filters.status);
     const matchPriority = !filters.priority || filters.priority === 'All' || t.priority === filters.priority;
     return matchSearch && matchCat && matchStatus && matchPriority;
   }), [allTickets, search, filters]);
@@ -122,10 +126,18 @@ export default function TicketsPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={AlertCircle} label="Open" value={statusCounts.Open} color="danger" delay={0} />
-        <StatCard icon={Clock} label="In Progress" value={statusCounts['In Progress']} color="warning" delay={1} />
-        <StatCard icon={CheckCircle} label="Resolved" value={statusCounts.Resolved} color="success" delay={2} />
-        <StatCard icon={Ticket} label="Total" value={statusCounts.Total} color="primary" delay={3} />
+        <div className={`cursor-pointer rounded-xl transition-all ${filters.status === 'Open' ? 'ring-2 ring-danger' : ''}`} onClick={() => setFilters(p => ({ ...p, status: p.status === 'Open' ? undefined : 'Open' }))}>
+          <StatCard icon={AlertCircle} label="Open" value={statusCounts.Open} color="danger" delay={0} />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${filters.status === 'In Progress' ? 'ring-2 ring-warning' : ''}`} onClick={() => setFilters(p => ({ ...p, status: p.status === 'In Progress' ? undefined : 'In Progress' }))}>
+          <StatCard icon={Clock} label="In Progress" value={statusCounts['In Progress']} color="warning" delay={1} />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${filters.status === 'Resolved' ? 'ring-2 ring-success' : ''}`} onClick={() => setFilters(p => ({ ...p, status: p.status === 'Resolved' ? undefined : 'Resolved' }))}>
+          <StatCard icon={CheckCircle} label="Resolved" value={statusCounts.Resolved} color="success" delay={2} />
+        </div>
+        <div className={`cursor-pointer rounded-xl transition-all ${!filters.status ? 'ring-2 ring-primary' : ''}`} onClick={() => setFilters(p => ({ ...p, status: undefined }))}>
+          <StatCard icon={Ticket} label="Total" value={statusCounts.Total} color="primary" delay={3} />
+        </div>
       </div>
 
       <SearchFilter searchValue={search} onSearch={setSearch} filters={[

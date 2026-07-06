@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, Eye, EyeOff, Monitor } from 'lucide-react';
+import { getAuthSettings } from '../api/auth';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -15,6 +16,16 @@ export default function Login() {
   const navigate = useNavigate();
 
   const [submitting, setSubmitting] = useState(false);
+
+  // Public, unauthenticated flags - the Microsoft button should only ever look clickable if
+  // BOTH the org has it turned on AND real Azure credentials are actually configured (the latter
+  // is a real computed flag from the backend, not just a feature toggle - it's false everywhere
+  // today since no environment has Azure AD credentials set).
+  const [authSettings, setAuthSettings] = useState(null);
+  useEffect(() => {
+    getAuthSettings().then(setAuthSettings).catch(() => setAuthSettings(null));
+  }, []);
+  const microsoftAvailable = !!(authSettings?.microsoftLoginEnabled && authSettings?.microsoftLoginConfigured);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -89,7 +100,7 @@ export default function Login() {
                   <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} className="rounded accent-primary" />
                   Remember me
                 </label>
-                <a href="#" className="text-primary hover:underline">Forgot Password?</a>
+                <Link to="/forgot-password" className="text-primary hover:underline">Forgot Password?</Link>
               </div>
 
               {error && <p className="text-sm text-danger bg-danger/10 rounded-lg px-3 py-2">{error}</p>}
@@ -103,9 +114,26 @@ export default function Login() {
                 <span className="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 bg-surface-2 px-3 text-xs text-text-secondary">or continue with</span>
               </div>
 
-              <button type="button" className="w-full flex items-center justify-center gap-2 bg-[#0078D4] hover:bg-[#006BC1] text-white py-3 rounded-lg font-medium text-sm transition-all">
-                <Monitor size={16} /> Sign in with Microsoft
-              </button>
+              <div className="relative group">
+                <button
+                  type="button"
+                  disabled={!microsoftAvailable}
+                  title={microsoftAvailable ? undefined : 'Not configured for this organization yet'}
+                  onClick={() => { if (!microsoftAvailable) return; /* no-op: no real OAuth flow exists yet */ }}
+                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-medium text-sm transition-all ${
+                    microsoftAvailable
+                      ? 'bg-[#0078D4] hover:bg-[#006BC1] text-white cursor-pointer'
+                      : 'bg-surface-3 text-text-secondary/60 cursor-not-allowed border border-border'
+                  }`}
+                >
+                  <Monitor size={16} /> Sign in with Microsoft
+                </button>
+                {!microsoftAvailable && (
+                  <p className="text-[11px] text-text-secondary text-center mt-1.5">
+                    Not configured for this organization yet
+                  </p>
+                )}
+              </div>
             </form>
 
             <p className="text-xs text-text-secondary text-center mt-6">
