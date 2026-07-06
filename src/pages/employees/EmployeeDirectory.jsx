@@ -17,7 +17,8 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter, generateExperienceLetter, generateRelievingLetter, getEmployeeTimeline, initiateTransfer, getTransferHistory, getAccountStatus } from '../../api/employees';
+import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter, generateExperienceLetter, generateRelievingLetter, getEmployeeTimeline, initiateTransfer, getTransferHistory, getAccountStatus, unlockAccount } from '../../api/employees';
+import AccountStatusBadge from '../../components/ui/AccountStatusBadge';
 import { getEmployeeDocuments } from '../../api/documents';
 import { getProfileCompletion } from '../../api/onboarding';
 import { getBackgroundChecks } from '../../api/bgv';
@@ -776,10 +777,24 @@ export default function EmployeeDirectory() {
                       <div><p className="text-xs text-text-secondary">Personal Recovery Email</p><p className="text-text font-medium mt-0.5">{accountStatus.personalEmail || '-'}</p></div>
                       <div>
                         <p className="text-xs text-text-secondary">Account Status</p>
-                        <div className="mt-0.5">
-                          <Badge variant={{ ACTIVE: 'success', LOCKED: 'danger', PENDING_ACTIVATION: 'warning', PASSWORD_EXPIRED: 'warning', SUSPENDED: 'danger', DISABLED: 'default', NO_ACCOUNT: 'default' }[accountStatus.accountStatus] || 'default'} dot>
-                            {(accountStatus.accountStatus || 'NO_ACCOUNT').replace(/_/g, ' ')}
-                          </Badge>
+                        <div className="mt-0.5 flex items-center gap-2">
+                          <AccountStatusBadge status={accountStatus.accountStatus} />
+                          {accountStatus.accountStatus === 'LOCKED' && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await unlockAccount(selectedEmp.id);
+                                  toast.success('Account unlocked');
+                                  getAccountStatus(selectedEmp.id).then(setAccountStatus).catch(() => setAccountStatus('error'));
+                                } catch (err) {
+                                  toast.error(err.message || 'Failed to unlock account');
+                                }
+                              }}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              Unlock now
+                            </button>
+                          )}
                         </div>
                       </div>
                       <div><p className="text-xs text-text-secondary">Failed Login Count</p><p className="text-text font-medium mt-0.5">{accountStatus.failedLoginCount ?? 0}</p></div>

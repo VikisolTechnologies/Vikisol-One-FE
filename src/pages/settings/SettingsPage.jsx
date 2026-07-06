@@ -15,7 +15,6 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { updateSetting, getSettingsByCategory, getRolePermissionMatrix, updateRolePermissionMatrix } from '../../api/settings';
 import { getCtcBreakupTemplate, updateCtcBreakupTemplate, getCtcCustomLabel, updateCtcCustomLabel } from '../../api/payroll';
-import { getAuthSettings, updateAuthSettings, getLoginHistory } from '../../api/auth';
 
 const MODULE_LABELS = {
   dashboard: 'Dashboard', employees: 'Employees', recruitment: 'Recruitment', 'new-hires': 'New Hires', projects: 'Projects',
@@ -23,6 +22,7 @@ const MODULE_LABELS = {
   timesheets: 'Timesheets', tickets: 'Tickets', assets: 'Assets', performance: 'Performance',
   'org-chart': 'Org Chart', reports: 'Reports', documents: 'Documents', settings: 'Settings',
   'background-verification': 'Background Verification', offboarding: 'Offboarding',
+  'security-center': 'Security Center',
 };
 const ROLE_LABELS = {
   CEO: 'CEO', ADMIN: 'Admin', HR_MANAGER: 'HR Manager', MANAGER: 'Manager',
@@ -490,181 +490,9 @@ function AnnouncementsSettings() {
   );
 }
 
-// CEO/Admin-only tab controlling the org-wide login/security posture. Google Login and MFA are
-// permanently "Coming soon" here - there is no backend implementation for either yet, so these
-// stay disabled rather than pretending a toggle does something. Microsoft Login can be turned on,
-// but has no real effect until real Azure AD credentials are configured server-side - the note
-// beneath it exists so the CEO doesn't wonder why flipping it changes nothing for users.
-function AuthenticationSettings() {
-  const toast = useToast();
-  const [settings, setSettings] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    getAuthSettings().then(setSettings).catch(() => toast.error('Could not load authentication settings')).finally(() => setLoading(false));
-  }, []);
-
-  const update = (patch) => setSettings(prev => ({ ...prev, ...patch }));
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const payload = {
-        EMAIL_PASSWORD_ENABLED: String(!!settings.emailPasswordLoginEnabled),
-        MICROSOFT_ENABLED: String(!!settings.microsoftLoginEnabled),
-        LOCKOUT_ENABLED: String(!!settings.accountLockoutEnabled),
-        MAX_FAILED_ATTEMPTS: settings.maxFailedLoginAttempts !== '' && settings.maxFailedLoginAttempts != null ? String(settings.maxFailedLoginAttempts) : '',
-        LOCKOUT_MINUTES: settings.lockoutDurationMinutes !== '' && settings.lockoutDurationMinutes != null ? String(settings.lockoutDurationMinutes) : '',
-        PASSWORD_EXPIRY_DAYS: settings.passwordExpiryDays !== '' && settings.passwordExpiryDays != null ? String(settings.passwordExpiryDays) : '',
-        SESSION_TIMEOUT_MINUTES: settings.sessionTimeoutMinutes !== '' && settings.sessionTimeoutMinutes != null ? String(settings.sessionTimeoutMinutes) : '',
-        PASSWORD_MIN_LENGTH: settings.passwordMinLength !== '' && settings.passwordMinLength != null ? String(settings.passwordMinLength) : '8',
-        PASSWORD_REQUIRE_UPPERCASE: String(!!settings.passwordRequireUppercase),
-        PASSWORD_REQUIRE_LOWERCASE: String(!!settings.passwordRequireLowercase),
-        PASSWORD_REQUIRE_NUMBER: String(!!settings.passwordRequireNumber),
-        PASSWORD_REQUIRE_SPECIAL_CHAR: String(!!settings.passwordRequireSpecialChar),
-        PASSWORD_HISTORY_COUNT: settings.passwordHistoryCount !== '' && settings.passwordHistoryCount != null ? String(settings.passwordHistoryCount) : '0',
-      };
-      const updated = await updateAuthSettings(payload);
-      setSettings(updated || settings);
-      toast.success('Authentication settings updated');
-    } catch (err) {
-      toast.error(err.message || 'Failed to update authentication settings');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (loading || !settings) return <Card><p className="text-sm text-text-secondary">Loading...</p></Card>;
-
-  const Toggle = ({ checked, onChange, disabled }) => (
-    <button type="button" disabled={disabled} onClick={() => !disabled && onChange(!checked)}
-      className={`w-12 h-6 rounded-full relative transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${checked ? 'bg-primary' : 'bg-surface-4'}`}>
-      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${checked ? 'left-6' : 'left-0.5'}`} />
-    </button>
-  );
-
-  return (
-    <Card>
-      <div className="max-w-2xl space-y-5">
-        <div>
-          <p className="text-sm font-medium text-text">Authentication & Login</p>
-          <p className="text-xs text-text-secondary mt-1">Controls how employees can sign in and the account-lockout/session policy applied to everyone.</p>
-        </div>
-
-        <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl">
-          <div><p className="text-sm font-medium text-text">Email + Password Login</p><p className="text-xs text-text-secondary">Standard official-email/password sign-in</p></div>
-          <Toggle checked={!!settings.emailPasswordLoginEnabled} onChange={(v) => update({ emailPasswordLoginEnabled: v })} />
-        </div>
-
-        <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl">
-          <div>
-            <p className="text-sm font-medium text-text">Microsoft Login</p>
-            <p className="text-xs text-text-secondary">Sign in with a Microsoft/Azure AD account</p>
-            {!settings.microsoftLoginConfigured && (
-              <p className="text-[11px] text-warning mt-1">No effect until real Azure AD credentials are configured for this environment.</p>
-            )}
-          </div>
-          <Toggle checked={!!settings.microsoftLoginEnabled} onChange={(v) => update({ microsoftLoginEnabled: v })} />
-        </div>
-
-        <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl opacity-60">
-          <div><p className="text-sm font-medium text-text">Google Login</p><p className="text-xs text-text-secondary">Sign in with a Google Workspace account</p></div>
-          <div className="flex items-center gap-2">
-            <Badge variant="default">Coming soon</Badge>
-            <Toggle checked={false} onChange={() => {}} disabled />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl opacity-60">
-          <div><p className="text-sm font-medium text-text">Multi-Factor Authentication</p><p className="text-xs text-text-secondary">Require a second factor at login</p></div>
-          <div className="flex items-center gap-2">
-            <Badge variant="default">Coming soon</Badge>
-            <Toggle checked={false} onChange={() => {}} disabled />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between p-4 bg-surface-3 rounded-xl">
-          <div><p className="text-sm font-medium text-text">Account Lockout</p><p className="text-xs text-text-secondary">Lock an account after repeated failed logins</p></div>
-          <Toggle checked={!!settings.accountLockoutEnabled} onChange={(v) => update({ accountLockoutEnabled: v })} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Input label="Max Failed Attempts" type="number" min="1" disabled={!settings.accountLockoutEnabled}
-            value={settings.maxFailedLoginAttempts ?? ''} onChange={e => update({ maxFailedLoginAttempts: e.target.value })} />
-          <Input label="Lockout Duration (minutes)" type="number" min="1" disabled={!settings.accountLockoutEnabled}
-            value={settings.lockoutDurationMinutes ?? ''} onChange={e => update({ lockoutDurationMinutes: e.target.value })} />
-          <Input label="Password Expiry (days, blank = no expiry)" type="number" min="0"
-            value={settings.passwordExpiryDays ?? ''} onChange={e => update({ passwordExpiryDays: e.target.value })} />
-          <Input label="Session Timeout (minutes)" type="number" min="1"
-            value={settings.sessionTimeoutMinutes ?? ''} onChange={e => update({ sessionTimeoutMinutes: e.target.value })} />
-        </div>
-
-        <div className="pt-2 border-t border-border">
-          <p className="text-sm font-medium text-text mb-1">Password Policy</p>
-          <p className="text-xs text-text-secondary mb-3">Applies to account activation and password resets.</p>
-          <div className="grid grid-cols-2 gap-4 mb-3">
-            <Input label="Minimum Length" type="number" min="6" value={settings.passwordMinLength ?? ''} onChange={e => update({ passwordMinLength: e.target.value })} />
-            <Input label="Password History (block reuse of last N, 0 = off)" type="number" min="0" value={settings.passwordHistoryCount ?? ''} onChange={e => update({ passwordHistoryCount: e.target.value })} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex items-center gap-2 text-sm text-text cursor-pointer"><input type="checkbox" checked={!!settings.passwordRequireUppercase} onChange={e => update({ passwordRequireUppercase: e.target.checked })} /> Uppercase required</label>
-            <label className="flex items-center gap-2 text-sm text-text cursor-pointer"><input type="checkbox" checked={!!settings.passwordRequireLowercase} onChange={e => update({ passwordRequireLowercase: e.target.checked })} /> Lowercase required</label>
-            <label className="flex items-center gap-2 text-sm text-text cursor-pointer"><input type="checkbox" checked={!!settings.passwordRequireNumber} onChange={e => update({ passwordRequireNumber: e.target.checked })} /> Number required</label>
-            <label className="flex items-center gap-2 text-sm text-text cursor-pointer"><input type="checkbox" checked={!!settings.passwordRequireSpecialChar} onChange={e => update({ passwordRequireSpecialChar: e.target.checked })} /> Special character required</label>
-          </div>
-        </div>
-
-        <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Authentication Settings'}</Button>
-      </div>
-    </Card>
-  );
-}
-
-const EVENT_LABELS = {
-  LOGIN_SUCCESS: 'Login Success', LOGIN_FAILED: 'Login Failed', PASSWORD_RESET_REQUESTED: 'Password Reset Requested',
-  PASSWORD_RESET_COMPLETED: 'Password Reset Completed', ACCOUNT_LOCKED: 'Account Locked', ACCOUNT_UNLOCKED: 'Account Unlocked',
-  ACCOUNT_ACTIVATED: 'Account Activated', LOGOUT: 'Logout', SESSION_EXPIRED: 'Session Expired',
-};
-
-// CEO/HR Manager/Admin-only structured security audit trail - separate from the generic Audit
-// Logs tab below (free-text business-record changes) since this needs a fixed event taxonomy
-// plus IP/browser per row.
-function LoginHistorySettings() {
-  const toast = useToast();
-  const [entries, setEntries] = useState(null);
-  const [search, setSearch] = useState('');
-
-  useEffect(() => {
-    getLoginHistory({ size: 200 }).then(setEntries).catch(() => { toast.error('Could not load login history'); setEntries([]); });
-  }, []);
-
-  if (!entries) return <Card><p className="text-sm text-text-secondary">Loading...</p></Card>;
-
-  const filtered = entries.filter(e => {
-    const q = search.toLowerCase();
-    if (!q) return true;
-    return [e.userEmail, e.eventType, e.ipAddress].some(f => (f || '').toLowerCase().includes(q));
-  });
-
-  const columns = [
-    { key: 'timestamp', label: 'Time', render: (v) => v ? new Date(v).toLocaleString() : '-' },
-    { key: 'userEmail', label: 'User' },
-    { key: 'eventType', label: 'Event', render: (v) => EVENT_LABELS[v] || v },
-    { key: 'success', label: 'Result', render: (v) => <Badge variant={v ? 'success' : 'danger'} dot>{v ? 'Success' : 'Failure'}</Badge> },
-    { key: 'ipAddress', label: 'IP Address', render: (v) => v || '-' },
-    { key: 'userAgent', label: 'Browser/Device', render: (v) => <span className="text-xs text-text-secondary truncate block max-w-[220px]" title={v}>{v || '-'}</span> },
-  ];
-
-  return (
-    <Card padding={false}>
-      <div className="p-4 border-b border-border">
-        <Input placeholder="Search by user, event, or IP..." value={search} onChange={e => setSearch(e.target.value)} />
-      </div>
-      <DataTable columns={columns} data={filtered} pageSize={15} />
-    </Card>
-  );
-}
+// Authentication, Password Policy, Account Lockout, Session Management, Login History, Active
+// Sessions, and Email Templates all moved to Security Center (Administration -> Security Center)
+// so they live in one place instead of scattered Settings tabs - see pages/admin/SecurityCenter.jsx.
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
@@ -672,7 +500,6 @@ export default function SettingsPage() {
   useEffect(() => { ensureLoad('auditLogs'); }, [ensureLoad]);
   const { user } = useAuth();
   const isCEO = user?.role === 'ceo';
-  const isCEOOrAdmin = ['ceo', 'admin'].includes(user?.role);
   const toast = useToast();
   const [primaryColor, setPrimaryColor] = useState('#FF6A00');
   const [auditSearch, setAuditSearch] = useState('');
@@ -757,8 +584,6 @@ export default function SettingsPage() {
         // name only - every button in it was decorative (toast.info, no backend call) - so it
         // was removed rather than kept alongside the real thing under a near-identical name.
         ...(isCEO ? [{ id: 'role-permissions', label: 'Role Permissions', content: <RolePermissionsSettings /> }] : []),
-        ...(isCEOOrAdmin ? [{ id: 'authentication', label: 'Authentication', content: <AuthenticationSettings /> }] : []),
-        ...(isCEOOrAdmin ? [{ id: 'login-history', label: 'Login History', content: <LoginHistorySettings /> }] : []),
         { id: 'announcements', label: 'Announcements', content: <AnnouncementsSettings /> },
         { id: 'holidays', label: 'Holidays', content: (
           <Card>

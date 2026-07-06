@@ -105,6 +105,11 @@ export default function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onClo
 
       {/* Bottom */}
       <div className="p-2 space-y-0.5 border-t border-border">
+        {perms.includes('security-center') && (
+          <button onClick={() => navigate('/security-center')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all ${isActive('security-center') ? 'bg-primary text-white' : 'text-text-secondary hover:text-text hover:bg-surface-3'}`}>
+            <ShieldCheck size={17} className="flex-shrink-0" />{!collapsed && <span>Security Center</span>}
+          </button>
+        )}
         {perms.includes('settings') && (
           <button onClick={() => navigate('/settings')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] transition-all ${isActive('settings') ? 'bg-primary text-white' : 'text-text-secondary hover:text-text hover:bg-surface-3'}`}>
             <Settings size={17} className="flex-shrink-0" />{!collapsed && <span>Settings</span>}

@@ -39,6 +39,7 @@ const DocumentsPage = lazy(() => import('./pages/documents/DocumentsPage'));
 const AssetsPage = lazy(() => import('./pages/assets/AssetsPage'));
 const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'));
 const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'));
+const SecurityCenter = lazy(() => import('./pages/admin/SecurityCenter'));
 const NotificationCenter = lazy(() => import('./pages/NotificationCenter'));
 const CommunicationCenterPage = lazy(() => import('./pages/communication/CommunicationCenterPage'));
 const PoliciesPage = lazy(() => import('./pages/policies/PoliciesPage'));
@@ -93,6 +94,7 @@ export default function App() {
                           <Route path="/assets" element={<AssetsPage />} />
                           <Route path="/reports" element={<ReportsPage />} />
                           <Route path="/settings" element={<SettingsPage />} />
+                          <Route path="/security-center" element={<SecurityCenter />} />
                           <Route path="/notifications" element={<NotificationCenter />} />
                           <Route path="/communication" element={<CommunicationCenterPage />} />
                           <Route path="/policies" element={<PoliciesPage />} />

@@ -226,3 +226,7 @@ export async function getTransferHistory(id) {
 export async function getAccountStatus(employeeId) {
   return api.get(`/employees/${employeeId}/account-status`);
 }
+
+export async function unlockAccount(employeeId) {
+  return api.post(`/employees/${employeeId}/unlock-account`);
+}

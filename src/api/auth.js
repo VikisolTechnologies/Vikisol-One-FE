@@ -57,3 +57,37 @@ export async function inspectResetToken(token) {
 export async function resetPasswordWithToken(token, newPassword) {
   return api.noAuth.post('/auth/reset-password', { token, newPassword });
 }
+
+// Active Sessions (Security Center)
+export async function getMySessions() {
+  return api.get('/sessions/me');
+}
+
+export async function getAllSessions() {
+  return api.get('/sessions');
+}
+
+export async function revokeSession(id) {
+  return api.post(`/sessions/${id}/revoke`);
+}
+
+export async function revokeAllMySessions() {
+  return api.post('/sessions/revoke-all');
+}
+
+export async function forceLogoutUser(userEmail) {
+  return api.post(`/sessions/force-logout/${encodeURIComponent(userEmail)}`);
+}
+
+// Email Templates (Security Center)
+export async function getEmailTemplates() {
+  return api.get('/email-templates');
+}
+
+export async function updateEmailTemplate(key, subject, bodyHtml) {
+  return api.put(`/email-templates/${key}`, { subject, bodyHtml });
+}
+
+export async function resetEmailTemplate(key) {
+  return api.post(`/email-templates/${key}/reset`);
+}
