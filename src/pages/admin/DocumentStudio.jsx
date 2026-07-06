@@ -27,7 +27,16 @@ const BLOCK_TYPES = [
   { value: 'table', label: 'Table' },
   { value: 'list', label: 'List' },
   { value: 'signatureBlock', label: 'Signature Block' },
+  { value: 'sealBlock', label: 'Company Seal' },
+  { value: 'pageBreak', label: 'Page Break' },
   { value: 'spacer', label: 'Spacer' },
+];
+
+const SIGNATURE_ROLES = [
+  { value: '', label: 'None (text only)' },
+  { value: 'CEO', label: 'CEO' },
+  { value: 'HR', label: 'HR' },
+  { value: 'FINANCE', label: 'Finance / Authorized Signatory' },
 ];
 
 function emptyBlock(type) {
@@ -36,7 +45,9 @@ function emptyBlock(type) {
     case 'paragraph': return { type, text: '' };
     case 'table': return { type, title: '', rows: [['', '']] };
     case 'list': return { type, items: [''] };
-    case 'signatureBlock': return { type, leftLabel: '', leftName: '', rightLabel: '', rightName: '' };
+    case 'signatureBlock': return { type, leftLabel: '', leftName: '', rightLabel: '', rightName: '', leftSignatureRole: '', rightSignatureRole: '' };
+    case 'sealBlock': return { type };
+    case 'pageBreak': return { type };
     default: return { type: 'spacer' };
   }
 }
@@ -103,10 +114,18 @@ function BlockEditor({ blocks, onChange }) {
             <div className="grid grid-cols-2 gap-2">
               <Input value={block.leftLabel || ''} onChange={e => update(i, { leftLabel: e.target.value })} placeholder="Left label (e.g. For {{CompanyName}})" />
               <Input value={block.leftName || ''} onChange={e => update(i, { leftName: e.target.value })} placeholder="Left name" />
+              <Select value={block.leftSignatureRole || ''} onChange={e => update(i, { leftSignatureRole: e.target.value })} options={SIGNATURE_ROLES} />
+              <div />
               <Input value={block.rightLabel || ''} onChange={e => update(i, { rightLabel: e.target.value })} placeholder="Right label" />
               <Input value={block.rightName || ''} onChange={e => update(i, { rightName: e.target.value })} placeholder="Right name" />
+              <Select value={block.rightSignatureRole || ''} onChange={e => update(i, { rightSignatureRole: e.target.value })} options={SIGNATURE_ROLES} />
+              <div />
             </div>
           )}
+
+          {block.type === 'sealBlock' && <p className="text-xs text-text-secondary">Renders the Company Seal image from Company Branding settings, if one is configured - no fields needed here.</p>}
+
+          {block.type === 'pageBreak' && <p className="text-xs text-text-secondary">Forces a new PDF page before the next block - no fields needed.</p>}
 
           {block.type === 'spacer' && <p className="text-xs text-text-secondary">Blank vertical space - no fields needed.</p>}
         </div>
