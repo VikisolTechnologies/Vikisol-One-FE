@@ -17,6 +17,10 @@ export function adaptDashboardStats(d) {
   };
 }
 
+export async function getExecutiveAnalytics() {
+  return api.get('/analytics/executive');
+}
+
 export async function getDashboardStats() {
   return adaptDashboardStats(await api.get('/reports/dashboard'));
 }

@@ -27,6 +27,7 @@ const NewHiresPage = lazy(() => import('./pages/recruitment/NewHiresPage'));
 const BackgroundVerificationPage = lazy(() => import('./pages/bgv/BackgroundVerificationPage'));
 const OffboardingPage = lazy(() => import('./pages/offboarding/OffboardingPage'));
 const HrTaskCenterPage = lazy(() => import('./pages/hr-tasks/HrTaskCenterPage'));
+const ExecutiveAnalyticsPage = lazy(() => import('./pages/analytics/ExecutiveAnalyticsPage'));
 const TimesheetPage = lazy(() => import('./pages/timesheets/TimesheetPage'));
 const ProjectsPage = lazy(() => import('./pages/projects/ProjectsPage'));
 const TicketsPage = lazy(() => import('./pages/tickets/TicketsPage'));
@@ -77,6 +78,7 @@ export default function App() {
                           <Route path="/background-verification" element={<BackgroundVerificationPage />} />
                           <Route path="/offboarding" element={<OffboardingPage />} />
                           <Route path="/hr-tasks" element={<HrTaskCenterPage />} />
+                          <Route path="/analytics" element={<ExecutiveAnalyticsPage />} />
                           <Route path="/timesheets" element={<TimesheetPage />} />
                           <Route path="/projects" element={<ProjectsPage />} />
                           <Route path="/tickets" element={<TicketsPage />} />

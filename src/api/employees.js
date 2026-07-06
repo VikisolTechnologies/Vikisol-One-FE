@@ -213,6 +213,10 @@ export async function initiateTransfer(id, { transferType, newValue, effectiveDa
   return api.post(`/employees/${id}/transfers`, { transferType, newValue, effectiveDate, reason });
 }
 
+export async function getEmployeeDashboardSummary(employeeId) {
+  return api.get(`/employees/${employeeId}/dashboard-summary`);
+}
+
 export async function getTransferHistory(id) {
   return api.get(`/employees/${id}/transfers`);
 }

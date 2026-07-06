@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, CalendarDays, CheckCircle, Bell, FolderKanban, IndianRupee, TrendingUp, FileText, Send } from 'lucide-react';
+import { Clock, CalendarDays, CheckCircle, Bell, FolderKanban, IndianRupee, TrendingUp, FileText, Send, ShieldCheck, Gift, Package, Megaphone, BookOpen, Video, Award } from 'lucide-react';
 import StatCard from '../../components/ui/StatCard';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -11,6 +11,7 @@ import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { computeLiveWorkingHours } from '../../api/attendance';
 import SensitiveValue from '../../components/ui/SensitiveValue';
+import { getMyProfile, getEmployeeDashboardSummary } from '../../api/employees';
 
 export default function EmployeeDashboard() {
   const { user } = useAuth();
@@ -21,6 +22,23 @@ export default function EmployeeDashboard() {
   useEffect(() => { ensureLoad('timesheets'); }, [ensureLoad]);
 
   const isLiveAttendance = attendanceSource === 'live';
+
+  // Real backend-aggregated widgets (profile completion, BGV, holidays, birthdays, assets,
+  // documents, announcements, policy acknowledgements, interviews, performance) - only available
+  // once we're talking to the live backend, since there's no mock-data equivalent for these.
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  useEffect(() => {
+    if (!isLiveAttendance) return;
+    let cancelled = false;
+    setSummaryLoading(true);
+    getMyProfile()
+      .then(profile => getEmployeeDashboardSummary(profile.id))
+      .then(data => { if (!cancelled) setSummary(data); })
+      .catch(() => { if (!cancelled) setSummary(null); })
+      .finally(() => { if (!cancelled) setSummaryLoading(false); });
+    return () => { cancelled = true; };
+  }, [isLiveAttendance]);
   const [mockPunchedIn, setMockPunchedIn] = useState(true);
   const [mockPunchInTime] = useState('09:10 AM');
 
@@ -103,6 +121,112 @@ export default function EmployeeDashboard() {
         <div className="cursor-pointer" onClick={() => navigate('/projects')}><StatCard icon={FolderKanban} label="My Projects" value={myProjects.length} color="info" delay={2} /></div>
         <div className="cursor-pointer" onClick={() => navigate('/payroll')}><StatCard icon={IndianRupee} label="Last Salary" value={lastPayslip ? <SensitiveValue type="currency" value={lastPayslip.netPay} id="employee-dashboard-last-salary" /> : '-'} change={lastPayslip?.month || ''} color="primary" delay={3} showSparkline={false} /></div>
       </div>
+
+      {isLiveAttendance && summary && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="cursor-pointer" onClick={() => navigate('/employees')}>
+              <StatCard icon={CheckCircle} label="Profile Completion" value={`${summary.profileCompletionPercent}%`}
+                change={summary.missingProfileSections?.length ? `${summary.missingProfileSections.length} sections pending` : 'Complete'}
+                color={summary.profileCompletionPercent === 100 ? 'success' : 'warning'} showSparkline={false} />
+            </div>
+            <div className="cursor-pointer" onClick={() => navigate('/background-verification')}>
+              <StatCard icon={ShieldCheck} label="BGV Status" value={`${summary.bgvApprovedCount}/${summary.bgvTotalCount}`}
+                change="checks cleared" color={summary.bgvApprovedCount === summary.bgvTotalCount && summary.bgvTotalCount > 0 ? 'success' : 'default'} showSparkline={false} />
+            </div>
+            <div className="cursor-pointer" onClick={() => navigate('/assets')}>
+              <StatCard icon={Package} label="Assets Assigned" value={summary.myAssets?.length || 0} color="info" showSparkline={false} />
+            </div>
+            <div className="cursor-pointer" onClick={() => navigate('/policies')}>
+              <StatCard icon={BookOpen} label="Policies Pending" value={summary.pendingPolicyAcknowledgements?.length || 0}
+                change={summary.pendingPolicyAcknowledgements?.length ? 'Acknowledgement required' : 'All acknowledged'}
+                color={summary.pendingPolicyAcknowledgements?.length ? 'warning' : 'success'} showSparkline={false} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card title="Upcoming Holidays" action={<button onClick={() => navigate('/settings')} className="text-xs text-primary hover:underline">View All</button>}>
+              {summary.upcomingHolidays?.length ? (
+                <div className="space-y-2">
+                  {summary.upcomingHolidays.slice(0, 4).map(h => (
+                    <div key={h.id} className="flex items-center justify-between p-2 bg-surface-3 rounded-lg text-sm">
+                      <span className="text-text">{h.name}</span>
+                      <span className="text-text-secondary text-xs">{h.date}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-xs text-text-secondary">No upcoming holidays in the next few weeks.</p>}
+            </Card>
+
+            <Card title="Upcoming Birthdays">
+              {summary.upcomingBirthdays?.length ? (
+                <div className="space-y-2">
+                  {summary.upcomingBirthdays.slice(0, 4).map(b => (
+                    <div key={b.employeeId} className="flex items-center gap-2 p-2 bg-surface-3 rounded-lg text-sm">
+                      <Gift size={14} className="text-primary" />
+                      <span className="text-text">{b.name}</span>
+                      <span className="text-text-secondary text-xs ml-auto">{b.dateOfBirth?.slice(5)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-xs text-text-secondary">No birthdays coming up.</p>}
+            </Card>
+
+            <Card title="Company Announcements">
+              {summary.announcements?.length ? (
+                <div className="space-y-2">
+                  {summary.announcements.slice(0, 3).map(a => (
+                    <div key={a.id} className="p-2 bg-surface-3 rounded-lg">
+                      <div className="flex items-center gap-2"><Megaphone size={14} className="text-primary" /><p className="text-sm font-medium text-text">{a.title}</p></div>
+                      <p className="text-xs text-text-secondary mt-1 line-clamp-2">{a.message}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-xs text-text-secondary">No announcements right now.</p>}
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card title="Recent Documents" action={<button onClick={() => navigate('/documents')} className="text-xs text-primary hover:underline">View All</button>}>
+              {summary.recentDocuments?.length ? (
+                <div className="space-y-2">
+                  {summary.recentDocuments.slice(0, 4).map(d => (
+                    <div key={d.id} className="flex items-center gap-2 p-2 bg-surface-3 rounded-lg text-sm"><FileText size={14} className="text-primary" /><span className="text-text truncate">{d.name}</span></div>
+                  ))}
+                </div>
+              ) : <p className="text-xs text-text-secondary">No documents uploaded yet.</p>}
+            </Card>
+
+            {summary.upcomingInterviews?.length > 0 && (
+              <Card title="Upcoming Interviews (as Interviewer)" action={<button onClick={() => navigate('/recruitment')} className="text-xs text-primary hover:underline">Open Recruitment</button>}>
+                <div className="space-y-2">
+                  {summary.upcomingInterviews.slice(0, 4).map(i => (
+                    <div key={i.id} className="p-2 bg-surface-3 rounded-lg text-sm cursor-pointer" onClick={() => navigate('/recruitment')}>
+                      <div className="flex items-center gap-2"><Video size={14} className="text-primary" /><span className="text-text font-medium">{i.candidateName}</span></div>
+                      <p className="text-xs text-text-secondary mt-1">{i.title} &middot; {i.scheduledDate} {i.scheduledTime}</p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {summary.latestPerformanceReview && (
+              <Card title="Performance Summary" action={<button onClick={() => navigate('/performance')} className="text-xs text-primary hover:underline">View Details</button>}>
+                <div className="p-3 bg-surface-3 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1"><Award size={14} className="text-primary" /><p className="text-sm font-medium text-text">{summary.latestPerformanceReview.reviewCycleName}</p></div>
+                  <Badge>{summary.latestPerformanceReview.status}</Badge>
+                  {summary.latestPerformanceReview.overallManagerRating != null && (
+                    <p className="text-xs text-text-secondary mt-2">Manager rating: <span className="text-text font-semibold">{summary.latestPerformanceReview.overallManagerRating}</span></p>
+                  )}
+                </div>
+              </Card>
+            )}
+          </div>
+        </>
+      )}
+      {isLiveAttendance && summaryLoading && !summary && (
+        <p className="text-xs text-text-secondary">Loading your dashboard...</p>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Punch In/Out */}
