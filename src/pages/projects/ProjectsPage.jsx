@@ -44,7 +44,7 @@ export default function ProjectsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState(null);
   const [showEdit, setShowEdit] = useState(null);
-  const [form, setForm] = useState({ name: '', client: '', status: 'On Track', priority: 'Medium', deadline: '', description: '', manager: '', budget: '' });
+  const [form, setForm] = useState({ name: '', client: '', status: 'On Track', priority: 'Medium', deadline: '', description: '', manager: '', projectManagerId: '', budget: '' });
   const [editForm, setEditForm] = useState({});
   const [members, setMembers] = useState(null); // null = not loaded / not live
   const [membersLoading, setMembersLoading] = useState(false);
@@ -76,7 +76,7 @@ export default function ProjectsPage() {
     try {
       await projects.create({ ...form, progress: 0, team: 0, tech: [], startDate: new Date().toISOString().split('T')[0], milestones: 0, completedMilestones: 0, risks: 0, sprints: 0, spent: '₹0', repository: '' });
       toast.success(`Project "${form.name}" created`);
-      setShowAdd(false); setForm({ name: '', client: '', status: 'On Track', priority: 'Medium', deadline: '', description: '', manager: '', budget: '' });
+      setShowAdd(false); setForm({ name: '', client: '', status: 'On Track', priority: 'Medium', deadline: '', description: '', manager: '', projectManagerId: '', budget: '' });
     } catch (err) {
       toast.error(err.message || 'Failed to create project');
     }
@@ -227,7 +227,8 @@ export default function ProjectsPage() {
         <div className="grid grid-cols-2 gap-4">
           <Input label="Project Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
           <Input label="Client" value={form.client} onChange={e => setForm(p => ({ ...p, client: e.target.value }))} />
-          <Input label="Manager" value={form.manager} onChange={e => setForm(p => ({ ...p, manager: e.target.value }))} />
+          <EmployeeAutocomplete label="Manager" employees={data.employees} value={form.projectManagerId}
+            onChange={id => setForm(p => ({ ...p, projectManagerId: id }))} placeholder="Search manager by name or employee ID" />
           {canViewBudget && <Input label="Budget" value={form.budget} onChange={e => setForm(p => ({ ...p, budget: e.target.value }))} placeholder="e.g. ₹50L" />}
           <Input label="Deadline" type="date" value={form.deadline} onChange={e => setForm(p => ({ ...p, deadline: e.target.value }))} />
           <Select label="Priority" value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))} options={['High','Medium','Low'].map(v => ({ value: v, label: v }))} />
@@ -244,7 +245,8 @@ export default function ProjectsPage() {
           <Select label="Status" value={editForm.status || ''} onChange={e => setEditForm(p => ({ ...p, status: e.target.value }))} options={['On Track','At Risk','Delayed','Completed','On Hold'].map(v => ({ value: v, label: v }))} />
           <Input label="Progress %" type="number" value={editForm.progress || 0} onChange={e => setEditForm(p => ({ ...p, progress: parseInt(e.target.value) || 0 }))} min="0" max="100" />
           <Input label="Deadline" type="date" value={editForm.deadline || ''} onChange={e => setEditForm(p => ({ ...p, deadline: e.target.value }))} />
-          <Input label="Manager" value={editForm.manager || ''} onChange={e => setEditForm(p => ({ ...p, manager: e.target.value }))} />
+          <EmployeeAutocomplete label="Manager" employees={data.employees} value={editForm.projectManagerId || ''}
+            onChange={id => setEditForm(p => ({ ...p, projectManagerId: id }))} placeholder="Search manager by name or employee ID" />
           <div className="col-span-2 flex justify-end gap-2 mt-2"><Button variant="secondary" onClick={() => setShowEdit(null)}>Cancel</Button><Button onClick={handleEdit}>Save</Button></div>
         </div>}
       </Modal>

@@ -66,7 +66,7 @@ export default function EmployeeAutocomplete({ employees = [], value, onChange, 
       {label && <label className="block text-xs font-medium text-text-secondary mb-1">{label}</label>}
       {selectedEmployee && !open ? (
         <div className="flex items-center justify-between bg-surface-3 border border-border rounded-lg px-3 py-2 text-sm">
-          <span className="text-text font-medium">{selectedEmployee.name} <span className="text-text-secondary font-normal">({selectedEmployee.empId})</span></span>
+          <span className="text-text font-medium">{selectedEmployee.name} <span className="text-text-secondary font-normal">({selectedEmployee.empId}{selectedEmployee.designation ? ` · ${selectedEmployee.designation}` : ''})</span></span>
           <button type="button" onClick={clear} aria-label="Clear selection" className="text-text-secondary hover:text-text"><X size={14} /></button>
         </div>
       ) : (
@@ -94,7 +94,10 @@ export default function EmployeeAutocomplete({ employees = [], value, onChange, 
               onClick={() => select(e)}
               className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors ${i === activeIndex ? 'bg-primary/10 text-text' : 'text-text hover:bg-surface-3'}`}
             >
-              <span className="truncate">{highlight(e.name || '', query)}</span>
+              <span className="truncate">
+                {highlight(e.name || '', query)}
+                {e.designation && <span className="text-[11px] text-text-secondary font-normal"> &middot; {e.designation}</span>}
+              </span>
               <span className="text-[11px] text-text-secondary flex-shrink-0">{highlight(e.empId || '', query)}</span>
             </button>
           ))}
