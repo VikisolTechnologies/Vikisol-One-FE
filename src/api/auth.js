@@ -14,6 +14,18 @@ export function logout() {
   setToken(null);
 }
 
+export async function changePassword(oldPassword, newPassword) {
+  return api.post('/auth/change-password', { oldPassword, newPassword });
+}
+
+export async function getLoginHistory({ size = 100 } = {}) {
+  return api.get('/login-history', { size });
+}
+
+export async function getMyLoginHistory({ size = 50 } = {}) {
+  return api.get('/login-history/me', { size });
+}
+
 export async function inspectActivationToken(token) {
   return api.noAuth.get(`/auth/activate/${token}`);
 }

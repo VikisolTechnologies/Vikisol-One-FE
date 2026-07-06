@@ -26,9 +26,11 @@ export default function ResetPassword() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const onKeyUpCheckCaps = (e) => setCapsLockOn(e.getModifierState && e.getModifierState('CapsLock'));
 
   useEffect(() => {
     if (!token) { setStatus('invalid'); return; }
@@ -94,15 +96,16 @@ export default function ResetPassword() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="relative">
                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="New password" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-10 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
+                  <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} onKeyUp={onKeyUpCheckCaps} placeholder="New password" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-10 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
                   <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text">
                     {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <input type={showPwd ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirm password" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
+                  <input type={showPwd ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} onKeyUp={onKeyUpCheckCaps} placeholder="Confirm password" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
                 </div>
+                {capsLockOn && <p className="text-[11px] text-warning -mt-2">Caps Lock is on</p>}
 
                 <div className="bg-surface-3 rounded-lg p-3 space-y-1.5">
                   {REQUIREMENTS.map(r => {
@@ -135,7 +138,7 @@ export default function ResetPassword() {
               <CheckCircle2 size={40} className="text-success" />
               <h2 className="text-lg font-semibold text-text">Password updated successfully</h2>
               <p className="text-sm text-text-secondary">
-                Please login using your official company email{email ? <>: <span className="font-medium text-text">{email}</span></> : '.'}
+                For your security, you have been signed out of all devices. Please login using your official company email{email ? <>: <span className="font-medium text-text">{email}</span></> : '.'}
               </p>
               <Link to="/login" className="text-primary text-sm hover:underline mt-2">Go to login</Link>
             </div>

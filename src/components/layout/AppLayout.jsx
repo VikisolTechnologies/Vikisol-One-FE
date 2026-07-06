@@ -6,7 +6,7 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 
 export default function AppLayout() {
-  const { isAuthenticated, authLoading } = useAuth();
+  const { isAuthenticated, authLoading, user } = useAuth();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   // Sidebar was always rendered at fixed width with no mobile pattern - on a phone this left
@@ -15,6 +15,10 @@ export default function AppLayout() {
 
   if (authLoading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  // Password Expiry: block every page in the app until the forced Change Password screen
+  // succeeds - the backend enforces this too (403s every API call except change-password/me), so
+  // this is a real gate, not just a nicety.
+  if (user?.passwordExpired) return <Navigate to="/change-password" replace />;
 
   return (
     <div className="flex min-h-screen">

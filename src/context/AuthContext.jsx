@@ -40,14 +40,20 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     try {
-      await loginApi(email, password);
+      const loginData = await loginApi(email, password);
       // /auth/login's response has no `id` field (only email/role/names) - fetch the full
       // profile via /auth/me immediately so user.id is populated right away, same as the
       // session-restore path above. Without this, features gated on "is this my own record"
       // (e.g. the Linked Accounts panel) silently fail to recognize self-access until the next
       // page reload re-runs the fetchMe() effect.
       const me = await fetchMe();
-      const userData = { id: me.id, email: me.email, firstName: me.firstName, lastName: me.lastName, name: `${me.firstName} ${me.lastName}`, role: me.role?.replace('ROLE_', '').toLowerCase() };
+      const userData = {
+        id: me.id, email: me.email, firstName: me.firstName, lastName: me.lastName, name: `${me.firstName} ${me.lastName}`,
+        role: me.role?.replace('ROLE_', '').toLowerCase(),
+        // When true, the app must force the Change Password screen and block everything else -
+        // the backend enforces this too (403s every other endpoint), this just drives the redirect.
+        passwordExpired: !!loginData.passwordExpired,
+      };
       setUser(userData);
       localStorage.setItem('vikisol_user', JSON.stringify(userData));
       return { success: true, user: userData };
@@ -60,10 +66,20 @@ export function AuthProvider({ children }) {
     clearSession();
   }, [clearSession]);
 
+  // Called once the forced Change Password screen succeeds, so the route guard stops redirecting.
+  const clearPasswordExpired = useCallback(() => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, passwordExpired: false };
+      localStorage.setItem('vikisol_user', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   // Previously a fresh object literal every render (Phase 5 finding) - with 21 consumer files,
   // this meant every one of them re-rendered on any AuthProvider re-render regardless of whether
   // the auth state they actually use changed.
-  const value = useMemo(() => ({ user, login, logout, isAuthenticated: !!user, authLoading }), [user, login, logout, authLoading]);
+  const value = useMemo(() => ({ user, login, logout, isAuthenticated: !!user, authLoading, clearPasswordExpired }), [user, login, logout, authLoading, clearPasswordExpired]);
 
   return (
     <AuthContext.Provider value={value}>

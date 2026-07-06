@@ -777,7 +777,7 @@ export default function EmployeeDirectory() {
                       <div>
                         <p className="text-xs text-text-secondary">Account Status</p>
                         <div className="mt-0.5">
-                          <Badge variant={{ ACTIVE: 'success', LOCKED: 'danger', PENDING_ACTIVATION: 'warning', DISABLED: 'default', NO_ACCOUNT: 'default' }[accountStatus.accountStatus] || 'default'} dot>
+                          <Badge variant={{ ACTIVE: 'success', LOCKED: 'danger', PENDING_ACTIVATION: 'warning', PASSWORD_EXPIRED: 'warning', SUSPENDED: 'danger', DISABLED: 'default', NO_ACCOUNT: 'default' }[accountStatus.accountStatus] || 'default'} dot>
                             {(accountStatus.accountStatus || 'NO_ACCOUNT').replace(/_/g, ' ')}
                           </Badge>
                         </div>

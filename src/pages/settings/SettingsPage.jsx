@@ -15,7 +15,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { updateSetting, getSettingsByCategory, getRolePermissionMatrix, updateRolePermissionMatrix } from '../../api/settings';
 import { getCtcBreakupTemplate, updateCtcBreakupTemplate, getCtcCustomLabel, updateCtcCustomLabel } from '../../api/payroll';
-import { getAuthSettings, updateAuthSettings } from '../../api/auth';
+import { getAuthSettings, updateAuthSettings, getLoginHistory } from '../../api/auth';
 
 const MODULE_LABELS = {
   dashboard: 'Dashboard', employees: 'Employees', recruitment: 'Recruitment', 'new-hires': 'New Hires', projects: 'Projects',
@@ -518,6 +518,12 @@ function AuthenticationSettings() {
         LOCKOUT_MINUTES: settings.lockoutDurationMinutes !== '' && settings.lockoutDurationMinutes != null ? String(settings.lockoutDurationMinutes) : '',
         PASSWORD_EXPIRY_DAYS: settings.passwordExpiryDays !== '' && settings.passwordExpiryDays != null ? String(settings.passwordExpiryDays) : '',
         SESSION_TIMEOUT_MINUTES: settings.sessionTimeoutMinutes !== '' && settings.sessionTimeoutMinutes != null ? String(settings.sessionTimeoutMinutes) : '',
+        PASSWORD_MIN_LENGTH: settings.passwordMinLength !== '' && settings.passwordMinLength != null ? String(settings.passwordMinLength) : '8',
+        PASSWORD_REQUIRE_UPPERCASE: String(!!settings.passwordRequireUppercase),
+        PASSWORD_REQUIRE_LOWERCASE: String(!!settings.passwordRequireLowercase),
+        PASSWORD_REQUIRE_NUMBER: String(!!settings.passwordRequireNumber),
+        PASSWORD_REQUIRE_SPECIAL_CHAR: String(!!settings.passwordRequireSpecialChar),
+        PASSWORD_HISTORY_COUNT: settings.passwordHistoryCount !== '' && settings.passwordHistoryCount != null ? String(settings.passwordHistoryCount) : '0',
       };
       const updated = await updateAuthSettings(payload);
       setSettings(updated || settings);
@@ -594,8 +600,68 @@ function AuthenticationSettings() {
             value={settings.sessionTimeoutMinutes ?? ''} onChange={e => update({ sessionTimeoutMinutes: e.target.value })} />
         </div>
 
+        <div className="pt-2 border-t border-border">
+          <p className="text-sm font-medium text-text mb-1">Password Policy</p>
+          <p className="text-xs text-text-secondary mb-3">Applies to account activation and password resets.</p>
+          <div className="grid grid-cols-2 gap-4 mb-3">
+            <Input label="Minimum Length" type="number" min="6" value={settings.passwordMinLength ?? ''} onChange={e => update({ passwordMinLength: e.target.value })} />
+            <Input label="Password History (block reuse of last N, 0 = off)" type="number" min="0" value={settings.passwordHistoryCount ?? ''} onChange={e => update({ passwordHistoryCount: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex items-center gap-2 text-sm text-text cursor-pointer"><input type="checkbox" checked={!!settings.passwordRequireUppercase} onChange={e => update({ passwordRequireUppercase: e.target.checked })} /> Uppercase required</label>
+            <label className="flex items-center gap-2 text-sm text-text cursor-pointer"><input type="checkbox" checked={!!settings.passwordRequireLowercase} onChange={e => update({ passwordRequireLowercase: e.target.checked })} /> Lowercase required</label>
+            <label className="flex items-center gap-2 text-sm text-text cursor-pointer"><input type="checkbox" checked={!!settings.passwordRequireNumber} onChange={e => update({ passwordRequireNumber: e.target.checked })} /> Number required</label>
+            <label className="flex items-center gap-2 text-sm text-text cursor-pointer"><input type="checkbox" checked={!!settings.passwordRequireSpecialChar} onChange={e => update({ passwordRequireSpecialChar: e.target.checked })} /> Special character required</label>
+          </div>
+        </div>
+
         <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Authentication Settings'}</Button>
       </div>
+    </Card>
+  );
+}
+
+const EVENT_LABELS = {
+  LOGIN_SUCCESS: 'Login Success', LOGIN_FAILED: 'Login Failed', PASSWORD_RESET_REQUESTED: 'Password Reset Requested',
+  PASSWORD_RESET_COMPLETED: 'Password Reset Completed', ACCOUNT_LOCKED: 'Account Locked', ACCOUNT_UNLOCKED: 'Account Unlocked',
+  ACCOUNT_ACTIVATED: 'Account Activated', LOGOUT: 'Logout', SESSION_EXPIRED: 'Session Expired',
+};
+
+// CEO/HR Manager/Admin-only structured security audit trail - separate from the generic Audit
+// Logs tab below (free-text business-record changes) since this needs a fixed event taxonomy
+// plus IP/browser per row.
+function LoginHistorySettings() {
+  const toast = useToast();
+  const [entries, setEntries] = useState(null);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    getLoginHistory({ size: 200 }).then(setEntries).catch(() => { toast.error('Could not load login history'); setEntries([]); });
+  }, []);
+
+  if (!entries) return <Card><p className="text-sm text-text-secondary">Loading...</p></Card>;
+
+  const filtered = entries.filter(e => {
+    const q = search.toLowerCase();
+    if (!q) return true;
+    return [e.userEmail, e.eventType, e.ipAddress].some(f => (f || '').toLowerCase().includes(q));
+  });
+
+  const columns = [
+    { key: 'timestamp', label: 'Time', render: (v) => v ? new Date(v).toLocaleString() : '-' },
+    { key: 'userEmail', label: 'User' },
+    { key: 'eventType', label: 'Event', render: (v) => EVENT_LABELS[v] || v },
+    { key: 'success', label: 'Result', render: (v) => <Badge variant={v ? 'success' : 'danger'} dot>{v ? 'Success' : 'Failure'}</Badge> },
+    { key: 'ipAddress', label: 'IP Address', render: (v) => v || '-' },
+    { key: 'userAgent', label: 'Browser/Device', render: (v) => <span className="text-xs text-text-secondary truncate block max-w-[220px]" title={v}>{v || '-'}</span> },
+  ];
+
+  return (
+    <Card padding={false}>
+      <div className="p-4 border-b border-border">
+        <Input placeholder="Search by user, event, or IP..." value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+      <DataTable columns={columns} data={filtered} pageSize={15} />
     </Card>
   );
 }
@@ -692,6 +758,7 @@ export default function SettingsPage() {
         // was removed rather than kept alongside the real thing under a near-identical name.
         ...(isCEO ? [{ id: 'role-permissions', label: 'Role Permissions', content: <RolePermissionsSettings /> }] : []),
         ...(isCEOOrAdmin ? [{ id: 'authentication', label: 'Authentication', content: <AuthenticationSettings /> }] : []),
+        ...(isCEOOrAdmin ? [{ id: 'login-history', label: 'Login History', content: <LoginHistorySettings /> }] : []),
         { id: 'announcements', label: 'Announcements', content: <AnnouncementsSettings /> },
         { id: 'holidays', label: 'Holidays', content: (
           <Card>
