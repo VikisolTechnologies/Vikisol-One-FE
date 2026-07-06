@@ -26,6 +26,7 @@ const AssessmentsPage = lazy(() => import('./pages/recruitment/AssessmentsPage')
 const NewHiresPage = lazy(() => import('./pages/recruitment/NewHiresPage'));
 const BackgroundVerificationPage = lazy(() => import('./pages/bgv/BackgroundVerificationPage'));
 const OffboardingPage = lazy(() => import('./pages/offboarding/OffboardingPage'));
+const HrTaskCenterPage = lazy(() => import('./pages/hr-tasks/HrTaskCenterPage'));
 const TimesheetPage = lazy(() => import('./pages/timesheets/TimesheetPage'));
 const ProjectsPage = lazy(() => import('./pages/projects/ProjectsPage'));
 const TicketsPage = lazy(() => import('./pages/tickets/TicketsPage'));
@@ -35,6 +36,8 @@ const AssetsPage = lazy(() => import('./pages/assets/AssetsPage'));
 const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'));
 const SettingsPage = lazy(() => import('./pages/settings/SettingsPage'));
 const NotificationCenter = lazy(() => import('./pages/NotificationCenter'));
+const CommunicationCenterPage = lazy(() => import('./pages/communication/CommunicationCenterPage'));
+const PoliciesPage = lazy(() => import('./pages/policies/PoliciesPage'));
 const HelpCenter = lazy(() => import('./pages/HelpCenter'));
 const OrgChart = lazy(() => import('./pages/OrgChart'));
 const ResourceAllocation = lazy(() => import('./pages/ResourceAllocation'));
@@ -73,6 +76,7 @@ export default function App() {
                           <Route path="/new-hires" element={<NewHiresPage />} />
                           <Route path="/background-verification" element={<BackgroundVerificationPage />} />
                           <Route path="/offboarding" element={<OffboardingPage />} />
+                          <Route path="/hr-tasks" element={<HrTaskCenterPage />} />
                           <Route path="/timesheets" element={<TimesheetPage />} />
                           <Route path="/projects" element={<ProjectsPage />} />
                           <Route path="/tickets" element={<TicketsPage />} />
@@ -82,6 +86,8 @@ export default function App() {
                           <Route path="/reports" element={<ReportsPage />} />
                           <Route path="/settings" element={<SettingsPage />} />
                           <Route path="/notifications" element={<NotificationCenter />} />
+                          <Route path="/communication" element={<CommunicationCenterPage />} />
+                          <Route path="/policies" element={<PoliciesPage />} />
                           <Route path="/help" element={<HelpCenter />} />
                           <Route path="/org-chart" element={<OrgChart />} />
                           <Route path="/resources" element={<ResourceAllocation />} />

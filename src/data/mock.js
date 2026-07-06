@@ -28,13 +28,13 @@ export const NAV_ITEMS = [
 ];
 
 export const ROLE_PERMISSIONS = {
-  ceo: ['dashboard', 'employees', 'recruitment', 'assessments', 'new-hires', 'background-verification', 'offboarding', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'company-branding', 'document-studio', 'company-integrations', 'settings', 'notifications'],
-  hr_manager: ['dashboard', 'employees', 'recruitment', 'assessments', 'new-hires', 'background-verification', 'offboarding', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'company-branding', 'document-studio', 'settings'],
-  manager: ['dashboard', 'employees', 'new-hires', 'offboarding', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'tickets', 'performance', 'org-chart', 'reports'],
-  employee: ['dashboard', 'projects', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'performance', 'documents', 'offboarding'],
-  recruiter: ['dashboard', 'recruitment', 'assessments', 'reports'],
-  finance: ['dashboard', 'payroll', 'reports'],
-  admin: ['dashboard', 'employees', 'recruitment', 'assessments', 'new-hires', 'background-verification', 'offboarding', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'company-branding', 'document-studio', 'company-integrations', 'settings'],
+  ceo: ['dashboard', 'employees', 'recruitment', 'assessments', 'new-hires', 'background-verification', 'offboarding', 'hr-tasks', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'communication', 'policies', 'company-branding', 'document-studio', 'company-integrations', 'settings', 'notifications'],
+  hr_manager: ['dashboard', 'employees', 'recruitment', 'assessments', 'new-hires', 'background-verification', 'offboarding', 'hr-tasks', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'communication', 'policies', 'company-branding', 'document-studio', 'settings'],
+  manager: ['dashboard', 'employees', 'new-hires', 'offboarding', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'tickets', 'performance', 'org-chart', 'reports', 'policies'],
+  employee: ['dashboard', 'projects', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'performance', 'documents', 'offboarding', 'policies'],
+  recruiter: ['dashboard', 'recruitment', 'assessments', 'reports', 'policies'],
+  finance: ['dashboard', 'payroll', 'reports', 'policies'],
+  admin: ['dashboard', 'employees', 'recruitment', 'assessments', 'new-hires', 'background-verification', 'offboarding', 'hr-tasks', 'projects', 'resources', 'timesheets', 'leave', 'attendance', 'payroll', 'tickets', 'assets', 'performance', 'org-chart', 'reports', 'documents', 'communication', 'policies', 'company-branding', 'document-studio', 'company-integrations', 'settings'],
 };
 
 export const TIMESHEET_DATA = {

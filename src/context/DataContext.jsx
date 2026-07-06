@@ -875,6 +875,34 @@ export function DataProvider({ children }) {
     }));
   }, [notificationsSource]);
 
+  const archiveNotification = useCallback(async (id) => {
+    if (notificationsSource === 'live') {
+      try {
+        await notificationsApi.archiveNotification(id);
+      } catch {
+        // ignore - still reflect archived state locally so the UI doesn't get stuck
+      }
+    }
+    setData(prev => ({
+      ...prev,
+      notifications: prev.notifications.map(n => n.id === id ? { ...n, archived: true } : n),
+    }));
+  }, [notificationsSource]);
+
+  const unarchiveNotification = useCallback(async (id) => {
+    if (notificationsSource === 'live') {
+      try {
+        await notificationsApi.unarchiveNotification(id);
+      } catch {
+        // ignore - still reflect archived state locally so the UI doesn't get stuck
+      }
+    }
+    setData(prev => ({
+      ...prev,
+      notifications: prev.notifications.map(n => n.id === id ? { ...n, archived: false } : n),
+    }));
+  }, [notificationsSource]);
+
   const stats = useMemo(() => {
     const emps = data.employees;
     const active = emps.filter(e => e.status === 'Active').length;
@@ -891,7 +919,7 @@ export function DataProvider({ children }) {
 
   const value = useMemo(() => ({
     data, stats, employees, leaveRequests, timesheets, tickets, candidates, projects, assets, payslips, documents, announcements, notifications, holidays,
-    markNotificationRead, markAllNotificationsRead,
+    markNotificationRead, markAllNotificationsRead, archiveNotification, unarchiveNotification,
     departments: data.departments, auditLogs: data.auditLogs,
     employeesSource, employeesLoading, lookups,
     leaveRequestsSource, leaveRequestsLoading, leaveTypes, leaveBalances,
