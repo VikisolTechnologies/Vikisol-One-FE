@@ -1,3 +1,5 @@
+import { ChevronDown } from 'lucide-react';
+
 // Browsers already restrict type="number" fields to digits/decimal, but still let people type
 // "e", "+", "-", which produces confusing values like "1e5" in a CTC or weight field. Block those.
 const BLOCKED_NUMBER_KEYS = new Set(['e', 'E', '+', '-']);
@@ -52,10 +54,13 @@ export function Select({ label, options, className = '', placeholder, ...props }
   return (
     <div className={`space-y-1.5 ${className}`}>
       {label && <label className="text-xs font-medium text-text-secondary">{label}</label>}
-      <select className="w-full bg-surface-3 border border-border rounded-lg py-2.5 px-3 text-sm text-text focus:outline-none focus:border-primary transition-all appearance-none" {...props}>
-        {placeholder && <option value="">{placeholder}</option>}
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      <div className="relative">
+        <select className="w-full bg-surface-3 border border-border rounded-lg py-2.5 pl-3 pr-9 text-sm text-text focus:outline-none focus:border-primary transition-all appearance-none cursor-pointer" {...props}>
+          {placeholder && <option value="">{placeholder}</option>}
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" />
+      </div>
     </div>
   );
 }
