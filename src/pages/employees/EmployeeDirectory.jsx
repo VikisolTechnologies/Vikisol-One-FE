@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { UserPlus, Download, Upload, Eye, Edit3, Trash2, MoreVertical, UserCheck, UserX, Key, RefreshCw, FileText, Briefcase, Monitor, TrendingUp, LogOut, CheckCircle2, XCircle, Clock, UserPlus as UserPlusIcon, Shield, LogIn, ClipboardList, ScrollText, ArrowRightLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Card from '../../components/ui/Card';
@@ -17,7 +17,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, generateOfferLetter, generateExperienceLetter, generateRelievingLetter, getEmployeeTimeline, initiateTransfer, getTransferHistory, getAccountStatus, unlockAccount } from '../../api/employees';
+import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, getEmployeeTimeline, initiateTransfer, getTransferHistory, getAccountStatus, unlockAccount, validateEmployeeFields } from '../../api/employees';
 import AccountStatusBadge from '../../components/ui/AccountStatusBadge';
 import { getEmployeeDocuments } from '../../api/documents';
 import { getProfileCompletion } from '../../api/onboarding';
@@ -87,6 +87,7 @@ export default function EmployeeDirectory() {
   const [showEdit, setShowEdit] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [addForm, setAddForm] = useState({ name: '', email: '', personalEmail: '', personalMobile: '', department: 'Development', designation: '', location: 'Hyderabad', phone: '', employmentType: 'Full Time' });
+  const [addFormErrors, setAddFormErrors] = useState({});
   const [editForm, setEditForm] = useState({});
   const [hikeEmp, setHikeEmp] = useState(null);
   const [hikeForm, setHikeForm] = useState({ newAnnualCtc: '', effectiveDate: '', reason: '' });
@@ -114,14 +115,39 @@ export default function EmployeeDirectory() {
     });
   }, [allEmps, search, filters]);
 
+  // Real-time inline validation while HR is filling the Add Employee form - checks against the
+  // live backend (debounced) so "already exists" is caught before Create is even clickable,
+  // instead of surfacing as a raw DB constraint error only on submit.
+  useEffect(() => {
+    if (employeesSource !== 'live') return;
+    const officialEmail = addForm.email?.trim();
+    const personalEmail = addForm.personalEmail?.trim();
+    const mobile = addForm.personalMobile?.trim();
+    if (!officialEmail && !personalEmail && !mobile) { setAddFormErrors({}); return; }
+    const timer = setTimeout(() => {
+      validateEmployeeFields({ officialEmail, personalEmail, mobile }).then(v => {
+        setAddFormErrors({
+          email: v.officialEmailExists ? 'This official email already exists' : '',
+          personalEmail: v.personalEmailExists ? 'This personal email is already registered' : '',
+          personalMobile: v.mobileExists ? 'This mobile number is already registered' : '',
+        });
+      }).catch(() => {});
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [addForm.email, addForm.personalEmail, addForm.personalMobile, employeesSource]);
+
+  const hasAddFormErrors = Object.values(addFormErrors).some(Boolean);
+
   const handleCreate = async () => {
     if (!addForm.name || !addForm.email) { toast.error('Name and email are required'); return; }
+    if (hasAddFormErrors) { toast.error('Please resolve the highlighted fields before continuing'); return; }
     const empId = `VKS${String(allEmps.length + 100).padStart(3, '0')}`;
     try {
       await employees.create({ ...addForm, empId, id: Date.now(), status: 'Active', joinDate: new Date().toISOString().split('T')[0], ctc: 600000, skills: [], manager: 'Rohit Sharma' });
       toast.success(`Employee ${addForm.name} created successfully`);
       setShowAdd(false);
       setAddForm({ name: '', email: '', personalEmail: '', personalMobile: '', department: 'Development', designation: '', location: 'Hyderabad', phone: '', employmentType: 'Full Time' });
+      setAddFormErrors({});
     } catch (err) {
       toast.error(err.message || 'Failed to create employee');
     }
@@ -249,28 +275,10 @@ export default function EmployeeDirectory() {
     }
   };
 
-  const LETTER_GENERATORS = {
-    'Offer Letter': generateOfferLetter,
-    'Experience Letter': generateExperienceLetter,
-    'Relieving Letter': generateRelievingLetter,
-  };
-
-  const handleGenerateLetter = async (emp, type) => {
-    setContextMenu(null);
-    const generator = LETTER_GENERATORS[type];
-    if (!generator) { toast.info(`${type} generation is not available yet`); return; }
-    if (employeesSource !== 'live') { toast.error(`Connect to the live backend to generate ${type.toLowerCase()}s`); return; }
-    try {
-      const fileUrl = await generator(emp.id);
-      toast.success(`${type} generated`);
-      await downloadFile(fileUrl);
-    } catch (err) {
-      toast.error(err.message || `Failed to generate ${type.toLowerCase()}`);
-    }
-  };
-
-  // Generic document generation - covers every document type Document Studio supports (not just
-  // the 3 with dedicated buttons above), via the backend's generic /documents/generate endpoint.
+  // Generic document generation - covers every document type Document Studio supports, via the
+  // backend's generic /documents/generate endpoint. Previously there was also a dedicated
+  // "Generate Letter" button that only produced Offer Letters through a separate, older code
+  // path (generateOfferLetter) - removed since it duplicated this flow with no distinct behavior.
   const [genDocEmp, setGenDocEmp] = useState(null);
   const [genDocType, setGenDocType] = useState('OFFER_LETTER');
   const [genDocFields, setGenDocFields] = useState({});
@@ -475,9 +483,9 @@ export default function EmployeeDirectory() {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add New Employee" size="lg">
         <div className="grid grid-cols-2 gap-4">
           <Input label="Full Name *" value={addForm.name} onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))} placeholder="Enter full name" />
-          <Input label="Official Email *" type="email" value={addForm.email} onChange={e => setAddForm(p => ({ ...p, email: e.target.value }))} placeholder="email@vikisol.in" />
-          <Input label="Personal Email" type="email" value={addForm.personalEmail || ''} onChange={e => setAddForm(p => ({ ...p, personalEmail: e.target.value }))} placeholder="used only for the activation link" />
-          <Input label="Personal Mobile" value={addForm.personalMobile || ''} onChange={e => setAddForm(p => ({ ...p, personalMobile: e.target.value }))} placeholder="+91 XXXXX XXXXX" />
+          <Input label="Official Email *" type="email" value={addForm.email} onChange={e => setAddForm(p => ({ ...p, email: e.target.value }))} placeholder="email@vikisol.in" error={addFormErrors.email} />
+          <Input label="Personal Email" type="email" value={addForm.personalEmail || ''} onChange={e => setAddForm(p => ({ ...p, personalEmail: e.target.value }))} placeholder="used only for the activation link" error={addFormErrors.personalEmail} />
+          <Input label="Personal Mobile" value={addForm.personalMobile || ''} onChange={e => setAddForm(p => ({ ...p, personalMobile: e.target.value }))} placeholder="+91 XXXXX XXXXX" error={addFormErrors.personalMobile} />
           {employeesSource === 'live' ? (
             <Select label="Department" value={addForm.departmentId || ''} onChange={e => setAddForm(p => ({ ...p, departmentId: e.target.value }))} options={deptOptions} />
           ) : (
@@ -494,7 +502,7 @@ export default function EmployeeDirectory() {
         </div>
         <div className="flex justify-end gap-2 mt-6">
           <Button variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Button>
-          <Button onClick={handleCreate}>Create Employee</Button>
+          <Button onClick={handleCreate} disabled={hasAddFormErrors}>Create Employee</Button>
         </div>
       </Modal>
 
@@ -555,7 +563,7 @@ export default function EmployeeDirectory() {
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="secondary" icon={Edit3} onClick={() => { openEdit(selectedEmp); setSelectedEmp(null); }}>Edit</Button>
-                <Button size="sm" variant="secondary" icon={FileText} onClick={() => handleGenerateLetter(selectedEmp, 'Offer Letter')}>Generate Letter</Button>
+                <Button size="sm" variant="secondary" icon={FileText} onClick={() => openGenerateDocModal(selectedEmp)}>Generate Document</Button>
               </div>
             </div>
             {profileCompletion && (

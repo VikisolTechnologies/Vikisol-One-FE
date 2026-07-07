@@ -230,3 +230,9 @@ export async function getAccountStatus(employeeId) {
 export async function unlockAccount(employeeId) {
   return api.post(`/employees/${employeeId}/unlock-account`);
 }
+
+// Real-time inline validation for the Add/Edit Employee form - lets HR see "already exists"
+// beside a field before submitting instead of a raw DB constraint error on save.
+export async function validateEmployeeFields(fields) {
+  return api.get('/employees/validate', fields);
+}
