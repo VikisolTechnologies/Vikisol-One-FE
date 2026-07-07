@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FileText, Plus, Copy, CheckCircle, Archive, RotateCcw, Eye, Trash2, Layers, ChevronLeft } from 'lucide-react';
+import { FileText, Plus, Copy, CheckCircle, Archive, RotateCcw, Eye, Trash2, Layers, ChevronLeft, History } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
@@ -17,6 +17,7 @@ import {
   listTemplatesByType, createDraft, publishTemplate, rollbackTemplate,
   archiveTemplate, duplicateTemplate, previewDocument,
   seedDefaultTemplates, seedOfferLetterTemplate,
+  listVersions, createNewVersion, listVariables,
 } from '../../api/documentStudio';
 import { getAllEmployees } from '../../api/employees';
 
@@ -151,14 +152,25 @@ export default function DocumentStudio() {
   const [showEditor, setShowEditor] = useState(false);
   const [editorName, setEditorName] = useState('');
   const [editorBlocks, setEditorBlocks] = useState([]);
+  const [editorVersionGroupId, setEditorVersionGroupId] = useState(null); // set = "create new version of this group" instead of a brand-new draft
 
   const [previewUrl, setPreviewUrl] = useState(null);
   const [previewing, setPreviewing] = useState(false);
   const [sampleEmployeeId, setSampleEmployeeId] = useState(null);
 
+  const [historyFor, setHistoryFor] = useState(null); // template whose version history is open
+  const [historyVersions, setHistoryVersions] = useState(null);
+
+  const [variables, setVariables] = useState([]);
+
   useEffect(() => {
     getAllEmployees({ size: 1 }).then(r => setSampleEmployeeId(r.items?.[0]?.id)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!selectedType) return;
+    listVariables(selectedType).then(setVariables).catch(() => setVariables([]));
+  }, [selectedType]);
 
   const loadTemplates = (type) => {
     setTemplatesLoading(true);
@@ -188,17 +200,39 @@ export default function DocumentStudio() {
     if (!editorName.trim()) { toast.error('Template name is required'); return; }
     setBusy(true);
     try {
-      await createDraft({ documentType: selectedType, name: editorName, contentBlocksJson: JSON.stringify(editorBlocks) });
-      toast.success('Draft created');
+      if (editorVersionGroupId) {
+        await createNewVersion(editorVersionGroupId, { documentType: selectedType, name: editorName, contentBlocksJson: JSON.stringify(editorBlocks) });
+        toast.success('New version created');
+      } else {
+        await createDraft({ documentType: selectedType, name: editorName, contentBlocksJson: JSON.stringify(editorBlocks) });
+        toast.success('Draft created');
+      }
       setShowEditor(false);
       setEditorName('');
       setEditorBlocks([]);
+      setEditorVersionGroupId(null);
       loadTemplates(selectedType);
     } catch (err) {
-      toast.error(err.message || 'Failed to create draft');
+      toast.error(err.message || 'Failed to save template');
     } finally {
       setBusy(false);
     }
+  };
+
+  const openHistory = (template) => {
+    setHistoryFor(template);
+    setHistoryVersions(null);
+    listVersions(template.templateGroupId).then(setHistoryVersions).catch(() => { toast.error('Failed to load version history'); setHistoryVersions([]); });
+  };
+
+  // Opens the block editor pre-filled with an existing version's content, saving as a new version
+  // of the same templateGroupId instead of an unrelated brand-new template.
+  const handleCreateNewVersionFrom = (template) => {
+    setEditorVersionGroupId(template.templateGroupId);
+    setEditorName(template.name);
+    setEditorBlocks(template.contentBlocksJson ? JSON.parse(template.contentBlocksJson) : []);
+    setHistoryFor(null);
+    setShowEditor(true);
   };
 
   const handleAction = async (action, template, label) => {
@@ -255,7 +289,7 @@ export default function DocumentStudio() {
             {templates.length === 0 && (
               <Button icon={CheckCircle} variant="secondary" disabled={busy} onClick={() => handleUseDefault(selectedType)}>Use Default Template</Button>
             )}
-            <Button icon={Plus} onClick={() => setShowEditor(true)}>New Template</Button>
+            <Button icon={Plus} onClick={() => { setEditorVersionGroupId(null); setEditorName(''); setEditorBlocks([]); setShowEditor(true); }}>New Template</Button>
           </div>
         </div>
 
@@ -282,6 +316,7 @@ export default function DocumentStudio() {
                 </div>
                 <div className="flex gap-1.5 flex-shrink-0">
                   <Button size="sm" variant="secondary" icon={Eye} disabled={previewing} onClick={() => handlePreview(t)}>Preview</Button>
+                  <Button size="sm" variant="secondary" icon={History} onClick={() => openHistory(t)}>History</Button>
                   <Button size="sm" variant="secondary" icon={Copy} disabled={busy} onClick={() => handleAction((id) => duplicateTemplate(id), t, 'duplicate')}>Duplicate</Button>
                   {t.status !== 'PUBLISHED' && (
                     <Button size="sm" icon={t.status === 'ARCHIVED' ? RotateCcw : CheckCircle} disabled={busy}
@@ -298,19 +333,57 @@ export default function DocumentStudio() {
           </div>
         )}
 
-        {/* New Template Editor */}
-        <Modal open={showEditor} onClose={() => setShowEditor(false)} title={`New Template - ${typeConfig?.label}`} size="xl">
-          <div className="space-y-4">
-            <Input label="Template Name" value={editorName} onChange={e => setEditorName(e.target.value)} placeholder="e.g. Corporate Offer Letter" />
-            <div>
-              <label className="text-xs font-medium text-text-secondary block mb-1.5">Content Blocks</label>
-              <BlockEditor blocks={editorBlocks} onChange={setEditorBlocks} />
+        {/* New Template / New Version Editor */}
+        <Modal open={showEditor} onClose={() => setShowEditor(false)} title={editorVersionGroupId ? `New Version - ${typeConfig?.label}` : `New Template - ${typeConfig?.label}`} size="xl">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2 space-y-4">
+              <Input label="Template Name" value={editorName} onChange={e => setEditorName(e.target.value)} placeholder="e.g. Corporate Offer Letter" />
+              <div>
+                <label className="text-xs font-medium text-text-secondary block mb-1.5">Content Blocks</label>
+                <BlockEditor blocks={editorBlocks} onChange={setEditorBlocks} />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <Button variant="secondary" onClick={() => setShowEditor(false)}>Cancel</Button>
+                <Button disabled={busy} onClick={handleCreateDraft}>{busy ? 'Saving...' : editorVersionGroupId ? 'Create New Version' : 'Create Draft'}</Button>
+              </div>
             </div>
-            <div className="flex justify-end gap-2 pt-2 border-t border-border">
-              <Button variant="secondary" onClick={() => setShowEditor(false)}>Cancel</Button>
-              <Button disabled={busy} onClick={handleCreateDraft}>{busy ? 'Creating...' : 'Create Draft'}</Button>
+            <div className="col-span-1">
+              <label className="text-xs font-medium text-text-secondary block mb-1.5">Available Placeholders</label>
+              <div className="border border-border rounded-lg p-2 max-h-[60vh] overflow-y-auto space-y-1">
+                {variables.length === 0 && <p className="text-xs text-text-secondary p-2">No placeholders registered for this document type yet.</p>}
+                {variables.map(v => (
+                  <button key={v.key} type="button"
+                    onClick={() => { navigator.clipboard?.writeText(`{{${v.key}}}`); toast.info(`Copied {{${v.key}}}`); }}
+                    className="w-full text-left px-2 py-1.5 rounded-md hover:bg-surface-3 transition-colors group">
+                    <p className="text-xs font-mono text-primary">{'{{' + v.key + '}}'}</p>
+                    <p className="text-[11px] text-text-secondary">{v.label}</p>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-text-secondary mt-2">Click a placeholder to copy it, then paste into any text/table/signature field above.</p>
             </div>
           </div>
+        </Modal>
+
+        {/* Version History */}
+        <Modal open={!!historyFor} onClose={() => setHistoryFor(null)} title={`Version History - ${historyFor?.name || ''}`} size="lg">
+          {historyVersions === null ? (
+            <p className="text-sm text-text-secondary">Loading...</p>
+          ) : historyVersions.length === 0 ? (
+            <p className="text-sm text-text-secondary">No version history found.</p>
+          ) : (
+            <div className="space-y-2">
+              {historyVersions.map(v => (
+                <div key={v.id} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
+                  <div>
+                    <p className="text-sm font-medium text-text">v{v.version} <Badge variant={STATUS_VARIANT[v.status]} className="ml-1">{v.status}</Badge></p>
+                    <p className="text-xs text-text-secondary">{v.createdByEmail} &middot; {new Date(v.createdAt).toLocaleString()}</p>
+                  </div>
+                  <Button size="sm" variant="secondary" onClick={() => handleCreateNewVersionFrom(v)}>Use as Base for New Version</Button>
+                </div>
+              ))}
+            </div>
+          )}
         </Modal>
 
         {/* PDF Preview */}
