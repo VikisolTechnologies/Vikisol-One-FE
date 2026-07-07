@@ -54,14 +54,12 @@ export default function ProjectsPage() {
   const [moveTargetId, setMoveTargetId] = useState('');
   const [moving, setMoving] = useState(false);
 
-  const allProjects = useMemo(() => {
-    if (isAdmin || isManager) return data.projects;
-    return data.projects.filter(p => {
-      const nameMatch = p.manager === user?.name;
-      const assigned = Math.random() > 0.6;
-      return nameMatch || assigned;
-    }).slice(0, 5);
-  }, [data.projects, isAdmin, isManager, user]);
+  // For a plain employee, DataContext already loads data.projects from GET /projects/my-projects
+  // (the CEO/HR/manager-only GET /projects 403s for this role, which is what triggers that
+  // fallback - see DataContext.jsx). So it's already scoped to this employee's real assignments;
+  // no extra client-side filtering is needed (a previous version filtered by
+  // `Math.random() > 0.6`, which was never connected to real assignment data at all).
+  const allProjects = data.projects;
 
   const filtered = useMemo(() => allProjects.filter(p => {
     const s = search.toLowerCase();

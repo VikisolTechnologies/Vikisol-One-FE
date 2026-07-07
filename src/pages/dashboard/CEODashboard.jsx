@@ -13,6 +13,7 @@ import Modal from '../../components/ui/Modal';
 import Button from '../../components/ui/Button';
 import { ShieldCheck, FileWarning } from 'lucide-react';
 import { getDashboardStats } from '../../api/reports';
+import { getProjectMembers } from '../../api/projects';
 
 const MONTH_LABELS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -29,13 +30,30 @@ function lastNMonths(n) {
 
 export default function CEODashboard() {
   const navigate = useNavigate();
-  const { data, stats } = useData();
+  const { data, stats, projectsSource } = useData();
   const [quickActions, setQuickActions] = useState(false);
   const [onboardingStats, setOnboardingStats] = useState(null);
+  const [billableEmployeeIds, setBillableEmployeeIds] = useState(null); // null = not loaded/live yet
 
   useEffect(() => {
     getDashboardStats().then(setOnboardingStats).catch(() => {});
   }, []);
+
+  // Real bench/billable split: an employee is billable if they hold at least one active
+  // ProjectMember row with allocationPercentage > 0. Previously this was a hardcoded 8%/72% split
+  // completely disconnected from actual project allocations.
+  useEffect(() => {
+    if (projectsSource !== 'live' || data.projects.length === 0) { setBillableEmployeeIds(null); return; }
+    let cancelled = false;
+    Promise.all(data.projects.map(p => getProjectMembers(p.id).catch(() => [])))
+      .then(results => {
+        if (cancelled) return;
+        const ids = new Set();
+        results.flat().forEach(m => { if (m.isActive && (m.allocationPercentage || 0) > 0) ids.add(m.employeeId); });
+        setBillableEmployeeIds(ids);
+      });
+    return () => { cancelled = true; };
+  }, [projectsSource, data.projects]);
 
   // Real headcount growth + payroll cost trend, computed from actual employee join dates and payslips
   const revenueData = useMemo(() => {
@@ -77,8 +95,15 @@ export default function CEODashboard() {
     return Object.entries(counts).map(([name, value]) => ({ name, value, color: { 'On Track': '#2EA043', 'At Risk': '#D29922', Delayed: '#F85149', Completed: '#58A6FF', 'On Hold': '#8B949E' }[name] || '#6E7681' }));
   }, [data.projects]);
 
-  const benchCount = useMemo(() => Math.floor(data.employees.filter(e => e.status === 'Active').length * 0.08), [data.employees]);
-  const billableCount = useMemo(() => Math.floor(data.employees.filter(e => e.status === 'Active').length * 0.72), [data.employees]);
+  const activeEmployees = useMemo(() => data.employees.filter(e => e.status === 'Active'), [data.employees]);
+  const billableCount = useMemo(() => {
+    if (!billableEmployeeIds) return Math.floor(activeEmployees.length * 0.72); // demo fallback until live data loads
+    return activeEmployees.filter(e => billableEmployeeIds.has(e.id)).length;
+  }, [activeEmployees, billableEmployeeIds]);
+  const benchCount = useMemo(() => {
+    if (!billableEmployeeIds) return Math.floor(activeEmployees.length * 0.08); // demo fallback until live data loads
+    return activeEmployees.length - billableCount;
+  }, [activeEmployees, billableEmployeeIds, billableCount]);
 
   const companySnapshot = useMemo(() => {
     const attritionYtd = attritionData.reduce((s, d) => s + d.left, 0);

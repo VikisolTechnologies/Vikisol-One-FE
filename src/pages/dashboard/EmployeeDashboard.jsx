@@ -84,7 +84,11 @@ export default function EmployeeDashboard() {
     }
   };
 
+  // data.projects is already scoped to this employee's real assignments (DataContext falls back
+  // to GET /projects/my-projects for this role) - slice only for the preview list, keep the full
+  // count for the stat card so it doesn't cap at 3.
   const myProjects = data.projects.slice(0, 3);
+  const myProjectsCount = data.projects.length;
   const myLeaves = data.leaveRequests.filter(l => l.status === 'Pending').slice(0, 3);
 
   const balanceColors = ['primary', 'danger', 'success', 'info', 'warning'];
@@ -118,7 +122,7 @@ export default function EmployeeDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="cursor-pointer" onClick={() => navigate('/attendance')}><StatCard icon={Clock} label="Today's Hours" value={workingHours} change={punchedIn ? 'In Progress' : 'Not Punched In'} color="primary" delay={0} /></div>
         <div className="cursor-pointer" onClick={() => navigate('/leave')}><StatCard icon={CalendarDays} label="Leave Balance" value={totalLeaveLeft} change={`${myLeaves.length} pending`} color="success" delay={1} /></div>
-        <div className="cursor-pointer" onClick={() => navigate('/projects')}><StatCard icon={FolderKanban} label="My Projects" value={myProjects.length} color="info" delay={2} /></div>
+        <div className="cursor-pointer" onClick={() => navigate('/projects')}><StatCard icon={FolderKanban} label="My Projects" value={myProjectsCount} color="info" delay={2} /></div>
         <div className="cursor-pointer" onClick={() => navigate('/payroll')}><StatCard icon={IndianRupee} label="Last Salary" value={lastPayslip ? <SensitiveValue type="currency" value={lastPayslip.netPay} id="employee-dashboard-last-salary" /> : '-'} change={lastPayslip?.month || ''} color="primary" delay={3} showSparkline={false} /></div>
       </div>
 
