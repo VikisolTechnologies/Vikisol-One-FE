@@ -24,6 +24,11 @@ export function adaptEmployee(e) {
     status: STATUS_TO_FE[e.employmentStatus] || e.employmentStatus,
     employmentType: TYPE_TO_FE[e.employmentType] || e.employmentType,
     joinDate: e.dateOfJoining,
+    // Both dateOfJoining and exitDate were previously missing from the lightweight list DTO the
+    // backend actually returns for directory-wide employee data - the CEO Dashboard's headcount
+    // growth/attrition charts read these fields but always got undefined for real (non-mock)
+    // data as a result, regardless of what a single-employee fetch showed.
+    exitDate: e.exitDate,
     dob: e.dateOfBirth,
     gender: e.gender,
     address: e.currentAddress,

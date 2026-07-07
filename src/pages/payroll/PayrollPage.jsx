@@ -71,6 +71,27 @@ export default function PayrollPage() {
 
   const summary = (payslipsSource === 'live' && liveSummary) || mockPayrollSummary || { totalPayroll: 0, totalGross: 0, totalDeductions: 0, avgSalary: 0, highestSalary: 0, lowestSalary: 0, employeeCount: 0 };
 
+  // When the visible payslips are all for a single month (the common case - searching/filtering
+  // to one month, as in the reported "March/April/May/June only have 20 records" confusion),
+  // show why the payroll-record count differs from the current active headcount: employees who
+  // joined or exited partway through that specific month explain the gap, rather than it looking
+  // like payroll silently failed for some employees.
+  const monthContext = useMemo(() => {
+    if (isEmployee || filtered.length === 0) return null;
+    const first = filtered[0];
+    if (!filtered.every(p => p.monthNum === first.monthNum && p.year === first.year)) return null;
+    const monthStart = new Date(first.year, first.monthNum - 1, 1);
+    const monthEnd = new Date(first.year, first.monthNum, 0);
+    const newJoiners = data.employees.filter(e => e.joinDate && new Date(e.joinDate) >= monthStart && new Date(e.joinDate) <= monthEnd);
+    const exited = data.employees.filter(e => e.exitDate && new Date(e.exitDate) >= monthStart && new Date(e.exitDate) <= monthEnd);
+    const activeDuring = data.employees.filter(e => {
+      if (!e.joinDate || new Date(e.joinDate) > monthEnd) return false;
+      if (e.exitDate && new Date(e.exitDate) < monthStart) return false;
+      return true;
+    });
+    return { label: first.month, payrollCount: filtered.length, activeDuring: activeDuring.length, newJoiners, exited };
+  }, [filtered, data.employees, isEmployee]);
+
   const downloadPayslip = async (id) => {
     if (payslipsSource !== 'live') { toast.error('Connect to the live backend to download payslips'); return; }
     try {
@@ -183,6 +204,20 @@ export default function PayrollPage() {
             ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => { setFilters({}); setSearch(''); }} onExport={() => toast.info('Export is not available yet')} />
           </div>
           <SensitivityToggle revealed={revealed} onToggle={toggleRevealed} />
+        </div>
+      )}
+
+      {monthContext && (monthContext.newJoiners.length > 0 || monthContext.exited.length > 0 || monthContext.payrollCount !== monthContext.activeDuring) && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 px-4 py-3 bg-surface-3 rounded-xl text-xs text-text-secondary">
+          <span className="font-medium text-text">{monthContext.label}:</span>
+          <span>Active During Month: <b className="text-text">{monthContext.activeDuring}</b></span>
+          <span>Payroll Generated: <b className="text-text">{monthContext.payrollCount}</b></span>
+          {monthContext.newJoiners.length > 0 && (
+            <span>New Joiners: <b className="text-success">{monthContext.newJoiners.length}</b> ({monthContext.newJoiners.map(e => e.name).join(', ')})</span>
+          )}
+          {monthContext.exited.length > 0 && (
+            <span>Exited: <b className="text-danger">{monthContext.exited.length}</b> ({monthContext.exited.map(e => e.name).join(', ')})</span>
+          )}
         </div>
       )}
 
