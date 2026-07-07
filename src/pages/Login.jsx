@@ -148,27 +148,6 @@ export default function Login() {
           </div>
 
           <p className="text-xs text-text-secondary text-center mt-6">&copy; 2024 Vikisol. All rights reserved.</p>
-
-          {/* Demo credentials */}
-          <div className="mt-6 bg-surface-2 border border-border rounded-xl p-4">
-            <p className="text-xs font-semibold text-text mb-2">Demo Logins:</p>
-            <div className="space-y-1 text-xs text-text-secondary">
-              {[
-                ['CEO', 'ceo@vikisol.in', 'Ceo@123'],
-                ['HR Manager', 'hr@vikisol.in', 'Hr@123'],
-                ['Manager', 'manager@vikisol.in', 'Manager@123'],
-                ['Employee', 'employee@vikisol.in', 'Employee@123'],
-                ['Recruiter', 'recruiter@vikisol.in', 'Recruiter@123'],
-                ['Finance', 'finance@vikisol.in', 'Finance@123'],
-                ['Admin', 'admin@vikisol.in', 'Admin@123'],
-              ].map(([role, email, pwd]) => (
-                <button key={role} onClick={() => { setEmail(email); setPassword(pwd); }} className="w-full text-left hover:text-primary transition-colors flex justify-between">
-                  <span className="font-medium">{role}</span>
-                  <span>{email}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </motion.div>
       </div>
     </div>
