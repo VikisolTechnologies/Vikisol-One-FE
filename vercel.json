@@ -3,6 +3,7 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
+    { "source": "/api/v1/:path*", "destination": "https://vikisol-one-be-production.up.railway.app/api/v1/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

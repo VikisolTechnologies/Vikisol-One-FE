@@ -1,8 +1,16 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
-import { login as loginApi, logout as logoutApi, fetchMe } from '../api/auth';
+import { login as loginApi, verifyMfa as verifyMfaApi, logout as logoutApi, fetchMe } from '../api/auth';
 import { setUnauthorizedHandler } from '../api/client';
 
 const AuthContext = createContext(null);
+
+function toUserData(me, extra = {}) {
+  return {
+    id: me.id, email: me.email, firstName: me.firstName, lastName: me.lastName, name: `${me.firstName} ${me.lastName}`,
+    role: me.role?.replace('ROLE_', '').toLowerCase(),
+    ...extra,
+  };
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -14,6 +22,9 @@ export function AuthProvider({ children }) {
   const clearSession = useCallback(() => {
     setUser(null);
     localStorage.removeItem('vikisol_user');
+    // Fire-and-forget - the session is being torn down client-side regardless of whether the
+    // network call itself succeeds (e.g. the access token that would authorize it may already be
+    // the exact thing that just expired).
     logoutApi();
   }, []);
 
@@ -22,15 +33,13 @@ export function AuthProvider({ children }) {
   }, [clearSession]);
 
   useEffect(() => {
-    // Validate the stored session against the backend on load
-    const token = localStorage.getItem('vikisol_token');
-    if (!token) {
-      setAuthLoading(false);
-      return;
-    }
+    // The access token now lives in an HttpOnly cookie - JS can't check whether one exists, so
+    // this always has to ask the server "who am I" on load rather than gating on a localStorage
+    // token-presence check like before. A 401 here just means "not logged in", handled the same
+    // as any other unauthenticated visit.
     fetchMe()
       .then((me) => {
-        const userData = { id: me.id, email: me.email, firstName: me.firstName, lastName: me.lastName, name: `${me.firstName} ${me.lastName}`, role: me.role?.replace('ROLE_', '').toLowerCase() };
+        const userData = toUserData(me);
         setUser(userData);
         localStorage.setItem('vikisol_user', JSON.stringify(userData));
       })
@@ -38,22 +47,23 @@ export function AuthProvider({ children }) {
       .finally(() => setAuthLoading(false));
   }, [clearSession]);
 
-  const login = useCallback(async (email, password) => {
+  const login = useCallback(async (email, password, remember = false) => {
     try {
-      const loginData = await loginApi(email, password);
+      const loginData = await loginApi(email, password, remember);
+      if (loginData.mfaRequired) {
+        return { success: false, mfaRequired: true, challengeToken: loginData.challengeToken };
+      }
       // /auth/login's response has no `id` field (only email/role/names) - fetch the full
       // profile via /auth/me immediately so user.id is populated right away, same as the
       // session-restore path above. Without this, features gated on "is this my own record"
       // (e.g. the Linked Accounts panel) silently fail to recognize self-access until the next
       // page reload re-runs the fetchMe() effect.
       const me = await fetchMe();
-      const userData = {
-        id: me.id, email: me.email, firstName: me.firstName, lastName: me.lastName, name: `${me.firstName} ${me.lastName}`,
-        role: me.role?.replace('ROLE_', '').toLowerCase(),
+      const userData = toUserData(me, {
         // When true, the app must force the Change Password screen and block everything else -
         // the backend enforces this too (403s every other endpoint), this just drives the redirect.
         passwordExpired: !!loginData.passwordExpired,
-      };
+      });
       setUser(userData);
       localStorage.setItem('vikisol_user', JSON.stringify(userData));
       return { success: true, user: userData };
@@ -62,9 +72,25 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const logout = useCallback(() => {
-    clearSession();
-  }, [clearSession]);
+  // Second step of login when MFA is enabled for the account - see Login.jsx's code-entry screen.
+  const completeMfaLogin = useCallback(async (challengeToken, code, remember = false) => {
+    try {
+      const loginData = await verifyMfaApi(challengeToken, code, remember);
+      const me = await fetchMe();
+      const userData = toUserData(me, { passwordExpired: !!loginData.passwordExpired });
+      setUser(userData);
+      localStorage.setItem('vikisol_user', JSON.stringify(userData));
+      return { success: true, user: userData };
+    } catch (err) {
+      return { success: false, error: err.message || 'Invalid or expired code' };
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    setUser(null);
+    localStorage.removeItem('vikisol_user');
+    await logoutApi();
+  }, []);
 
   // Called once the forced Change Password screen succeeds, so the route guard stops redirecting.
   const clearPasswordExpired = useCallback(() => {
@@ -79,7 +105,8 @@ export function AuthProvider({ children }) {
   // Previously a fresh object literal every render (Phase 5 finding) - with 21 consumer files,
   // this meant every one of them re-rendered on any AuthProvider re-render regardless of whether
   // the auth state they actually use changed.
-  const value = useMemo(() => ({ user, login, logout, isAuthenticated: !!user, authLoading, clearPasswordExpired }), [user, login, logout, authLoading, clearPasswordExpired]);
+  const value = useMemo(() => ({ user, login, completeMfaLogin, logout, isAuthenticated: !!user, authLoading, clearPasswordExpired }),
+    [user, login, completeMfaLogin, logout, authLoading, clearPasswordExpired]);
 
   return (
     <AuthContext.Provider value={value}>

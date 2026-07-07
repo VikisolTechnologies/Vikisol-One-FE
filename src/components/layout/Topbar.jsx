@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useData } from '../../context/DataContext';
-import { Search, Bell, Sun, Moon, ChevronDown, Settings, LogOut, X, HelpCircle, Menu } from 'lucide-react';
+import { Search, Bell, Sun, Moon, ChevronDown, Settings, LogOut, X, HelpCircle, Menu, ShieldCheck } from 'lucide-react';
 import Avatar from '../ui/Avatar';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -125,6 +125,7 @@ export default function Topbar({ onOpenMobileSidebar }) {
                 </div>
                 <button onClick={() => { navigate('/notifications'); setShowProfile(false); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-3 hover:text-text transition-colors"><Bell size={14} /> Notifications {stats.unreadNotifications > 0 && <span className="ml-auto text-[10px] bg-danger text-white px-1.5 rounded-full">{stats.unreadNotifications}</span>}</button>
                 <button onClick={() => { navigate('/settings'); setShowProfile(false); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-3 hover:text-text transition-colors"><Settings size={14} /> Settings</button>
+                <button onClick={() => { navigate('/my-security'); setShowProfile(false); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-3 hover:text-text transition-colors"><ShieldCheck size={14} /> My Security</button>
                 <button onClick={() => { navigate('/help'); setShowProfile(false); }} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-3 hover:text-text transition-colors"><HelpCircle size={14} /> Help & Support</button>
                 <hr className="border-border my-1" />
                 <button onClick={logout} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors"><LogOut size={14} /> Sign Out</button>

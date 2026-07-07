@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, Eye, EyeOff, Monitor } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Monitor, ShieldCheck } from 'lucide-react';
 import { getAuthSettings } from '../api/auth';
 
 export default function Login() {
@@ -13,10 +13,15 @@ export default function Login() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState('email');
   const [remember, setRemember] = useState(false);
-  const { login } = useAuth();
+  const { login, completeMfaLogin } = useAuth();
   const navigate = useNavigate();
 
   const [submitting, setSubmitting] = useState(false);
+
+  // Set once the password step succeeds but the account has MFA enabled - switches the form to a
+  // 6-digit code entry screen instead of navigating away. Null means "still on the password step".
+  const [mfaChallengeToken, setMfaChallengeToken] = useState(null);
+  const [mfaCode, setMfaCode] = useState('');
 
   // Public, unauthenticated flags - the Microsoft button should only ever look clickable if
   // BOTH the org has it turned on AND real Azure credentials are actually configured (the latter
@@ -32,7 +37,18 @@ export default function Login() {
     e.preventDefault();
     setError('');
     setSubmitting(true);
-    const result = await login(email, password);
+    const result = await login(email, password, remember);
+    setSubmitting(false);
+    if (result.mfaRequired) { setMfaChallengeToken(result.challengeToken); return; }
+    if (result.success) navigate('/');
+    else setError(result.error);
+  };
+
+  const handleMfaSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    const result = await completeMfaLogin(mfaChallengeToken, mfaCode, remember);
     setSubmitting(false);
     if (result.success) navigate('/');
     else setError(result.error);
@@ -72,6 +88,32 @@ export default function Login() {
           </div>
 
           <div className="bg-surface-2 border border-border rounded-2xl p-8 shadow-2xl">
+            {mfaChallengeToken ? (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <ShieldCheck size={18} className="text-primary" />
+                  <h2 className="text-xl font-semibold text-text">Two-Factor Verification</h2>
+                </div>
+                <p className="text-sm text-text-secondary mb-6">Enter the 6-digit code from your authenticator app, or one of your backup codes.</p>
+                <form onSubmit={handleMfaSubmit} className="space-y-4">
+                  <input
+                    type="text" inputMode="numeric" autoFocus value={mfaCode}
+                    onChange={e => setMfaCode(e.target.value)}
+                    placeholder="123456" maxLength={12}
+                    className="w-full bg-surface-3 border border-border rounded-lg px-4 py-3 text-center text-lg tracking-[0.3em] text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
+                    required
+                  />
+                  {error && <p className="text-sm text-danger bg-danger/10 rounded-lg px-3 py-2">{error}</p>}
+                  <button type="submit" disabled={submitting} className="w-full bg-primary hover:bg-primary-dark text-white py-3 rounded-lg font-semibold text-sm transition-all shadow-lg shadow-primary/20 active:scale-[0.98] disabled:opacity-60">
+                    {submitting ? 'Verifying...' : 'Verify & Sign In'}
+                  </button>
+                  <button type="button" onClick={() => { setMfaChallengeToken(null); setMfaCode(''); setError(''); }} className="w-full text-xs text-text-secondary hover:text-text text-center">
+                    Back to sign in
+                  </button>
+                </form>
+              </>
+            ) : (
+            <>
             <h2 className="text-xl font-semibold text-text mb-1">Welcome Back!</h2>
             <p className="text-sm text-text-secondary mb-6">Sign in to continue to Vikisol HRMS</p>
 
@@ -145,6 +187,8 @@ export default function Login() {
             <p className="text-xs text-text-secondary text-center mt-6">
               Don't have an account? <a href="mailto:connect@vikisol.in?subject=Vikisol%20One%20-%20Account%20Request" className="text-primary hover:underline">Contact IT Admin</a>
             </p>
+            </>
+            )}
           </div>
 
           <p className="text-xs text-text-secondary text-center mt-6">&copy; 2024 Vikisol. All rights reserved.</p>

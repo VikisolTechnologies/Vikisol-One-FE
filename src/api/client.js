@@ -9,20 +9,30 @@ export function toFileUrl(relativeUrl) {
   return BASE_URL + relativeUrl;
 }
 
-function getToken() {
-  return localStorage.getItem('vikisol_token');
+// The access/refresh tokens live in HttpOnly cookies now (see Phase 2 auth overhaul) - this app
+// never reads or sets them directly. The one cookie JS does need is the CSRF double-submit token,
+// which is deliberately NOT HttpOnly so it can be echoed back as a header (see CookieService on
+// the backend for why this is safe).
+function getCsrfToken() {
+  const match = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+function csrfHeader() {
+  const token = getCsrfToken();
+  return token ? { 'X-XSRF-TOKEN': token } : {};
 }
 
 // Shared multipart-upload path - previously duplicated (with slightly different error handling
 // each time) across api/documents.js, api/branding.js, and api/documentStudio.js, each
 // re-reading localStorage/rebuilding BASE_URL by hand instead of going through this module.
 export async function uploadMultipart(path, formData) {
-  const token = getToken();
   let res;
   try {
     res = await fetch(BASE_URL + path, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
+      headers: csrfHeader(),
       body: formData,
     });
   } catch (err) {
@@ -44,10 +54,10 @@ export async function uploadMultipart(path, formData) {
 // Shared "POST JSON, get a blob back" path - used for PDF previews (documentStudio.js) where the
 // response is a raw file stream, not the usual { success, data } JSON envelope.
 export async function fetchBlob(path, body) {
-  const token = getToken();
   const res = await fetch(BASE_URL + path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...csrfHeader() },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -61,11 +71,6 @@ export async function fetchBlob(path, body) {
     throw apiError;
   }
   return res.blob();
-}
-
-export function setToken(token) {
-  if (token) localStorage.setItem('vikisol_token', token);
-  else localStorage.removeItem('vikisol_token');
 }
 
 let onUnauthorized = null;
@@ -85,8 +90,29 @@ function classifyStatus(status) {
   return 'unknown';
 }
 
-async function request(path, { method = 'GET', body, params, auth = true } = {}) {
-  const url = new URL(BASE_URL + path);
+// A single in-flight refresh is shared by every request that hits a 401 at the same time (e.g.
+// five widgets fetching in parallel right as the access token expires) - without this, each one
+// would race to call /auth/refresh independently, and refresh-token rotation means only the
+// first of those would actually succeed (the rest would see an already-rotated-away token and
+// trip the reuse-detection kill switch, logging the user out for no real reason).
+let refreshPromise = null;
+async function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(BASE_URL + '/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+      headers: csrfHeader(),
+    }).then(res => res.ok).finally(() => { refreshPromise = null; });
+  }
+  return refreshPromise;
+}
+
+async function doFetch(url, method, headers, body) {
+  return fetch(url, { method, credentials: 'include', headers, body });
+}
+
+async function request(path, { method = 'GET', body, params, auth = true, _retried = false } = {}) {
+  const url = new URL(BASE_URL + path, window.location.origin);
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
@@ -94,18 +120,11 @@ async function request(path, { method = 'GET', body, params, auth = true } = {})
   }
 
   const headers = { 'Content-Type': 'application/json' };
-  if (auth) {
-    const token = getToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-  }
+  if (auth) Object.assign(headers, csrfHeader());
 
   let res;
   try {
-    res = await fetch(url.toString(), {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    res = await doFetch(url.toString(), method, headers, body !== undefined ? JSON.stringify(body) : undefined);
   } catch (err) {
     // fetch() itself throws on DNS failure/offline/CORS - this is a genuine network error, not
     // an API response at all, so it needs its own category rather than falling through below.
@@ -115,6 +134,16 @@ async function request(path, { method = 'GET', body, params, auth = true } = {})
     throw networkError;
   }
 
+  // Access token expired mid-session (normal, happens every ~15 min) - try exactly one silent
+  // refresh-and-retry before treating this as a real "you're logged out" event. Never attempted
+  // for the login call itself (auth=false) or for /auth/refresh's own request.
+  if (res.status === 401 && auth && !_retried && path !== '/auth/refresh') {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      return request(path, { method, body, params, auth, _retried: true });
+    }
+  }
+
   let json = null;
   try {
     json = await res.json();
@@ -122,11 +151,6 @@ async function request(path, { method = 'GET', body, params, auth = true } = {})
     // no body
   }
 
-  // "Session expired" only makes sense for a request that actually carried a token (auth=true) -
-  // e.g. login itself is auth=false and a 401 there means invalid credentials, not an expired
-  // session. Previously every 401 was rewritten to "Session expired, please log in again"
-  // unconditionally, which silently swallowed the real "Invalid email or password" message from
-  // the backend on every failed login attempt.
   if (res.status === 401 && auth) {
     if (onUnauthorized) onUnauthorized();
     const authError = new ApiError('Session expired, please log in again', 401, null);
@@ -149,16 +173,12 @@ async function request(path, { method = 'GET', body, params, auth = true } = {})
   return json?.data;
 }
 
-// window.open()/a plain <a href> navigation can't attach an Authorization header, so any
-// endpoint requiring auth (e.g. /documents/{id}/download) would 401 if opened directly.
-// Fetches with the JWT attached, then triggers a real browser download from the resulting blob -
-// the standard pattern for authenticated file downloads in an SPA.
+// window.open()/a plain <a href> navigation can't attach cookies cross-context reliably for a
+// blob download, so this still goes through fetch() + a synthetic <a> click, same as before -
+// just with credentials:'include' now instead of an Authorization header.
 export async function downloadFile(relativeOrAbsoluteUrl, suggestedFileName) {
   const url = toFileUrl(relativeOrAbsoluteUrl);
-  const token = getToken();
-  const res = await fetch(url, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
+  const res = await fetch(url, { credentials: 'include' });
   if (!res.ok) {
     let message = `Download failed with status ${res.status}`;
     try {

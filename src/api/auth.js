@@ -1,17 +1,30 @@
-import { api, setToken } from './client';
+import { api } from './client';
 
-export async function login(email, password) {
-  const data = await api.noAuth.post('/auth/login', { email, password });
-  setToken(data.token);
-  return data;
+// No token handling here anymore - login sets HttpOnly cookies directly on the response (see
+// Phase 2 auth overhaul); this call just returns the profile fields the login screen needs
+// immediately (email/role/name/passwordExpired) plus mfaRequired/challengeToken when a second
+// factor is needed before the real session exists.
+export async function login(email, password, remember = false) {
+  return api.noAuth.post('/auth/login', { email, password, remember });
+}
+
+export async function verifyMfa(challengeToken, code, remember = false) {
+  return api.noAuth.post('/auth/mfa/verify', { challengeToken, code, remember });
 }
 
 export async function fetchMe() {
   return api.get('/auth/me');
 }
 
-export function logout() {
-  setToken(null);
+// Real server-side logout now - revokes the current session/refresh-token family and clears
+// cookies (previously this was a client-side-only localStorage.removeItem with no server call).
+export async function logout() {
+  try {
+    await api.post('/auth/logout');
+  } catch {
+    // Logging out should never get "stuck" on a network hiccup - the frontend clears its own
+    // state regardless (see AuthContext.clearSession).
+  }
 }
 
 export async function changePassword(oldPassword, newPassword) {
@@ -58,7 +71,7 @@ export async function resetPasswordWithToken(token, newPassword) {
   return api.noAuth.post('/auth/reset-password', { token, newPassword });
 }
 
-// Active Sessions (Security Center)
+// Active Sessions / Devices (My Security + Security Center)
 export async function getMySessions() {
   return api.get('/sessions/me');
 }
@@ -77,6 +90,23 @@ export async function revokeAllMySessions() {
 
 export async function forceLogoutUser(userEmail) {
   return api.post(`/sessions/force-logout/${encodeURIComponent(userEmail)}`);
+}
+
+// MFA (My Security)
+export async function getMfaStatus() {
+  return api.get('/auth/mfa/status');
+}
+
+export async function startMfaSetup() {
+  return api.post('/auth/mfa/setup');
+}
+
+export async function enableMfa(code) {
+  return api.post('/auth/mfa/enable', { code });
+}
+
+export async function disableMfa(password) {
+  return api.post('/auth/mfa/disable', { password });
 }
 
 // Email Templates (Security Center)
