@@ -20,7 +20,15 @@ export default function DashboardRouter() {
     if (isManagement) return;
     getMyProfile()
       .then(profile => getProfileCompletion(profile.id))
-      .then(completion => setNeedsOnboarding(completion.percent < 100))
+      // Gating on a literal 100% here was too strict: sections like Employment History require
+      // at least one prior job entry, which a fresh graduate can never have - that employee could
+      // never reach the dashboard no matter what they filled in. Only the "personal" section is
+      // treated as a hard requirement; everything else remains visible/completable from inside
+      // the wizard later without blocking access to the rest of the app.
+      .then(completion => {
+        const personal = completion.sections?.find(s => s.key === 'personal');
+        setNeedsOnboarding(personal ? !personal.done : completion.percent < 100);
+      })
       .catch(() => {})
       .finally(() => setChecking(false));
   }, [isManagement]);

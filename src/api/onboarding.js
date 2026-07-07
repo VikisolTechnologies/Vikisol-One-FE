@@ -10,6 +10,9 @@ export async function getEducation(employeeId) {
 export async function addEducation(employeeId, data) {
   return api.post(`/employees/${employeeId}/onboarding/education`, data);
 }
+export async function updateEducation(employeeId, id, data) {
+  return api.put(`/employees/${employeeId}/onboarding/education/${id}`, data);
+}
 export async function deleteEducation(employeeId, id) {
   return api.del(`/employees/${employeeId}/onboarding/education/${id}`);
 }
@@ -19,6 +22,9 @@ export async function getEmploymentHistory(employeeId) {
 }
 export async function addEmploymentHistory(employeeId, data) {
   return api.post(`/employees/${employeeId}/onboarding/employment-history`, data);
+}
+export async function updateEmploymentHistory(employeeId, id, data) {
+  return api.put(`/employees/${employeeId}/onboarding/employment-history/${id}`, data);
 }
 export async function deleteEmploymentHistory(employeeId, id) {
   return api.del(`/employees/${employeeId}/onboarding/employment-history/${id}`);
@@ -32,6 +38,19 @@ export async function addSkill(employeeId, data) {
 }
 export async function deleteSkill(employeeId, id) {
   return api.del(`/employees/${employeeId}/onboarding/skills/${id}`);
+}
+
+export async function getNominees(employeeId) {
+  return api.get(`/employees/${employeeId}/onboarding/nominees`);
+}
+export async function addNominee(employeeId, data) {
+  return api.post(`/employees/${employeeId}/onboarding/nominees`, data);
+}
+export async function updateNominee(employeeId, id, data) {
+  return api.put(`/employees/${employeeId}/onboarding/nominees/${id}`, data);
+}
+export async function deleteNominee(employeeId, id) {
+  return api.del(`/employees/${employeeId}/onboarding/nominees/${id}`);
 }
 
 export async function getProfileCompletion(employeeId) {
