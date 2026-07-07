@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Plus, Filter, Eye, Edit3, Trash2, Mail, Calendar, MoreVertical, UserCheck, XCircle, FileText, Send, PencilLine } from 'lucide-react';
+import { Plus, Filter, Eye, Edit3, Trash2, Mail, Calendar, MoreVertical, UserCheck, XCircle, FileText, Send, PencilLine, Inbox } from 'lucide-react';
 import { previewCtcBreakup } from '../../api/payroll';
 import { getManagerOptions } from '../../api/employees';
 import Card from '../../components/ui/Card';
@@ -27,6 +27,11 @@ import CandidateEditModal from './CandidateEditModal';
 import CandidateInterviewsTab from './CandidateInterviewsTab';
 
 const stages = ['Applied', 'Screening', 'Technical', 'Manager', 'HR', 'Offered', 'Hired', 'Rejected'];
+const STAGE_ACCENT = {
+  Applied: 'bg-blue-500', Screening: 'bg-cyan-500', Technical: 'bg-purple-500',
+  Manager: 'bg-orange-500', HR: 'bg-emerald-500', Offered: 'bg-amber-500',
+  Hired: 'bg-emerald-600', Rejected: 'bg-red-500',
+};
 
 export default function RecruitmentPage() {
   const { data, candidates, candidatesSource, candidatesLoading, lookups, jobPostings } = useData();
@@ -113,11 +118,19 @@ export default function RecruitmentPage() {
   };
   const nextActionFor = (candidate) => NEXT_ACTION_BY_STATUS[candidate.status] || '-';
 
+  const daysSinceNum = (dateStr) => dateStr ? Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)) : 0;
   const daysSince = (dateStr) => {
     if (!dateStr) return '-';
-    const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+    const days = daysSinceNum(dateStr);
     return days <= 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'}`;
   };
+  const [moveMenuFor, setMoveMenuFor] = useState(null);
+  useEffect(() => {
+    if (!moveMenuFor) return;
+    const close = () => setMoveMenuFor(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [moveMenuFor]);
 
   const myEmployeeId = useMemo(() => data.employees.find(e => e.email === user?.email)?.id || null, [data.employees, user]);
   const [ownerFilter, setOwnerFilter] = useState('mine'); // 'mine' | 'all' - recruiters default to their own pipeline
@@ -253,44 +266,84 @@ export default function RecruitmentPage() {
       {view === 'table' ? (
         <Card padding={false}><DataTable columns={columns} data={filtered} pageSize={12} onRowClick={setSelected} /></Card>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {stages.slice(0, 6).map(stage => {
-            const stageCandidates = filtered.filter(c => c.stage === stage).slice(0, 8);
+        <div className="flex gap-3 overflow-x-auto pb-4 items-start">
+          {stages.slice(0, 6).map((stage, idx) => {
+            const stageAll = filtered.filter(c => c.stage === stage);
+            const avgAge = stageAll.length
+              ? Math.round(stageAll.reduce((sum, c) => sum + daysSinceNum(c.appliedDate), 0) / stageAll.length)
+              : 0;
+            const pendingApprovalCount = stageAll.filter(c => c.status === 'PENDING_APPROVAL').length;
             return (
-              <div key={stage} className="min-w-[280px] flex-shrink-0">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2"><h3 className="text-sm font-semibold text-text">{stage}</h3><span className="text-xs px-2 py-0.5 rounded-full bg-surface-3 text-text-secondary">{filtered.filter(c => c.stage === stage).length}</span></div>
+              <div key={stage} className={`min-w-[300px] max-w-[300px] flex-shrink-0 flex flex-col bg-surface-2/50 border border-border rounded-xl overflow-hidden ${idx > 0 ? 'border-l border-l-border/60' : ''}`} style={{ maxHeight: 'calc(100vh - 320px)' }}>
+                <div className={`h-1 ${STAGE_ACCENT[stage] || 'bg-primary'}`} />
+                <div className="sticky top-0 z-10 bg-surface-2 px-4 py-3 border-b border-border">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-text">{stage}</h3>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-surface-3 text-text-secondary font-medium">{stageAll.length}</span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-[10px] text-text-secondary">
+                    <span>Avg {avgAge}d in stage</span>
+                    {pendingApprovalCount > 0 && <span className="text-warning font-medium">{pendingApprovalCount} awaiting approval</span>}
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  {stageCandidates.map(c => {
-                    const nextStage = stages[stages.indexOf(c.stage) + 1];
-                    return (
-                      <div key={c.id} className="bg-surface-2 border border-border rounded-xl p-4 hover:border-primary/30 transition-colors">
-                        <div className="flex items-center gap-3 mb-2">
-                          <Avatar name={c.name} size="sm" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-text truncate">{c.name}</p>
-                            <p className="text-xs text-text-secondary truncate">{c.role} &middot; {c.experience}</p>
-                          </div>
-                          {c.priority && c.priority !== 'MEDIUM' && <Badge variant={c.priority === 'URGENT' ? 'danger' : 'warning'} className="flex-shrink-0">{c.priority}</Badge>}
+                <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                  {stageAll.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center text-center py-12 text-text-secondary">
+                      <Inbox size={22} className="mb-2 opacity-30" />
+                      <p className="text-xs">No candidates here</p>
+                      <p className="text-[10px] mt-0.5 opacity-70">Move candidates from the previous stage</p>
+                    </div>
+                  ) : stageAll.map(c => (
+                    <div key={c.id} className="bg-surface-2 border border-border rounded-xl p-4 hover:border-primary/40 hover:shadow-sm transition-all">
+                      <div className="flex items-start gap-3 mb-2.5">
+                        <Avatar name={c.name} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-text truncate">{c.name}</p>
+                          <p className="text-xs text-text-secondary truncate">{c.role}</p>
                         </div>
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-text-secondary mb-2">
-                          <span>Recruiter: {employeeName(c.assignedRecruiterId) || '-'}</span>
-                          <span>Notice: {c.noticePeriod}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mb-2"><ProgressBar value={c.score} max={100} size="sm" color={c.score >= 80 ? 'success' : 'warning'} /><span className="text-xs font-semibold">{c.score}%</span></div>
-                        {c.status === 'PENDING_APPROVAL' && <div className="mb-2 text-[10px] px-2 py-1 bg-warning/10 text-warning rounded-lg font-medium">Awaiting manager approval</div>}
-                        {c.status === 'REVISION_REQUESTED' && <div className="mb-2 text-[10px] px-2 py-1 bg-danger/10 text-danger rounded-lg"><p className="font-medium">Manager requested changes:</p><p className="mt-0.5">{c.managerRemarks}</p></div>}
-                        <div className="flex gap-1">
-                          {nextStage && nextStage !== 'Hired' && nextStage !== 'Rejected' && !c.convertedEmployeeId && c.status !== 'PENDING_APPROVAL' && <button onClick={() => moveStage(c, nextStage)} className="flex-1 text-[10px] py-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 font-medium">→ {nextStage}</button>}
-                          {c.stage === 'HR' && !c.convertedEmployeeId && c.status !== 'PENDING_APPROVAL' && <button onClick={() => openOfferModal(c)} className="flex-1 text-[10px] py-1.5 bg-success/10 text-success rounded-lg hover:bg-success/20 font-medium">{c.status === 'REVISION_REQUESTED' ? 'Resubmit' : 'Submit for Approval'}</button>}
-                          {c.convertedEmployeeId && <span className="flex-1 text-[10px] py-1.5 text-center bg-surface-3 text-text-secondary rounded-lg font-medium">{c.convertedEmployeeId}</span>}
-                          <button onClick={() => handleReject(c)} className="text-[10px] py-1.5 px-2 bg-danger/10 text-danger rounded-lg hover:bg-danger/20">✕</button>
-                          <button onClick={() => setSelected(c)} className="text-[10px] py-1.5 px-2 bg-surface-3 text-text-secondary rounded-lg hover:bg-surface-4">View</button>
-                        </div>
+                        {c.priority && c.priority !== 'MEDIUM' && (
+                          <span className={`flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-medium ${c.priority === 'URGENT' ? 'text-danger' : 'text-warning'}`}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-current" /> {c.priority}
+                          </span>
+                        )}
                       </div>
-                    );
-                  })}
+                      <div className="flex flex-wrap gap-1 mb-2.5">
+                        {(c.skills || []).slice(0, 3).map(s => <span key={s} className="text-[10px] px-2 py-0.5 bg-surface-3 text-text-secondary rounded-full">{s}</span>)}
+                      </div>
+                      <div className="space-y-1 text-[11px] text-text-secondary mb-2.5">
+                        <div className="flex justify-between"><span>Experience</span><span className="text-text font-medium">{c.experience}</span></div>
+                        <div className="flex justify-between"><span>Current Company</span><span className="text-text font-medium truncate ml-2">{c.currentCompany}</span></div>
+                        <div className="flex justify-between items-center"><span>Expected CTC</span><SensitiveValue type="currency" value={c.expectedSalary} id={`kanban-ectc-${c.id}`} className="text-text font-medium" label="Expected CTC" /></div>
+                        <div className="flex justify-between"><span>Notice Period</span><span className="text-text font-medium">{c.noticePeriod}</span></div>
+                        <div className="flex justify-between"><span>Recruiter</span><span className="text-text font-medium">{employeeName(c.assignedRecruiterId) || '-'}</span></div>
+                      </div>
+                      <div className="flex items-center gap-2 mb-2.5"><ProgressBar value={c.score} max={100} size="sm" color={c.score >= 80 ? 'success' : 'warning'} /><span className="text-xs font-semibold text-text">{c.score}%</span></div>
+                      <p className="text-[10px] text-text-secondary mb-2.5">Applied {daysSince(c.appliedDate)} ago</p>
+                      {c.status === 'PENDING_APPROVAL' && <div className="mb-2.5 text-[10px] px-2 py-1 bg-warning/10 text-warning rounded-lg font-medium">Awaiting manager approval</div>}
+                      {c.status === 'REVISION_REQUESTED' && <div className="mb-2.5 text-[10px] px-2 py-1 bg-danger/10 text-danger rounded-lg"><p className="font-medium">Manager requested changes:</p><p className="mt-0.5">{c.managerRemarks}</p></div>}
+                      {c.convertedEmployeeId && <div className="mb-2.5 text-[10px] px-2 py-1 bg-success/10 text-success rounded-lg font-medium text-center">Employee {c.convertedEmployeeId}</div>}
+
+                      <div className="grid grid-cols-4 gap-1 pt-2 border-t border-border/60">
+                        <button onClick={() => setSelected(c)} className="text-[10px] py-1.5 rounded-lg bg-surface-3 text-text-secondary hover:bg-surface-4 hover:text-text font-medium">View</button>
+                        <div className="relative">
+                          <button onClick={(e) => { e.stopPropagation(); setMoveMenuFor(moveMenuFor === c.id ? null : c.id); }} className="w-full text-[10px] py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 font-medium">Move</button>
+                          {moveMenuFor === c.id && (
+                            <div className="absolute z-20 top-full left-0 mt-1 w-36 py-1 bg-surface-2 border border-border rounded-lg shadow-xl">
+                              {stages.slice(0, 7).filter(s => s !== c.stage).map(s => (
+                                <button key={s} onClick={() => { moveStage(c, s); setMoveMenuFor(null); }} className="w-full text-left px-3 py-1.5 text-xs text-text hover:bg-surface-3">{s}</button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <button onClick={() => handleScheduleInterview(c)} className="text-[10px] py-1.5 rounded-lg bg-info/10 text-info hover:bg-info/20 font-medium">Schedule</button>
+                        <button onClick={() => setSelected(c)} className="text-[10px] py-1.5 rounded-lg bg-surface-3 text-text-secondary hover:bg-surface-4 hover:text-text font-medium">Feedback</button>
+                      </div>
+                      {c.stage === 'HR' && !c.convertedEmployeeId && c.status !== 'PENDING_APPROVAL' && (
+                        <button onClick={() => openOfferModal(c)} className="w-full mt-1.5 text-[10px] py-1.5 bg-success/10 text-success rounded-lg hover:bg-success/20 font-medium">{c.status === 'REVISION_REQUESTED' ? 'Resubmit Proposal' : 'Submit for Approval'}</button>
+                      )}
+                      <button onClick={() => handleReject(c)} className="w-full mt-1.5 text-[10px] py-1 text-danger hover:underline">Reject Candidate</button>
+                    </div>
+                  ))}
                 </div>
               </div>
             );
