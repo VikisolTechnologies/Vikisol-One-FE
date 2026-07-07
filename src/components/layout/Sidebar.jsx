@@ -19,6 +19,7 @@ const sections = [
     { id: 'assessments', label: 'Arena Assessments', icon: Trophy },
     { id: 'new-hires', label: 'New Hires', icon: ClipboardCheck },
     { id: 'background-verification', label: 'Background Verification', icon: ShieldCheck },
+    { id: 'my-background-verification', label: 'Background Verification', icon: ShieldCheck },
     { id: 'offboarding', label: 'Offboarding', icon: UserMinus },
     { id: 'hr-tasks', label: 'HR Task Center', icon: ListChecks },
     { id: 'timesheets', label: 'Timesheets', icon: Clock },

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -13,9 +13,11 @@ import StatCard from '../../components/ui/StatCard';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
-import { getBackgroundChecks, updateBackgroundCheck } from '../../api/bgv';
+import { getBackgroundChecks, updateBackgroundCheck, addBackgroundCheckRemarks, attachBackgroundCheckDocument } from '../../api/bgv';
+import { uploadDocument } from '../../api/documents';
+import { downloadFile } from '../../api/client';
 import { TableSkeleton } from '../../components/ui/Skeleton';
-import { Clock, Loader2, FileWarning, XCircle, CheckCircle2, Users } from 'lucide-react';
+import { Clock, Loader2, FileWarning, XCircle, CheckCircle2, Users, Upload, Download } from 'lucide-react';
 
 const STATUS_OPTIONS = [
   { value: 'PENDING', label: 'Pending' },
@@ -39,6 +41,12 @@ export default function BackgroundVerificationPage() {
   const toast = useToast();
   const [searchParams] = useSearchParams();
   const canFinalize = ['ceo', 'hr_manager', 'admin'].includes(user?.role);
+  // Recruiter can comment and upload evidence but never change status (approve/reject or move
+  // stage) - matches the backend's split between PUT .../remarks (Recruiter-permitted) and
+  // PUT .../{checkId} (CEO/HR/Admin-only). Previously the UI let a Recruiter try to move a check
+  // to "In Review" via the same restricted endpoint everyone else used, which the backend has
+  // always rejected outright (403) - that affordance never actually worked.
+  const isRecruiter = user?.role === 'recruiter';
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({});
   const [bgvStatusFilter, setBgvStatusFilter] = useState(null);
@@ -123,7 +131,11 @@ export default function BackgroundVerificationPage() {
       return;
     }
     try {
-      const updated = await updateBackgroundCheck(selected.id, check.id, { status: patch.status ?? check.status, remarks: patch.remarks ?? check.remarks });
+      // Recruiter can never reach saveCheck with a status change (their row only offers a
+      // remarks-only save - see CheckRow), but this guard keeps the split real from the API side too.
+      const updated = isRecruiter
+        ? await addBackgroundCheckRemarks(selected.id, check.id, patch.remarks ?? check.remarks)
+        : await updateBackgroundCheck(selected.id, check.id, { status: patch.status ?? check.status, remarks: patch.remarks ?? check.remarks });
       setChecks(prev => {
         const next = prev.map(c => c.id === check.id ? updated : c);
         setStatusByEmployee(p => ({ ...p, [selected.id]: overallStatus(next) }));
@@ -132,6 +144,17 @@ export default function BackgroundVerificationPage() {
       toast.success(`${CHECK_LABELS[check.checkType]} updated`);
     } catch (err) {
       toast.error(err.message || 'Failed to update');
+    }
+  };
+
+  const uploadCheckDocument = async (check, file) => {
+    try {
+      const doc = await uploadDocument({ employeeId: selected.id, title: `${CHECK_LABELS[check.checkType]} - ${selected.name}`, category: 'Legal', file });
+      const updated = await attachBackgroundCheckDocument(selected.id, check.id, doc.id);
+      setChecks(prev => prev.map(c => c.id === check.id ? updated : c));
+      toast.success('Document attached');
+    } catch (err) {
+      toast.error(err.message || 'Failed to attach document');
     }
   };
 
@@ -205,11 +228,15 @@ export default function BackgroundVerificationPage() {
         {loadingChecks && <p className="text-sm text-text-secondary">Loading...</p>}
         {!loadingChecks && checks && (
           <div className="space-y-3">
-            {!canFinalize && (
+            {!canFinalize && !isRecruiter && (
               <p className="text-xs text-text-secondary bg-surface-3 rounded-lg p-2">You can update progress up to "In Review". Only CEO or HR Manager can mark a check Cleared or Failed.</p>
             )}
+            {isRecruiter && (
+              <p className="text-xs text-text-secondary bg-surface-3 rounded-lg p-2">You can add remarks and upload supporting documents. Only CEO or HR Manager can change a check's status.</p>
+            )}
             {checks.map(c => (
-              <CheckRow key={c.id} check={c} canFinalize={canFinalize} onSave={patch => saveCheck(c, patch)} />
+              <CheckRow key={c.id} check={c} canFinalize={canFinalize} isRecruiter={isRecruiter}
+                onSave={patch => saveCheck(c, patch)} onUpload={file => uploadCheckDocument(c, file)} />
             ))}
           </div>
         )}
@@ -218,12 +245,19 @@ export default function BackgroundVerificationPage() {
   );
 }
 
-function CheckRow({ check, canFinalize, onSave }) {
+function CheckRow({ check, canFinalize, isRecruiter, onSave, onUpload }) {
   const [status, setStatus] = useState(check.status);
   const [remarks, setRemarks] = useState(check.remarks || '');
   const dirty = status !== check.status || remarks !== (check.remarks || '');
   const color = STATUS_COLOR[status] || 'default';
   const options = canFinalize ? STATUS_OPTIONS : STATUS_OPTIONS.filter(o => !FINAL_STATUSES.includes(o.value));
+  const fileInputRef = useRef(null);
+
+  const handleFilePick = (e) => {
+    const file = e.target.files?.[0];
+    if (file) onUpload(file);
+    e.target.value = '';
+  };
 
   return (
     <div className="p-3 bg-surface-3 rounded-xl">
@@ -232,9 +266,20 @@ function CheckRow({ check, canFinalize, onSave }) {
         <Badge variant={color} dot>{STATUS_OPTIONS.find(o => o.value === status)?.label}</Badge>
       </div>
       <div className="flex items-end gap-2">
-        <div className="flex-1"><Select label="Status" value={status} onChange={e => setStatus(e.target.value)} options={options} /></div>
+        {!isRecruiter && <div className="flex-1"><Select label="Status" value={status} onChange={e => setStatus(e.target.value)} options={options} /></div>}
         <div className="flex-[2]"><Input label="Remarks" value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Optional notes" /></div>
-        <Button size="sm" onClick={() => onSave({ status, remarks })} disabled={!dirty}>Save</Button>
+        <Button size="sm" onClick={() => onSave({ status: isRecruiter ? check.status : status, remarks })} disabled={!dirty}>Save</Button>
+      </div>
+      <div className="flex items-center gap-3 mt-2">
+        <label className="text-xs text-primary hover:underline cursor-pointer flex items-center gap-1">
+          <Upload size={12} /> Upload Document
+          <input type="file" className="hidden" ref={fileInputRef} onChange={handleFilePick} />
+        </label>
+        {check.documentId && (
+          <button onClick={() => downloadFile(`/documents/${check.documentId}/download`)} className="text-xs text-primary hover:underline flex items-center gap-1">
+            <Download size={12} /> View Document
+          </button>
+        )}
       </div>
       {check.reviewedByName && <p className="text-[10px] text-text-secondary mt-1.5">Last reviewed by {check.reviewedByName}</p>}
     </div>

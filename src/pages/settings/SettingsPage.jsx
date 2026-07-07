@@ -23,6 +23,7 @@ const MODULE_LABELS = {
   'org-chart': 'Org Chart', reports: 'Reports', documents: 'Documents', settings: 'Settings',
   'background-verification': 'Background Verification', offboarding: 'Offboarding',
   'security-center': 'Security Center',
+  'my-background-verification': 'My Background Verification (Employee)',
 };
 const ROLE_LABELS = {
   CEO: 'CEO', ADMIN: 'Admin', HR_MANAGER: 'HR Manager', MANAGER: 'Manager',

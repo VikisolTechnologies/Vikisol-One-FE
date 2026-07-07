@@ -28,6 +28,7 @@ const RecruitmentPage = lazy(() => import('./pages/recruitment/RecruitmentPage')
 const AssessmentsPage = lazy(() => import('./pages/recruitment/AssessmentsPage'));
 const NewHiresPage = lazy(() => import('./pages/recruitment/NewHiresPage'));
 const BackgroundVerificationPage = lazy(() => import('./pages/bgv/BackgroundVerificationPage'));
+const MyBackgroundVerification = lazy(() => import('./pages/bgv/MyBackgroundVerification'));
 const OffboardingPage = lazy(() => import('./pages/offboarding/OffboardingPage'));
 const HrTaskCenterPage = lazy(() => import('./pages/hr-tasks/HrTaskCenterPage'));
 const ExecutiveAnalyticsPage = lazy(() => import('./pages/analytics/ExecutiveAnalyticsPage'));
@@ -83,6 +84,7 @@ export default function App() {
                           <Route path="/assessments" element={<AssessmentsPage />} />
                           <Route path="/new-hires" element={<NewHiresPage />} />
                           <Route path="/background-verification" element={<BackgroundVerificationPage />} />
+                          <Route path="/my-background-verification" element={<MyBackgroundVerification />} />
                           <Route path="/offboarding" element={<OffboardingPage />} />
                           <Route path="/hr-tasks" element={<HrTaskCenterPage />} />
                           <Route path="/analytics" element={<ExecutiveAnalyticsPage />} />
