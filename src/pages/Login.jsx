@@ -143,7 +143,7 @@ export default function Login() {
             </form>
 
             <p className="text-xs text-text-secondary text-center mt-6">
-              Don't have an account? <a href="#" className="text-primary hover:underline">Contact IT Admin</a>
+              Don't have an account? <a href="mailto:connect@vikisol.in?subject=Vikisol%20One%20-%20Account%20Request" className="text-primary hover:underline">Contact IT Admin</a>
             </p>
           </div>
 

@@ -1,13 +1,22 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 
 let idCounter = 0;
+// Module-level stack of every currently-open modal's id, in open order - lets a nested modal
+// (e.g. "Generate Document" opened from inside the "Employee Profile" modal) render strictly
+// above its parent (every Modal previously used the same flat z-50, so two open modals occupied
+// the same stacking layer) and ensures the Escape key only closes the TOPMOST modal instead of
+// every open modal's listener firing at once (previously all of them were attached to `document`
+// with no awareness of each other).
+const openModalStack = [];
 
 export default function Modal({ open, onClose, title, children, size = 'md' }) {
   const sizes = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' };
   const dialogRef = useRef(null);
   const titleId = useRef(`modal-title-${idCounter++}`).current;
+  const modalId = titleId;
+  const [stackIndex, setStackIndex] = useState(0);
 
   // `onClose` is passed as a fresh arrow function by nearly every caller (`onClose={() =>
   // setX(null)}`), so its identity changes on every parent re-render - including on every
@@ -25,6 +34,9 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
   useEffect(() => {
     if (!open) return;
 
+    openModalStack.push(modalId);
+    setStackIndex(openModalStack.length - 1);
+
     const previouslyFocused = document.activeElement;
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -35,6 +47,11 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
     focusable()?.[0]?.focus();
 
     const handleKeyDown = (e) => {
+      // Only the topmost modal in the stack should respond to Escape/Tab - otherwise opening a
+      // "child" modal (e.g. Generate Document) on top of a "parent" one (Employee Profile) meant
+      // both modals' listeners fired on a single Escape press, closing both at once and leaving
+      // the parent in whatever half-torn-down state its own cleanup left it in.
+      if (openModalStack[openModalStack.length - 1] !== modalId) return;
       if (e.key === 'Escape') { onCloseRef.current?.(); return; }
       if (e.key !== 'Tab') return;
       const nodes = focusable();
@@ -47,8 +64,12 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
     document.addEventListener('keydown', handleKeyDown);
 
     return () => {
+      const idx = openModalStack.indexOf(modalId);
+      if (idx !== -1) openModalStack.splice(idx, 1);
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = originalOverflow;
+      // Only restore scrolling once every modal has closed - if a parent modal is still open
+      // underneath, forcing overflow back to 'visible' here would let the page scroll behind it.
+      if (openModalStack.length === 0) document.body.style.overflow = originalOverflow;
       previouslyFocused?.focus?.();
     };
   }, [open]);
@@ -56,7 +77,7 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 50 + stackIndex * 10 }}>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
           <motion.div
             ref={dialogRef}

@@ -178,7 +178,7 @@ export default function PayrollPage() {
       {!isEmployee && (
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="flex-1 min-w-0">
-            <SearchFilter inline searchValue={search} onSearch={setSearch} placeholder="Search employee, month, payroll..." filters={[
+            <SearchFilter inline searchValue={search} onSearch={setSearch} placeholder="Search by employee, month, or payroll status..." filters={[
               { key: 'department', label: 'Department', options: data.departments },
             ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => { setFilters({}); setSearch(''); }} onExport={() => toast.info('Export is not available yet')} />
           </div>
