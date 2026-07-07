@@ -26,6 +26,7 @@ const sections = [
   ]},
   { title: 'OPERATIONS', items: [
     { id: 'tickets', label: 'Tickets', icon: Ticket },
+    { id: 'document-studio', label: 'Document Studio', icon: LayoutTemplate },
     { id: 'assets', label: 'Assets', icon: Monitor },
     { id: 'performance', label: 'Performance', icon: TrendingUp },
     { id: 'org-chart', label: 'Org Chart', icon: Network },
@@ -39,7 +40,6 @@ const sections = [
   ]},
   { title: 'ADMINISTRATION', items: [
     { id: 'company-branding', label: 'Company Branding', icon: Palette },
-    { id: 'document-studio', label: 'Document Studio', icon: LayoutTemplate },
     { id: 'company-integrations', label: 'Company Integrations', icon: Cloud },
   ]},
 ];
