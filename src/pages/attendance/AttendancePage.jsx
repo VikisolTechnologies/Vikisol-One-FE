@@ -77,6 +77,7 @@ export default function AttendancePage() {
   }, [isLive, todayAttendance]);
 
   const [liveTeamTrend, setLiveTeamTrend] = useState(null);
+  const [selectedTrendDay, setSelectedTrendDay] = useState(null);
 
   useEffect(() => {
     if (!isLive || !isManager) return;
@@ -95,6 +96,7 @@ export default function AttendancePage() {
           present: log.filter(l => l.status === 'Present').length,
           absent: log.filter(l => l.status === 'Absent').length,
           late: log.filter(l => l.status === 'Late').length,
+          wfh: log.filter(l => l.mode === 'WFH').length,
         })));
       });
   }, [isLive, isManager]);
@@ -231,22 +233,40 @@ export default function AttendancePage() {
       })()}
 
       {/* Manager: Team chart */}
-      {isManager && (
-        <Card title="Weekly Attendance Trend" subtitle={isLive && liveTeamTrend ? undefined : '(demo data — connect to live backend for real trend)'}>
-          <div className="h-48">
-            <ResponsiveContainer>
-              <BarChart data={isLive && liveTeamTrend ? liveTeamTrend : ATTENDANCE_DATA}>
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: '#1F2937', border: '1px solid #2C3445', borderRadius: 8, fontSize: 12, color: '#F1F5F9' }} />
-                <Bar dataKey="present" fill="#34D399" radius={[4, 4, 0, 0]} name="Present" />
-                <Bar dataKey="absent" fill="#F87171" radius={[4, 4, 0, 0]} name="Absent" />
-                <Bar dataKey="late" fill="#FBBF24" radius={[4, 4, 0, 0]} name="Late" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      )}
+      {isManager && (() => {
+        const trendData = isLive && liveTeamTrend ? liveTeamTrend : ATTENDANCE_DATA;
+        const selectedDay = trendData.find(d => d.date === selectedTrendDay);
+        return (
+          <Card title="Weekly Attendance Trend" subtitle={isLive && liveTeamTrend ? undefined : '(demo data — connect to live backend for real trend)'}>
+            <div className="h-48">
+              <ResponsiveContainer>
+                <BarChart data={trendData} onClick={(e) => { if (e?.activeLabel) setSelectedTrendDay(prev => prev === e.activeLabel ? null : e.activeLabel); }}>
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                  {/* A fixed-width cursor sized to a single category band, instead of the
+                      default full-band rectangle that visually bled into the neighboring
+                      day's bars on this narrow chart. */}
+                  <Tooltip cursor={{ fill: 'rgba(148, 163, 184, 0.08)' }} contentStyle={{ background: '#1F2937', border: '1px solid #2C3445', borderRadius: 8, fontSize: 12, color: '#F1F5F9' }} />
+                  <Bar dataKey="present" fill="#34D399" radius={[4, 4, 0, 0]} name="Present" cursor="pointer" />
+                  <Bar dataKey="absent" fill="#F87171" radius={[4, 4, 0, 0]} name="Absent" cursor="pointer" />
+                  <Bar dataKey="late" fill="#FBBF24" radius={[4, 4, 0, 0]} name="Late" cursor="pointer" />
+                  <Bar dataKey="wfh" fill="#38BDF8" radius={[4, 4, 0, 0]} name="WFH" cursor="pointer" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            {selectedDay && (
+              <div className="mt-3 pt-3 border-t border-border grid grid-cols-4 gap-3 text-center">
+                {[['Present', selectedDay.present, 'text-success'], ['Absent', selectedDay.absent, 'text-danger'], ['Late', selectedDay.late, 'text-warning'], ['WFH', selectedDay.wfh ?? 0, 'text-info']].map(([label, value, color]) => (
+                  <div key={label}>
+                    <p className={`text-lg font-bold ${color}`}>{value}</p>
+                    <p className="text-[10px] text-text-secondary">{selectedDay.date} · {label}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        );
+      })()}
 
       {/* Employee: My attendance log */}
       {isEmployee && (

@@ -26,6 +26,24 @@ import InterviewFeedbackModal from './InterviewFeedbackModal';
 import CandidateEditModal from './CandidateEditModal';
 import CandidateInterviewsTab from './CandidateInterviewsTab';
 
+function candidateEmailError(value) {
+  if (!value) return null;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()) ? null : 'Enter a valid email address';
+}
+
+// Strips anything that isn't a digit, space, or leading "+" as the user types - previously this
+// field accepted arbitrary letters and special characters with no restriction at all.
+function sanitizePhoneInput(value) {
+  const leadingPlus = value.startsWith('+') ? '+' : '';
+  return leadingPlus + value.slice(leadingPlus.length).replace(/[^\d\s]/g, '');
+}
+
+function candidatePhoneError(value) {
+  if (!value) return null;
+  const digitCount = (value.match(/\d/g) || []).length;
+  return digitCount >= 10 && digitCount <= 13 ? null : 'Enter a valid phone number (10-13 digits)';
+}
+
 const stages = ['Applied', 'Screening', 'Technical', 'Manager', 'HR', 'Offered', 'Hired', 'Rejected'];
 const STAGE_ACCENT = {
   Applied: 'bg-blue-500', Screening: 'bg-cyan-500', Technical: 'bg-purple-500',
@@ -154,6 +172,10 @@ export default function RecruitmentPage() {
 
   const handleCreate = async () => {
     if (!form.name || !form.email || !form.role) { toast.error('Name, email and role are required'); return; }
+    const emailErr = candidateEmailError(form.email);
+    const phoneErr = candidatePhoneError(form.phone);
+    if (emailErr) { toast.error(emailErr); return; }
+    if (phoneErr) { toast.error(phoneErr); return; }
     try {
       await candidates.create({ ...form, jobPostingId: form.jobPostingId || null, stage: 'Applied', score: Math.floor(Math.random() * 40 + 60), appliedDate: new Date().toISOString().split('T')[0], skills: [], status: 'Active', location: 'Hyderabad', noticePeriod: '30 days', currentCompany: '-', interviewer: '-', feedback: null, resume: 'resume.pdf' });
       toast.success(`Candidate ${form.name} added successfully`);
@@ -373,17 +395,17 @@ export default function RecruitmentPage() {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add Candidate" size="lg">
         <div className="grid grid-cols-2 gap-4">
           <Input label="Full Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Candidate name" />
-          <Input label="Email *" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} placeholder="Email address" />
+          <Input label="Email *" type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} placeholder="Email address" error={candidateEmailError(form.email)} />
           <Input label="Role *" value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} placeholder="e.g. React Developer" />
           <Input label="Experience" value={form.experience} onChange={e => setForm(p => ({ ...p, experience: e.target.value }))} placeholder="e.g. 5 years" />
           <Input label="Current CTC" value={form.currentCTC} onChange={e => setForm(p => ({ ...p, currentCTC: e.target.value }))} placeholder="e.g. ₹12L" />
           <Input label="Expected CTC" value={form.expectedCTC} onChange={e => setForm(p => ({ ...p, expectedCTC: e.target.value }))} placeholder="e.g. ₹18L" />
           <Select label="Source" value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))} options={['LinkedIn','Naukri','Indeed','Referral','Company Website','Campus'].map(s => ({ value: s, label: s }))} />
-          <Input label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="+91 XXXXX XXXXX" />
+          <Input label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: sanitizePhoneInput(e.target.value) }))} placeholder="+91 XXXXX XXXXX" error={candidatePhoneError(form.phone)} />
           <Select label="Job Posting (optional)" className="col-span-2" value={form.jobPostingId || ''} onChange={e => setForm(p => ({ ...p, jobPostingId: e.target.value }))}
             options={(jobPostings || []).map(j => ({ value: j.id, label: j.title }))} placeholder="Direct Hire (no job posting)" />
         </div>
-        <div className="flex justify-end gap-2 mt-6"><Button variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Button><Button onClick={handleCreate}>Add Candidate</Button></div>
+        <div className="flex justify-end gap-2 mt-6"><Button variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Button><Button onClick={handleCreate} disabled={!!candidateEmailError(form.email) || !!candidatePhoneError(form.phone)}>Add Candidate</Button></div>
       </Modal>
 
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Candidate Profile" size="xl">
