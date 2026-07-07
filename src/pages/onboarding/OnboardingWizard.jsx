@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, Briefcase, Wrench, FileText, Landmark, Receipt, Users, PartyPopper } from 'lucide-react';
+import { Check, ChevronRight, ChevronLeft, Plus, Trash2, GraduationCap, Briefcase, Wrench, FileText, Landmark, Receipt, Users, PartyPopper, ChevronDown } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { Select } from '../../components/ui/Input';
+import DatePicker from '../../components/ui/DatePicker';
 import ProgressBar from '../../components/ui/ProgressBar';
 import Loader from '../../components/ui/Loader';
 import { useToast } from '../../components/ui/Toast';
@@ -13,6 +14,72 @@ import { useAuth } from '../../context/AuthContext';
 import { getMyProfile, updateEmployee } from '../../api/employees';
 import { getEducation, addEducation, deleteEducation, getEmploymentHistory, addEmploymentHistory, deleteEmploymentHistory, getSkills, addSkill, deleteSkill, getProfileCompletion } from '../../api/onboarding';
 import { uploadDocument, getMyDocuments } from '../../api/documents';
+
+const MARITAL_STATUS_OPTIONS = [
+  { value: 'Single', label: 'Single' },
+  { value: 'Married', label: 'Married' },
+  { value: 'Divorced', label: 'Divorced' },
+  { value: 'Widowed', label: 'Widowed' },
+];
+
+const RELATION_OPTIONS = [
+  { value: 'Mother', label: 'Mother' },
+  { value: 'Father', label: 'Father' },
+  { value: 'Spouse', label: 'Spouse' },
+  { value: 'Son', label: 'Son' },
+  { value: 'Daughter', label: 'Daughter' },
+  { value: 'Relative', label: 'Relative' },
+  { value: 'Friend', label: 'Friend' },
+];
+
+// The 22 languages of the Eighth Schedule of the Indian Constitution, plus English - covers what
+// an Indian employer's HR form needs without hardcoding an exhaustive world-language list.
+const INDIAN_LANGUAGES = [
+  'Assamese', 'Bengali', 'Bodo', 'Dogri', 'English', 'Gujarati', 'Hindi', 'Kannada', 'Kashmiri',
+  'Konkani', 'Maithili', 'Malayalam', 'Manipuri', 'Marathi', 'Nepali', 'Odia', 'Punjabi',
+  'Sanskrit', 'Santali', 'Sindhi', 'Tamil', 'Telugu', 'Urdu',
+].sort();
+
+// Comma-joined string in/out (matches the existing single-string languagesKnown field) but
+// presented as a proper multi-select checklist instead of free-text typing.
+function LanguagesMultiSelect({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef(null);
+  const selected = (value || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (!containerRef.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  const toggle = (lang) => {
+    const next = selected.includes(lang) ? selected.filter(l => l !== lang) : [...selected, lang];
+    onChange(next.join(', '));
+  };
+
+  return (
+    <div ref={containerRef} className="relative">
+      <label className="text-xs font-medium text-text-secondary block mb-1.5">Languages Known</label>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between bg-surface-3 border border-border rounded-lg py-2.5 px-3 text-sm text-left focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all">
+        <span className={`truncate ${selected.length ? 'text-text' : 'text-text-secondary/60'}`}>{selected.length ? selected.join(', ') : 'Select languages'}</span>
+        <ChevronDown size={14} className="text-text-secondary flex-shrink-0 ml-2" />
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 w-full max-h-64 overflow-y-auto bg-surface-2 border border-border rounded-lg shadow-xl p-2 grid grid-cols-2 gap-1">
+          {INDIAN_LANGUAGES.map(lang => (
+            <label key={lang} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-surface-3 cursor-pointer text-sm text-text">
+              <input type="checkbox" checked={selected.includes(lang)} onChange={() => toggle(lang)} className="accent-primary" />
+              {lang}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const STEPS = [
   { key: 'personal', label: 'Personal Information', icon: Users },
@@ -136,12 +203,12 @@ function PersonalStep({ profile, onSave }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
+        <DatePicker label="Date of Birth" value={form.dob} onChange={v => setForm(p => ({ ...p, dob: v }))} max={new Date().toISOString().split('T')[0]} />
         <Select label="Gender" value={form.gender} onChange={e => setForm(p => ({ ...p, gender: e.target.value }))} options={[{ value: 'MALE', label: 'Male' }, { value: 'FEMALE', label: 'Female' }, { value: 'OTHER', label: 'Other' }]} />
-        <Input label="Marital Status" value={form.maritalStatus} onChange={e => setForm(p => ({ ...p, maritalStatus: e.target.value }))} placeholder="Single / Married" />
+        <Select label="Marital Status" value={form.maritalStatus} onChange={e => setForm(p => ({ ...p, maritalStatus: e.target.value }))} placeholder="Select marital status" options={MARITAL_STATUS_OPTIONS} />
         <Input label="Nationality" value={form.nationality} onChange={e => setForm(p => ({ ...p, nationality: e.target.value }))} placeholder="Indian" />
         <Input label="Blood Group" value={form.bloodGroup} onChange={e => setForm(p => ({ ...p, bloodGroup: e.target.value }))} placeholder="O+" />
-        <Input label="Languages Known" value={form.languagesKnown} onChange={e => setForm(p => ({ ...p, languagesKnown: e.target.value }))} placeholder="English, Hindi, Telugu" />
+        <LanguagesMultiSelect value={form.languagesKnown} onChange={v => setForm(p => ({ ...p, languagesKnown: v }))} />
         <Input label="Personal Email" type="email" value={form.personalEmail} onChange={e => setForm(p => ({ ...p, personalEmail: e.target.value }))} />
         <Input label="Personal Mobile" value={form.personalMobile} onChange={e => setForm(p => ({ ...p, personalMobile: e.target.value }))} />
         <Input label="Current Address" className="col-span-2" value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} />
@@ -151,7 +218,7 @@ function PersonalStep({ profile, onSave }) {
       <div className="grid grid-cols-3 gap-4">
         <Input label="Name" value={form.emergencyContactName} onChange={e => setForm(p => ({ ...p, emergencyContactName: e.target.value }))} />
         <Input label="Phone" value={form.emergencyContactPhone} onChange={e => setForm(p => ({ ...p, emergencyContactPhone: e.target.value }))} />
-        <Input label="Relation" value={form.emergencyContactRelation} onChange={e => setForm(p => ({ ...p, emergencyContactRelation: e.target.value }))} />
+        <Select label="Relation" value={form.emergencyContactRelation} onChange={e => setForm(p => ({ ...p, emergencyContactRelation: e.target.value }))} placeholder="Select relation" options={RELATION_OPTIONS} />
       </div>
       <div className="flex justify-end"><Button onClick={() => onSave(form)}>Save</Button></div>
     </div>
@@ -200,8 +267,8 @@ function NomineeStep({ profile, onSave }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <Input label="Nominee Name" value={form.nominee.name} onChange={e => set('name', e.target.value)} />
-        <Input label="Relation" value={form.nominee.relation} onChange={e => set('relation', e.target.value)} placeholder="Spouse / Parent / Child" />
-        <Input label="Date of Birth" type="date" value={form.nominee.dob} onChange={e => set('dob', e.target.value)} />
+        <Select label="Relation" value={form.nominee.relation} onChange={e => set('relation', e.target.value)} placeholder="Select relation" options={RELATION_OPTIONS} />
+        <DatePicker label="Date of Birth" value={form.nominee.dob} onChange={v => set('dob', v)} max={new Date().toISOString().split('T')[0]} />
         <Input label="Share %" type="number" min="1" max="100" value={form.nominee.sharePercentage} onChange={e => set('sharePercentage', parseInt(e.target.value) || 0)} />
       </div>
       <div className="flex justify-end"><Button onClick={() => onSave(form)}>Save</Button></div>
