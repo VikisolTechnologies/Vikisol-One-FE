@@ -26,6 +26,7 @@ const MODULE_LABELS = {
   'my-background-verification': 'My Background Verification (Employee)',
   'company-branding': 'Company Branding', 'document-studio': 'Document Studio', 'company-integrations': 'Company Integrations',
   analytics: 'Executive Analytics', communication: 'Communication Center', policies: 'Policies', 'hr-tasks': 'HR Task Center', assessments: 'Arena Assessments',
+  'job-postings': 'Job Postings',
 };
 const ROLE_LABELS = {
   CEO: 'CEO', ADMIN: 'Admin', HR_MANAGER: 'HR Manager', MANAGER: 'Manager',

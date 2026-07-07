@@ -45,7 +45,7 @@ export default function RecruitmentPage() {
   const [view, setView] = useState('kanban');
   const [showAdd, setShowAdd] = useState(false);
   const [selected, setSelected] = useState(null);
-  const [form, setForm] = useState({ name: '', email: '', role: '', experience: '', currentCTC: '', expectedCTC: '', source: 'LinkedIn', phone: '' });
+  const [form, setForm] = useState({ name: '', email: '', role: '', experience: '', currentCTC: '', expectedCTC: '', source: 'LinkedIn', phone: '', jobPostingId: '' });
   const [offerCandidate, setOfferCandidate] = useState(null);
   const [offerForm, setOfferForm] = useState({ designationId: '', departmentId: '', offeredCtc: '', dateOfJoining: '', reportingManagerId: '' });
   const [offerBreakup, setOfferBreakup] = useState(null);
@@ -155,10 +155,10 @@ export default function RecruitmentPage() {
   const handleCreate = async () => {
     if (!form.name || !form.email || !form.role) { toast.error('Name, email and role are required'); return; }
     try {
-      await candidates.create({ ...form, stage: 'Applied', score: Math.floor(Math.random() * 40 + 60), appliedDate: new Date().toISOString().split('T')[0], skills: [], status: 'Active', location: 'Hyderabad', noticePeriod: '30 days', currentCompany: '-', interviewer: '-', feedback: null, resume: 'resume.pdf' });
+      await candidates.create({ ...form, jobPostingId: form.jobPostingId || null, stage: 'Applied', score: Math.floor(Math.random() * 40 + 60), appliedDate: new Date().toISOString().split('T')[0], skills: [], status: 'Active', location: 'Hyderabad', noticePeriod: '30 days', currentCompany: '-', interviewer: '-', feedback: null, resume: 'resume.pdf' });
       toast.success(`Candidate ${form.name} added successfully`);
       setShowAdd(false);
-      setForm({ name: '', email: '', role: '', experience: '', currentCTC: '', expectedCTC: '', source: 'LinkedIn', phone: '' });
+      setForm({ name: '', email: '', role: '', experience: '', currentCTC: '', expectedCTC: '', source: 'LinkedIn', phone: '', jobPostingId: '' });
     } catch (err) {
       toast.error(err.message || 'Failed to add candidate');
     }
@@ -181,6 +181,15 @@ export default function RecruitmentPage() {
       toast.warning(`${candidate.name} has been rejected`);
     } catch (err) {
       toast.error(err.message || 'Failed to reject candidate');
+    }
+  };
+
+  const handleClaim = async (candidate) => {
+    try {
+      await candidates.claim(candidate.id);
+      toast.success(`${candidate.name} assigned to you`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to claim candidate');
     }
   };
 
@@ -310,6 +319,11 @@ export default function RecruitmentPage() {
                           </span>
                         )}
                       </div>
+                      {c.jobPostingTitle ? (
+                        <p className="text-[10px] text-primary font-medium mb-1.5 truncate">Applied for: {c.jobPostingTitle}{c.jobPostingDepartment ? ` (${c.jobPostingDepartment})` : ''}</p>
+                      ) : (
+                        <p className="text-[10px] text-text-secondary/70 font-medium mb-1.5">Direct Hire</p>
+                      )}
                       <div className="flex flex-wrap gap-1 mb-2.5">
                         {(c.skills || []).slice(0, 3).map(s => <span key={s} className="text-[10px] px-2 py-0.5 bg-surface-3 text-text-secondary rounded-full">{s}</span>)}
                       </div>
@@ -318,7 +332,9 @@ export default function RecruitmentPage() {
                         <div className="flex justify-between"><span>Current Company</span><span className="text-text font-medium truncate ml-2">{c.currentCompany}</span></div>
                         <div className="flex justify-between items-center"><span>Expected CTC</span><SensitiveValue type="currency" value={c.expectedSalary} id={`kanban-ectc-${c.id}`} className="text-text font-medium" label="Expected CTC" /></div>
                         <div className="flex justify-between"><span>Notice Period</span><span className="text-text font-medium">{c.noticePeriod}</span></div>
-                        <div className="flex justify-between"><span>Recruiter</span><span className="text-text font-medium">{employeeName(c.assignedRecruiterId) || '-'}</span></div>
+                        <div className="flex justify-between items-center"><span>Recruiter</span>{c.assignedRecruiterId ? <span className="text-text font-medium">{employeeName(c.assignedRecruiterId)}</span> : isRecruiter && candidatesSource === 'live' ? (
+                          <button onClick={() => handleClaim(c)} className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-full hover:bg-primary/20 font-medium">Claim</button>
+                        ) : <span className="text-text font-medium">-</span>}</div>
                       </div>
                       <div className="flex items-center gap-2 mb-2.5"><ProgressBar value={c.score} max={100} size="sm" color={c.score >= 80 ? 'success' : 'warning'} /><span className="text-xs font-semibold text-text">{c.score}%</span></div>
                       <p className="text-[10px] text-text-secondary mb-2.5">Applied {daysSince(c.appliedDate)} ago</p>
@@ -364,6 +380,8 @@ export default function RecruitmentPage() {
           <Input label="Expected CTC" value={form.expectedCTC} onChange={e => setForm(p => ({ ...p, expectedCTC: e.target.value }))} placeholder="e.g. ₹18L" />
           <Select label="Source" value={form.source} onChange={e => setForm(p => ({ ...p, source: e.target.value }))} options={['LinkedIn','Naukri','Indeed','Referral','Company Website','Campus'].map(s => ({ value: s, label: s }))} />
           <Input label="Phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="+91 XXXXX XXXXX" />
+          <Select label="Job Posting (optional)" className="col-span-2" value={form.jobPostingId || ''} onChange={e => setForm(p => ({ ...p, jobPostingId: e.target.value }))}
+            options={(jobPostings || []).map(j => ({ value: j.id, label: j.title }))} placeholder="Direct Hire (no job posting)" />
         </div>
         <div className="flex justify-end gap-2 mt-6"><Button variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Button><Button onClick={handleCreate}>Add Candidate</Button></div>
       </Modal>
@@ -400,10 +418,30 @@ export default function RecruitmentPage() {
             {/* Always-visible status strip - never buried behind a tab. */}
             <div className="grid grid-cols-5 gap-3 p-3 bg-surface-2 border border-border rounded-xl text-xs">
               <div><p className="text-text-secondary">Current Stage</p><p className="text-text font-semibold mt-0.5">{selected.stage}</p></div>
-              <div><p className="text-text-secondary">Recruiter</p><p className="text-text font-semibold mt-0.5">{employeeName(selected.assignedRecruiterId) || '-'}</p></div>
+              <div>
+                <p className="text-text-secondary">Recruiter</p>
+                {selected.assignedRecruiterId ? (
+                  <p className="text-text font-semibold mt-0.5">{employeeName(selected.assignedRecruiterId) || '-'}</p>
+                ) : isRecruiter && candidatesSource === 'live' ? (
+                  <button onClick={() => handleClaim(selected)} className="mt-0.5 text-[11px] px-2 py-0.5 bg-primary/10 text-primary rounded-full hover:bg-primary/20 font-medium">Claim Candidate</button>
+                ) : <p className="text-text font-semibold mt-0.5">-</p>}
+              </div>
               <div><p className="text-text-secondary">Hiring Manager</p><p className="text-text font-semibold mt-0.5">{employeeName(selected.hiringManagerId) || '-'}</p></div>
               <div><p className="text-text-secondary">Next Action</p><p className="text-text font-semibold mt-0.5">{nextActionFor(selected)}</p></div>
               <div><p className="text-text-secondary">Days Since Applied</p><p className="text-text font-semibold mt-0.5">{daysSince(selected.appliedDate)}</p></div>
+            </div>
+            <div className="p-3 bg-surface-2 border border-border rounded-xl text-xs">
+              <p className="text-text-secondary">Applied For</p>
+              {selected.jobPostingTitle ? (
+                <div className="mt-0.5">
+                  <p className="text-text font-semibold">{selected.jobPostingTitle}{selected.jobPostingDepartment ? ` · ${selected.jobPostingDepartment}` : ''}</p>
+                  {selected.jobPostingSkills?.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {selected.jobPostingSkills.map(s => <span key={s} className="text-[10px] px-2 py-0.5 bg-primary/10 text-primary rounded-full">{s}</span>)}
+                    </div>
+                  )}
+                </div>
+              ) : <p className="text-text font-semibold mt-0.5">Direct Hire (no job posting)</p>}
             </div>
 
             {selected.status === 'REVISION_REQUESTED' && selected.managerRemarks && (

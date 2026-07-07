@@ -622,6 +622,11 @@ export function DataProvider({ children }) {
         setData(prev => ({ ...prev, candidates: prev.candidates.map(c => c.id === id ? updated : c) }));
         return updated;
       },
+      claim: async (id) => {
+        const updated = await recruitmentApi.selfAssignCandidate(id);
+        setData(prev => ({ ...prev, candidates: prev.candidates.map(c => c.id === id ? updated : c) }));
+        return updated;
+      },
     };
   }, [candidatesSource, mockCandidatesCrud, data.candidates]);
   const mockProjectsCrud = useMemo(() => crud('projects'), [crud]);

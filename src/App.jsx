@@ -25,6 +25,7 @@ const LeaveManagement = lazy(() => import('./pages/leave/LeaveManagement'));
 const AttendancePage = lazy(() => import('./pages/attendance/AttendancePage'));
 const PayrollPage = lazy(() => import('./pages/payroll/PayrollPage'));
 const RecruitmentPage = lazy(() => import('./pages/recruitment/RecruitmentPage'));
+const JobPostingsPage = lazy(() => import('./pages/recruitment/JobPostingsPage'));
 const AssessmentsPage = lazy(() => import('./pages/recruitment/AssessmentsPage'));
 const NewHiresPage = lazy(() => import('./pages/recruitment/NewHiresPage'));
 const BackgroundVerificationPage = lazy(() => import('./pages/bgv/BackgroundVerificationPage'));
@@ -81,6 +82,7 @@ export default function App() {
                           <Route path="/attendance" element={<AttendancePage />} />
                           <Route path="/payroll" element={<PayrollPage />} />
                           <Route path="/recruitment" element={<RecruitmentPage />} />
+                          <Route path="/job-postings" element={<JobPostingsPage />} />
                           <Route path="/assessments" element={<AssessmentsPage />} />
                           <Route path="/new-hires" element={<NewHiresPage />} />
                           <Route path="/background-verification" element={<BackgroundVerificationPage />} />

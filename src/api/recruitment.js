@@ -59,6 +59,9 @@ export function adaptCandidate(c) {
     phone: c.phone,
     role: c.jobPostingTitle || c.currentDesignation || '',
     jobPostingId: c.jobPostingId,
+    jobPostingTitle: c.jobPostingTitle || null,
+    jobPostingSkills: c.jobPostingSkills ? c.jobPostingSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
+    jobPostingDepartment: c.jobPostingDepartment || null,
     experience: `${c.experienceYears ?? 0} years`,
     experienceYears: c.experienceYears,
     currentCompany: c.currentCompany || '-',
@@ -231,6 +234,13 @@ export async function deleteCandidate(id) {
 export async function updateCandidateStatus(id, feStage) {
   const status = STAGE_TO_BE[feStage] || 'NEW';
   return adaptCandidate(await api.put(`/recruitment/candidates/${id}/status?status=${status}`));
+}
+
+// Claims a candidate with no recruiter yet (applied directly via careers page/Arena) - only
+// succeeds if unclaimed; reassigning away from another recruiter requires HR Manager/CEO/Admin
+// via the regular candidate update instead.
+export async function selfAssignCandidate(id) {
+  return adaptCandidate(await api.put(`/recruitment/candidates/${id}/self-assign`));
 }
 
 // Edits Expected/Current CTC, Notice Period, Current/Preferred Location - the 5 fields tracked
