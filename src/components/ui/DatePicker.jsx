@@ -21,7 +21,7 @@ function formatDisplay(date) {
 // browsers and clashes with the app's dark theme) with a themed picker matching the rest of the
 // UI - includes quick month/year dropdowns since date-of-birth entry needs to jump back decades,
 // not just click "previous month" dozens of times.
-export default function DatePicker({ label, value, onChange, max, min, placeholder = 'Select date' }) {
+export default function DatePicker({ label, value, onChange, max, min, placeholder = 'Select date', error }) {
   const [open, setOpen] = useState(false);
   const selected = useMemo(() => toDateOnly(value), [value]);
   const [viewDate, setViewDate] = useState(() => selected || new Date());
@@ -69,10 +69,11 @@ export default function DatePicker({ label, value, onChange, max, min, placehold
     <div ref={containerRef} className="relative">
       {label && <label className="text-xs font-medium text-text-secondary block mb-1.5">{label}</label>}
       <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between bg-surface-3 border border-border rounded-lg py-2.5 pl-10 pr-3 text-sm text-left text-text focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all relative">
+        className={`w-full flex items-center justify-between bg-surface-3 border ${error ? 'border-danger' : 'border-border'} rounded-lg py-2.5 pl-10 pr-3 text-sm text-left text-text focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all relative`}>
         <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
         <span className={selected ? 'text-text' : 'text-text-secondary/60'}>{selected ? formatDisplay(selected) : placeholder}</span>
       </button>
+      {error && <p className="text-xs text-danger mt-1">{error}</p>}
 
       {open && (
         <div className="absolute z-30 mt-1 w-72 bg-surface-2 border border-border rounded-xl shadow-xl p-3">

@@ -137,6 +137,13 @@ export async function updateEmployee(id, form) {
   return adaptEmployee(await api.put(`/employees/${id}`, toEmployeeRequest(form)));
 }
 
+// Self-service variant for the Onboarding Wizard (Personal/Bank/Tax/Nominee steps) - hits a
+// distinct endpoint any employee can call for their own record; the admin PUT above is
+// CEO/HR/Admin-only and always 403s for a plain employee saving their own profile.
+export async function updateOwnProfile(id, form) {
+  return adaptEmployee(await api.put(`/employees/${id}/personal-profile`, toEmployeeRequest(form)));
+}
+
 export async function deactivateEmployee(id) {
   return api.del(`/employees/${id}`);
 }

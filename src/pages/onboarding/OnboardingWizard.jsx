@@ -11,7 +11,7 @@ import ProgressBar from '../../components/ui/ProgressBar';
 import Loader from '../../components/ui/Loader';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../context/AuthContext';
-import { getMyProfile, updateEmployee } from '../../api/employees';
+import { getMyProfile, updateOwnProfile } from '../../api/employees';
 import { getEducation, addEducation, deleteEducation, getEmploymentHistory, addEmploymentHistory, deleteEmploymentHistory, getSkills, addSkill, deleteSkill, getProfileCompletion } from '../../api/onboarding';
 import { uploadDocument, getMyDocuments } from '../../api/documents';
 
@@ -93,6 +93,36 @@ const STEPS = [
   { key: 'finish', label: 'Finish', icon: PartyPopper },
 ];
 
+// Required fields per step - used to render red "required" validation and block Save until
+// filled, rather than silently accepting a half-empty profile.
+const REQUIRED_FIELDS = {
+  personal: ['dob', 'gender', 'maritalStatus', 'personalMobile', 'address', 'emergencyContactName', 'emergencyContactPhone', 'emergencyContactRelation'],
+  bank: ['bankName', 'bankAccount', 'ifsc'],
+  tax: ['pan', 'aadhar'],
+  nominee: ['nomineeName', 'nomineeRelation', 'nomineeDateOfBirth'],
+};
+const FIELD_LABELS = {
+  dob: 'Date of Birth', gender: 'Gender', maritalStatus: 'Marital Status', personalMobile: 'Personal Mobile',
+  address: 'Current Address', emergencyContactName: 'Emergency Contact Name', emergencyContactPhone: 'Emergency Contact Phone',
+  emergencyContactRelation: 'Emergency Contact Relation', bankName: 'Bank Name', bankAccount: 'Account Number', ifsc: 'IFSC Code',
+  pan: 'PAN Number', aadhar: 'Aadhaar Number', nomineeName: 'Nominee Name', nomineeRelation: 'Nominee Relation', nomineeDateOfBirth: 'Nominee Date of Birth',
+};
+
+function buildInitialDraft(profile) {
+  return {
+    dob: profile.dob || '', gender: profile.gender || '', maritalStatus: profile.maritalStatus || '',
+    nationality: profile.nationality || '', bloodGroup: profile.bloodGroup || '',
+    address: profile.address || '', permanentAddress: profile.permanentAddress || '',
+    personalEmail: profile.personalEmail || '', personalMobile: profile.personalMobile || '',
+    languagesKnown: profile.languagesKnown || '',
+    emergencyContactName: profile.emergencyContact?.name || '', emergencyContactPhone: profile.emergencyContact?.phone || '', emergencyContactRelation: profile.emergencyContact?.relation || '',
+    bankName: profile.bankName || '', bankAccount: profile.bankAccount || '', ifsc: profile.ifsc || '',
+    pan: profile.pan || '', aadhar: profile.aadhar || '', uan: profile.uan || '', pfNumber: profile.pfNumber || '', esiNumber: profile.esiNumber || '',
+    nomineeName: profile.nominee?.name || '', nomineeRelation: profile.nominee?.relation || '',
+    nomineeDateOfBirth: profile.nominee?.dob || '', nomineeSharePercentage: profile.nominee?.sharePercentage || 100, nomineeGender: profile.nominee?.gender || '',
+  };
+}
+
 export default function OnboardingWizard() {
   const { user } = useAuth();
   const toast = useToast();
@@ -102,6 +132,15 @@ export default function OnboardingWizard() {
   const [profile, setProfile] = useState(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [completion, setCompletion] = useState({ percent: 0, missing: [] });
+
+  // Lifted here (not owned by each step component) so switching steps - which unmounts/remounts
+  // the previous step - never loses unsaved edits. Previously PersonalStep/BankStep/TaxStep/
+  // NomineeStep each kept their own local useState seeded from `profile`, so any unsaved typing
+  // vanished the instant you navigated to another step and back, since `profile` only reflects
+  // the last successfully SAVED values, not in-progress edits.
+  const [draft, setDraft] = useState(null);
+  const [errors, setErrors] = useState({});
+  const draftStorageKey = profile ? `onboarding-draft-${profile.id}` : null;
 
   const [education, setEducation] = useState([]);
   const [employment, setEmployment] = useState([]);
@@ -115,6 +154,14 @@ export default function OnboardingWizard() {
   useEffect(() => {
     getMyProfile().then(p => {
       setProfile(p);
+      // Also surviving a full page reload/navigating away entirely, not just switching steps -
+      // prefer any unsaved draft already sitting in this browser over the last-saved profile.
+      let initialDraft = buildInitialDraft(p);
+      try {
+        const cached = sessionStorage.getItem(`onboarding-draft-${p.id}`);
+        if (cached) initialDraft = { ...initialDraft, ...JSON.parse(cached) };
+      } catch { /* ignore corrupt/unavailable storage */ }
+      setDraft(initialDraft);
       Promise.all([
         getEducation(p.id), getEmploymentHistory(p.id), getSkills(p.id), getMyDocuments(),
       ]).then(([edu, emp, sk, docs]) => {
@@ -124,20 +171,42 @@ export default function OnboardingWizard() {
     }).catch(() => setLoading(false));
   }, [refreshCompletion]);
 
-  if (loading) return <div className="flex items-center justify-center h-full min-h-[50vh]"><Loader /></div>;
+  useEffect(() => {
+    if (!draft || !draftStorageKey) return;
+    try { sessionStorage.setItem(draftStorageKey, JSON.stringify(draft)); } catch { /* storage unavailable - draft still survives step switches via state */ }
+  }, [draft, draftStorageKey]);
+
+  const updateDraft = (patch) => setDraft(prev => ({ ...prev, ...patch }));
+
+  if (loading || !draft) return <div className="flex items-center justify-center h-full min-h-[50vh]"><Loader /></div>;
   if (!profile) return null;
 
   const step = STEPS[stepIndex];
   const goNext = () => setStepIndex(i => Math.min(STEPS.length - 1, i + 1));
   const goBack = () => setStepIndex(i => Math.max(0, i - 1));
 
-  const savePersonal = async (patch) => {
-    const updated = { ...profile, ...patch };
+  const validateStep = (stepKey) => {
+    const required = REQUIRED_FIELDS[stepKey];
+    if (!required) return true;
+    const stepErrors = {};
+    required.forEach(field => {
+      const value = draft[field];
+      if (value === '' || value === null || value === undefined) stepErrors[field] = `${FIELD_LABELS[field]} is required`;
+    });
+    setErrors(prev => ({ ...prev, ...stepErrors, ...Object.fromEntries(required.filter(f => !stepErrors[f]).map(f => [f, undefined])) }));
+    return Object.keys(stepErrors).length === 0;
+  };
+
+  const saveStep = async (stepKey) => {
+    if (!validateStep(stepKey)) {
+      toast.error('Please fill the highlighted required fields');
+      return;
+    }
     try {
-      await updateEmployee(profile.id, updated);
-      setProfile(updated);
+      await updateOwnProfile(profile.id, { ...profile, ...draft });
       toast.success('Saved');
       refreshCompletion(profile.id);
+      if (draftStorageKey) { try { sessionStorage.removeItem(draftStorageKey); } catch { /* ignore */ } }
     } catch (err) {
       toast.error(err.message || 'Failed to save');
     }
@@ -170,14 +239,14 @@ export default function OnboardingWizard() {
       <Card>
         <AnimatePresence mode="wait">
           <motion.div key={step.key} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }} transition={{ duration: 0.2 }}>
-            {step.key === 'personal' && <PersonalStep profile={profile} onSave={savePersonal} />}
+            {step.key === 'personal' && <PersonalStep form={draft} errors={errors} onChange={updateDraft} onSave={() => saveStep('personal')} />}
             {step.key === 'education' && <EducationStep employeeId={profile.id} items={education} setItems={setEducation} onChange={() => refreshCompletion(profile.id)} />}
             {step.key === 'employment' && <EmploymentStep employeeId={profile.id} items={employment} setItems={setEmployment} onChange={() => refreshCompletion(profile.id)} />}
             {step.key === 'skills' && <SkillsStep employeeId={profile.id} items={skills} setItems={setSkills} onChange={() => refreshCompletion(profile.id)} />}
             {step.key === 'documents' && <DocumentsStep employeeId={profile.id} items={documents} setItems={setDocuments} onChange={() => refreshCompletion(profile.id)} />}
-            {step.key === 'bank' && <BankStep profile={profile} onSave={savePersonal} />}
-            {step.key === 'tax' && <TaxStep profile={profile} onSave={savePersonal} />}
-            {step.key === 'nominee' && <NomineeStep profile={profile} onSave={savePersonal} />}
+            {step.key === 'bank' && <BankStep form={draft} errors={errors} onChange={updateDraft} onSave={() => saveStep('bank')} />}
+            {step.key === 'tax' && <TaxStep form={draft} errors={errors} onChange={updateDraft} onSave={() => saveStep('tax')} />}
+            {step.key === 'nominee' && <NomineeStep form={draft} errors={errors} onChange={updateDraft} onSave={() => saveStep('nominee')} />}
             {step.key === 'finish' && <FinishStep completion={completion} onGoDashboard={() => navigate('/')} />}
           </motion.div>
         </AnimatePresence>
@@ -191,87 +260,70 @@ export default function OnboardingWizard() {
   );
 }
 
-function PersonalStep({ profile, onSave }) {
-  const [form, setForm] = useState({
-    dob: profile.dob || '', gender: profile.gender || '', maritalStatus: profile.maritalStatus || '',
-    nationality: profile.nationality || '', bloodGroup: profile.bloodGroup || '',
-    address: profile.address || '', permanentAddress: profile.permanentAddress || '',
-    personalEmail: profile.personalEmail || '', personalMobile: profile.personalMobile || '',
-    languagesKnown: profile.languagesKnown || '',
-    emergencyContactName: profile.emergencyContact?.name || '', emergencyContactPhone: profile.emergencyContact?.phone || '', emergencyContactRelation: profile.emergencyContact?.relation || '',
-  });
+function PersonalStep({ form, errors, onChange, onSave }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <DatePicker label="Date of Birth" value={form.dob} onChange={v => setForm(p => ({ ...p, dob: v }))} max={new Date().toISOString().split('T')[0]} />
-        <Select label="Gender" value={form.gender} onChange={e => setForm(p => ({ ...p, gender: e.target.value }))} options={[{ value: 'MALE', label: 'Male' }, { value: 'FEMALE', label: 'Female' }, { value: 'OTHER', label: 'Other' }]} />
-        <Select label="Marital Status" value={form.maritalStatus} onChange={e => setForm(p => ({ ...p, maritalStatus: e.target.value }))} placeholder="Select marital status" options={MARITAL_STATUS_OPTIONS} />
-        <Input label="Nationality" value={form.nationality} onChange={e => setForm(p => ({ ...p, nationality: e.target.value }))} placeholder="Indian" />
-        <Input label="Blood Group" value={form.bloodGroup} onChange={e => setForm(p => ({ ...p, bloodGroup: e.target.value }))} placeholder="O+" />
-        <LanguagesMultiSelect value={form.languagesKnown} onChange={v => setForm(p => ({ ...p, languagesKnown: v }))} />
-        <Input label="Personal Email" type="email" value={form.personalEmail} onChange={e => setForm(p => ({ ...p, personalEmail: e.target.value }))} />
-        <Input label="Personal Mobile" value={form.personalMobile} onChange={e => setForm(p => ({ ...p, personalMobile: e.target.value }))} />
-        <Input label="Current Address" className="col-span-2" value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} />
-        <Input label="Permanent Address" className="col-span-2" value={form.permanentAddress} onChange={e => setForm(p => ({ ...p, permanentAddress: e.target.value }))} />
+        <DatePicker label="Date of Birth" value={form.dob} onChange={v => onChange({ dob: v })} max={new Date().toISOString().split('T')[0]} error={errors.dob} />
+        <Select label="Gender" value={form.gender} onChange={e => onChange({ gender: e.target.value })} placeholder="Select gender" options={[{ value: 'MALE', label: 'Male' }, { value: 'FEMALE', label: 'Female' }, { value: 'OTHER', label: 'Other' }]} error={errors.gender} />
+        <Select label="Marital Status" value={form.maritalStatus} onChange={e => onChange({ maritalStatus: e.target.value })} placeholder="Select marital status" options={MARITAL_STATUS_OPTIONS} error={errors.maritalStatus} />
+        <Input label="Nationality" value={form.nationality} onChange={e => onChange({ nationality: e.target.value })} placeholder="Indian" />
+        <Input label="Blood Group" value={form.bloodGroup} onChange={e => onChange({ bloodGroup: e.target.value })} placeholder="O+" />
+        <LanguagesMultiSelect value={form.languagesKnown} onChange={v => onChange({ languagesKnown: v })} />
+        <Input label="Personal Email" type="email" value={form.personalEmail} onChange={e => onChange({ personalEmail: e.target.value })} />
+        <Input label="Personal Mobile" value={form.personalMobile} onChange={e => onChange({ personalMobile: e.target.value })} error={errors.personalMobile} />
+        <Input label="Current Address" className="col-span-2" value={form.address} onChange={e => onChange({ address: e.target.value })} error={errors.address} />
+        <Input label="Permanent Address" className="col-span-2" value={form.permanentAddress} onChange={e => onChange({ permanentAddress: e.target.value })} />
       </div>
       <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider pt-2">Emergency Contact</p>
       <div className="grid grid-cols-3 gap-4">
-        <Input label="Name" value={form.emergencyContactName} onChange={e => setForm(p => ({ ...p, emergencyContactName: e.target.value }))} />
-        <Input label="Phone" value={form.emergencyContactPhone} onChange={e => setForm(p => ({ ...p, emergencyContactPhone: e.target.value }))} />
-        <Select label="Relation" value={form.emergencyContactRelation} onChange={e => setForm(p => ({ ...p, emergencyContactRelation: e.target.value }))} placeholder="Select relation" options={RELATION_OPTIONS} />
+        <Input label="Name" value={form.emergencyContactName} onChange={e => onChange({ emergencyContactName: e.target.value })} error={errors.emergencyContactName} />
+        <Input label="Phone" value={form.emergencyContactPhone} onChange={e => onChange({ emergencyContactPhone: e.target.value })} error={errors.emergencyContactPhone} />
+        <Select label="Relation" value={form.emergencyContactRelation} onChange={e => onChange({ emergencyContactRelation: e.target.value })} placeholder="Select relation" options={RELATION_OPTIONS} error={errors.emergencyContactRelation} />
       </div>
-      <div className="flex justify-end"><Button onClick={() => onSave(form)}>Save</Button></div>
+      <div className="flex justify-end"><Button onClick={onSave}>Save</Button></div>
     </div>
   );
 }
 
-function BankStep({ profile, onSave }) {
-  const [form, setForm] = useState({ bankName: profile.bankName || '', bankAccount: profile.bankAccount || '', ifsc: profile.ifsc || '' });
+function BankStep({ form, errors, onChange, onSave }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <Input label="Bank Name" value={form.bankName} onChange={e => setForm(p => ({ ...p, bankName: e.target.value }))} />
-        <Input label="Account Number" value={form.bankAccount} onChange={e => setForm(p => ({ ...p, bankAccount: e.target.value }))} />
-        <Input label="IFSC Code" value={form.ifsc} onChange={e => setForm(p => ({ ...p, ifsc: e.target.value }))} />
+        <Input label="Bank Name" value={form.bankName} onChange={e => onChange({ bankName: e.target.value })} error={errors.bankName} />
+        <Input label="Account Number" value={form.bankAccount} onChange={e => onChange({ bankAccount: e.target.value })} error={errors.bankAccount} />
+        <Input label="IFSC Code" value={form.ifsc} onChange={e => onChange({ ifsc: e.target.value })} error={errors.ifsc} />
       </div>
-      <div className="flex justify-end"><Button onClick={() => onSave(form)}>Save</Button></div>
+      <div className="flex justify-end"><Button onClick={onSave}>Save</Button></div>
     </div>
   );
 }
 
-function TaxStep({ profile, onSave }) {
-  const [form, setForm] = useState({ pan: profile.pan || '', aadhar: profile.aadhar || '', uan: profile.uan || '', pfNumber: profile.pfNumber || '', esiNumber: profile.esiNumber || '' });
+function TaxStep({ form, errors, onChange, onSave }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <Input label="PAN Number" value={form.pan} onChange={e => setForm(p => ({ ...p, pan: e.target.value }))} />
-        <Input label="Aadhaar Number" value={form.aadhar} onChange={e => setForm(p => ({ ...p, aadhar: e.target.value }))} />
-        <Input label="UAN Number" value={form.uan} onChange={e => setForm(p => ({ ...p, uan: e.target.value }))} />
-        <Input label="PF Number" value={form.pfNumber} onChange={e => setForm(p => ({ ...p, pfNumber: e.target.value }))} />
-        <Input label="ESI Number" value={form.esiNumber} onChange={e => setForm(p => ({ ...p, esiNumber: e.target.value }))} />
+        <Input label="PAN Number" value={form.pan} onChange={e => onChange({ pan: e.target.value })} error={errors.pan} />
+        <Input label="Aadhaar Number" value={form.aadhar} onChange={e => onChange({ aadhar: e.target.value })} error={errors.aadhar} />
+        <Input label="UAN Number" value={form.uan} onChange={e => onChange({ uan: e.target.value })} />
+        <Input label="PF Number" value={form.pfNumber} onChange={e => onChange({ pfNumber: e.target.value })} />
+        <Input label="ESI Number" value={form.esiNumber} onChange={e => onChange({ esiNumber: e.target.value })} />
       </div>
-      <div className="flex justify-end"><Button onClick={() => onSave(form)}>Save</Button></div>
+      <div className="flex justify-end"><Button onClick={onSave}>Save</Button></div>
     </div>
   );
 }
 
-function NomineeStep({ profile, onSave }) {
-  const [form, setForm] = useState({
-    nominee: {
-      name: profile.nominee?.name || '', relation: profile.nominee?.relation || '',
-      dob: profile.nominee?.dob || '', sharePercentage: profile.nominee?.sharePercentage || 100, gender: profile.nominee?.gender || '',
-    },
-  });
-  const set = (k, v) => setForm(p => ({ nominee: { ...p.nominee, [k]: v } }));
+function NomineeStep({ form, errors, onChange, onSave }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <Input label="Nominee Name" value={form.nominee.name} onChange={e => set('name', e.target.value)} />
-        <Select label="Relation" value={form.nominee.relation} onChange={e => set('relation', e.target.value)} placeholder="Select relation" options={RELATION_OPTIONS} />
-        <DatePicker label="Date of Birth" value={form.nominee.dob} onChange={v => set('dob', v)} max={new Date().toISOString().split('T')[0]} />
-        <Input label="Share %" type="number" min="1" max="100" value={form.nominee.sharePercentage} onChange={e => set('sharePercentage', parseInt(e.target.value) || 0)} />
+        <Input label="Nominee Name" value={form.nomineeName} onChange={e => onChange({ nomineeName: e.target.value })} error={errors.nomineeName} />
+        <Select label="Relation" value={form.nomineeRelation} onChange={e => onChange({ nomineeRelation: e.target.value })} placeholder="Select relation" options={RELATION_OPTIONS} error={errors.nomineeRelation} />
+        <DatePicker label="Date of Birth" value={form.nomineeDateOfBirth} onChange={v => onChange({ nomineeDateOfBirth: v })} max={new Date().toISOString().split('T')[0]} error={errors.nomineeDateOfBirth} />
+        <Input label="Share %" type="number" min="1" max="100" value={form.nomineeSharePercentage} onChange={e => onChange({ nomineeSharePercentage: parseInt(e.target.value) || 0 })} />
       </div>
-      <div className="flex justify-end"><Button onClick={() => onSave(form)}>Save</Button></div>
+      <div className="flex justify-end"><Button onClick={onSave}>Save</Button></div>
     </div>
   );
 }
