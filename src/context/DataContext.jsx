@@ -90,7 +90,8 @@ export function DataProvider({ children }) {
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [documentsError, setDocumentsError] = useState(null);
   const [visibleModules, setVisibleModules] = useState(null); // null = not loaded yet, fall back to mock ROLE_PERMISSIONS
-  const { isAuthenticated } = useAuth() || {};
+  const { isAuthenticated, user } = useAuth() || {};
+  const isPayrollAdmin = ['hr_manager', 'finance', 'ceo', 'admin'].includes(user?.role);
 
   // Lazy-load registry: assets/timesheets/documents/auditLogs are only fetched once a page that
   // actually needs them calls ensureLoad(domain) (see the effects below, each gated on
@@ -225,7 +226,11 @@ export function DataProvider({ children }) {
   useEffect(() => {
     if (!isAuthenticated) return;
     setPayslipsLoading(true);
-    payrollApi.getMyPayslips({ size: 500 })
+    // HR/Finance/CEO/Admin see every employee's payslips (the real payroll register); a plain
+    // employee only ever sees their own. Previously every role used getMyPayslips, so the admin
+    // Payroll page silently only ever showed the logged-in user's own payslips.
+    const fetchPayslips = isPayrollAdmin ? payrollApi.getAllPayslips({ size: 500 }) : payrollApi.getMyPayslips({ size: 500 });
+    fetchPayslips
       .then((result) => {
         setData(prev => ({ ...prev, payslips: result.items }));
         setPayslipsSource('live');
@@ -235,7 +240,7 @@ export function DataProvider({ children }) {
         setPayslipsSource('mock');
       })
       .finally(() => setPayslipsLoading(false));
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isPayrollAdmin]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -687,7 +692,10 @@ export function DataProvider({ children }) {
         // "Run Payroll" maps to POST /payroll/run for the live module; refresh the payslip list after.
         const summary = await payrollApi.runPayroll(month, year);
         try {
-          const result = await payrollApi.getMyPayslips({ size: 500 });
+          // Same admin-vs-self distinction as the initial load above - refreshing with
+          // getMyPayslips after a bulk run overwrote the whole list with just the caller's own
+          // one payslip, even though the backend had genuinely just created one per employee.
+          const result = isPayrollAdmin ? await payrollApi.getAllPayslips({ size: 500 }) : await payrollApi.getMyPayslips({ size: 500 });
           setData(prev => ({ ...prev, payslips: result.items }));
         } catch {
           // ignore refresh failure; summary is still returned
@@ -697,7 +705,7 @@ export function DataProvider({ children }) {
       update: () => { throw new Error('Direct payslip edits are not supported; use approve/mark-paid actions'); },
       remove: () => { throw new Error('Payslips cannot be deleted'); },
     };
-  }, [payslipsSource, mockPayslipsCrud, data.payslips]);
+  }, [payslipsSource, mockPayslipsCrud, data.payslips, isPayrollAdmin]);
   const mockDocumentsCrud = useMemo(() => crud('documents'), [crud]);
 
   const documents = useMemo(() => {

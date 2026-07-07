@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { UserPlus, Download, Upload, Eye, Edit3, Trash2, MoreVertical, UserCheck, UserX, Key, RefreshCw, FileText, Briefcase, Monitor, TrendingUp, LogOut, CheckCircle2, XCircle, Clock, UserPlus as UserPlusIcon, Shield, LogIn, ClipboardList, ScrollText, ArrowRightLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Card from '../../components/ui/Card';
@@ -53,6 +54,27 @@ const TRANSFER_TYPES = [
   { value: 'BUSINESS_UNIT', label: 'Business Unit' },
 ];
 
+// Official email must be a company (@vikisol.in) address - the placeholder ("email@vikisol.in")
+// already implies this, but nothing actually enforced it, so any domain (e.g. @gmail.com) was
+// silently accepted and the employee was created anyway.
+function officialEmailError(value) {
+  if (!value) return null;
+  return /@vikisol\.in$/i.test(value.trim()) ? null : 'Official email must end with @vikisol.in';
+}
+
+// Strips anything that isn't a digit, space, or leading "+" as the user types - previously phone/
+// mobile fields accepted arbitrary letters and special characters with no restriction at all.
+function sanitizePhoneInput(value) {
+  const leadingPlus = value.startsWith('+') ? '+' : '';
+  return leadingPlus + value.slice(leadingPlus.length).replace(/[^\d\s]/g, '');
+}
+
+function phoneError(value) {
+  if (!value) return null;
+  const digitCount = (value.match(/\d/g) || []).length;
+  return digitCount >= 10 && digitCount <= 13 ? null : 'Enter a valid phone number (10-13 digits)';
+}
+
 export default function EmployeeDirectory() {
   const { data, employees, stats, lookups, employeesLoading, employeesSource } = useData();
   const { user } = useAuth();
@@ -103,6 +125,21 @@ export default function EmployeeDirectory() {
 
   const allEmps = data.employees;
 
+  // Deep-link from the global search bar (Topbar) - previously the search result only navigated
+  // to the bare "/employees?employeeId=..." with no consumer, so it always landed on the full,
+  // unfiltered directory list instead of opening the specific employee that was clicked.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const employeeId = searchParams.get('employeeId');
+    if (!employeeId || !allEmps.length || selectedEmp) return;
+    const match = allEmps.find(e => e.id === employeeId);
+    if (match) {
+      openView(match);
+      setSearchParams(params => { params.delete('employeeId'); return params; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, allEmps]);
+
   const filtered = useMemo(() => {
     return allEmps.filter(e => {
       const s = search.toLowerCase();
@@ -136,7 +173,21 @@ export default function EmployeeDirectory() {
     return () => clearTimeout(timer);
   }, [addForm.email, addForm.personalEmail, addForm.personalMobile, employeesSource]);
 
-  const hasAddFormErrors = Object.values(addFormErrors).some(Boolean);
+  // Format validation (company email domain, numeric-only phone) - synchronous, unlike the
+  // debounced existence checks above, and combined with them for the final error shown per field.
+  const addFormatErrors = {
+    email: officialEmailError(addForm.email),
+    personalMobile: phoneError(addForm.personalMobile),
+    phone: phoneError(addForm.phone),
+  };
+  const addFieldErrors = {
+    email: addFormErrors.email || addFormatErrors.email,
+    personalEmail: addFormErrors.personalEmail,
+    personalMobile: addFormErrors.personalMobile || addFormatErrors.personalMobile,
+    phone: addFormatErrors.phone,
+  };
+
+  const hasAddFormErrors = Object.values(addFieldErrors).some(Boolean);
 
   const handleCreate = async () => {
     if (!addForm.name || !addForm.email) { toast.error('Name and email are required'); return; }
@@ -153,7 +204,18 @@ export default function EmployeeDirectory() {
     }
   };
 
+  // Edit Employee previously had no validation at all (and was missing the required-field
+  // asterisks Add Employee shows), so the same official-email-domain/numeric-phone checks are
+  // applied here too, for consistency.
+  const editFieldErrors = {
+    email: officialEmailError(editForm.email),
+    personalMobile: phoneError(editForm.personalMobile),
+    phone: phoneError(editForm.phone),
+  };
+  const hasEditFormErrors = Object.values(editFieldErrors).some(Boolean);
+
   const handleEdit = async () => {
+    if (hasEditFormErrors) { toast.error('Please resolve the highlighted fields before continuing'); return; }
     try {
       await employees.update(showEdit.id, editForm);
       toast.success(`Employee ${editForm.name || showEdit.name} updated successfully`);
@@ -483,9 +545,9 @@ export default function EmployeeDirectory() {
       <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Add New Employee" size="lg">
         <div className="grid grid-cols-2 gap-4">
           <Input label="Full Name *" value={addForm.name} onChange={e => setAddForm(p => ({ ...p, name: e.target.value }))} placeholder="Enter full name" />
-          <Input label="Official Email *" type="email" value={addForm.email} onChange={e => setAddForm(p => ({ ...p, email: e.target.value }))} placeholder="email@vikisol.in" error={addFormErrors.email} />
-          <Input label="Personal Email" type="email" value={addForm.personalEmail || ''} onChange={e => setAddForm(p => ({ ...p, personalEmail: e.target.value }))} placeholder="used only for the activation link" error={addFormErrors.personalEmail} />
-          <Input label="Personal Mobile" value={addForm.personalMobile || ''} onChange={e => setAddForm(p => ({ ...p, personalMobile: e.target.value }))} placeholder="+91 XXXXX XXXXX" error={addFormErrors.personalMobile} />
+          <Input label="Official Email *" type="email" value={addForm.email} onChange={e => setAddForm(p => ({ ...p, email: e.target.value }))} placeholder="email@vikisol.in" error={addFieldErrors.email} />
+          <Input label="Personal Email" type="email" value={addForm.personalEmail || ''} onChange={e => setAddForm(p => ({ ...p, personalEmail: e.target.value }))} placeholder="used only for the activation link" error={addFieldErrors.personalEmail} />
+          <Input label="Personal Mobile" value={addForm.personalMobile || ''} onChange={e => setAddForm(p => ({ ...p, personalMobile: sanitizePhoneInput(e.target.value) }))} placeholder="+91 XXXXX XXXXX" error={addFieldErrors.personalMobile} />
           {employeesSource === 'live' ? (
             <Select label="Department" value={addForm.departmentId || ''} onChange={e => setAddForm(p => ({ ...p, departmentId: e.target.value }))} options={deptOptions} />
           ) : (
@@ -497,7 +559,7 @@ export default function EmployeeDirectory() {
             <Input label="Designation" value={addForm.designation} onChange={e => setAddForm(p => ({ ...p, designation: e.target.value }))} placeholder="e.g. Senior Developer" />
           )}
           <Select label="Location" value={addForm.location} onChange={e => setAddForm(p => ({ ...p, location: e.target.value }))} options={['Hyderabad','Bangalore','Pune','Noida','Chennai','Mumbai','Remote'].map(l => ({ value: l, label: l }))} />
-          <Input label="Official Phone" value={addForm.phone} onChange={e => setAddForm(p => ({ ...p, phone: e.target.value }))} placeholder="+91 XXXXX XXXXX" />
+          <Input label="Official Phone" value={addForm.phone} onChange={e => setAddForm(p => ({ ...p, phone: sanitizePhoneInput(e.target.value) }))} placeholder="+91 XXXXX XXXXX" error={addFieldErrors.phone} />
           <Select label="Employment Type" value={addForm.employmentType} onChange={e => setAddForm(p => ({ ...p, employmentType: e.target.value }))} options={[{ value: 'Full Time', label: 'Full Time' }, { value: 'Contract', label: 'Contract' }, { value: 'Intern', label: 'Intern' }]} />
         </div>
         <div className="flex justify-end gap-2 mt-6">
@@ -511,10 +573,10 @@ export default function EmployeeDirectory() {
         {showEdit && (
           <>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Full Name" value={editForm.name || ''} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} />
-              <Input label="Official Email" value={editForm.email || ''} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} />
+              <Input label="Full Name *" value={editForm.name || ''} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} />
+              <Input label="Official Email *" value={editForm.email || ''} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} error={editFieldErrors.email} />
               <Input label="Personal Email" type="email" value={editForm.personalEmail || ''} onChange={e => setEditForm(p => ({ ...p, personalEmail: e.target.value }))} />
-              <Input label="Personal Mobile" value={editForm.personalMobile || ''} onChange={e => setEditForm(p => ({ ...p, personalMobile: e.target.value }))} />
+              <Input label="Personal Mobile" value={editForm.personalMobile || ''} onChange={e => setEditForm(p => ({ ...p, personalMobile: sanitizePhoneInput(e.target.value) }))} error={editFieldErrors.personalMobile} />
               {employeesSource === 'live' ? (
                 <Select label="Department" value={editForm.departmentId || ''} onChange={e => setEditForm(p => ({ ...p, departmentId: e.target.value }))} options={deptOptions} />
               ) : (
@@ -526,13 +588,13 @@ export default function EmployeeDirectory() {
                 <Input label="Designation" value={editForm.designation || ''} onChange={e => setEditForm(p => ({ ...p, designation: e.target.value }))} />
               )}
               <Select label="Location" value={editForm.location || ''} onChange={e => setEditForm(p => ({ ...p, location: e.target.value }))} options={['Hyderabad','Bangalore','Pune','Noida','Chennai','Mumbai','Remote'].map(l => ({ value: l, label: l }))} />
-              <Input label="Official Phone" value={editForm.phone || ''} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} />
+              <Input label="Official Phone" value={editForm.phone || ''} onChange={e => setEditForm(p => ({ ...p, phone: sanitizePhoneInput(e.target.value) }))} error={editFieldErrors.phone} />
               <Select label="Status" value={editForm.status || ''} onChange={e => setEditForm(p => ({ ...p, status: e.target.value }))} options={['Active','On Leave','Notice Period','Suspended'].map(s => ({ value: s, label: s }))} />
               <Select label="Employment Type" value={editForm.employmentType || ''} onChange={e => setEditForm(p => ({ ...p, employmentType: e.target.value }))} options={[{ value: 'Full Time', label: 'Full Time' }, { value: 'Contract', label: 'Contract' }, { value: 'Intern', label: 'Intern' }]} />
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <Button variant="secondary" onClick={() => setShowEdit(null)}>Cancel</Button>
-              <Button onClick={handleEdit}>Save Changes</Button>
+              <Button onClick={handleEdit} disabled={hasEditFormErrors}>Save Changes</Button>
             </div>
           </>
         )}

@@ -114,14 +114,24 @@ function CtcBreakupSettings() {
   const [template, setTemplate] = useState(null);
   const [customLabel, setCustomLabel] = useState('Custom Allowance');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     Promise.all([getCtcBreakupTemplate(), getCtcCustomLabel().catch(() => 'Custom Allowance')])
       .then(([tmpl, label]) => { setTemplate(tmpl); setCustomLabel(label); })
-      .catch(() => toast.error('Could not load CTC breakup template'))
+      // Backend restricts this endpoint to HR/CEO/Recruiter/Admin - a Manager or Employee
+      // reaching this tab would previously blank the entire page: `template` stayed null but
+      // `loading` still flipped false, and the render below unconditionally does `template[c.key]`
+      // on it. No error boundary exists in this app, so that uncaught exception took down
+      // everything, not just this card.
+      .catch(() => { setLoadError(true); toast.error('Could not load CTC breakup template'); })
       .finally(() => setLoading(false));
   }, []);
+
+  if (loadError || (!loading && !template)) {
+    return <Card><p className="text-sm text-text-secondary">You do not have permission to view the CTC breakup template.</p></Card>;
+  }
 
   const components = [...CTC_COMPONENTS, { key: 'CUSTOM_PCT', label: customLabel || 'Custom Allowance' }];
   const total = template ? components.reduce((sum, c) => sum + (Number(template[c.key]) || 0), 0) : 0;

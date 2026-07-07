@@ -32,7 +32,10 @@ export default function Topbar({ onOpenMobileSidebar }) {
     if (!searchQuery || searchQuery.length < 2) return [];
     const q = searchQuery.toLowerCase();
     const results = [];
-    data.employees.filter(e => e.name.toLowerCase().includes(q) || e.empId.toLowerCase().includes(q)).slice(0, 3).forEach(e => results.push({ type: 'Employee', label: e.name, sub: e.empId, path: '/employees' }));
+    // Previously always pointed at the bare directory ("/employees") with no identifier, so
+    // selecting a specific employee from search always landed on the full unfiltered list instead
+    // of that employee - EmployeeDirectory.jsx now consumes this employeeId param to auto-open.
+    data.employees.filter(e => e.name.toLowerCase().includes(q) || e.empId.toLowerCase().includes(q)).slice(0, 3).forEach(e => results.push({ type: 'Employee', label: e.name, sub: e.empId, path: `/employees?employeeId=${e.id}` }));
     data.projects.filter(p => p.name.toLowerCase().includes(q)).slice(0, 2).forEach(p => results.push({ type: 'Project', label: p.name, sub: p.client, path: '/projects' }));
     data.candidates.filter(c => c.name.toLowerCase().includes(q)).slice(0, 2).forEach(c => results.push({ type: 'Candidate', label: c.name, sub: c.role, path: '/recruitment' }));
     data.tickets.filter(t => t.title.toLowerCase().includes(q) || t.id.toLowerCase().includes(q)).slice(0, 2).forEach(t => results.push({ type: 'Ticket', label: t.title, sub: t.id, path: '/tickets' }));

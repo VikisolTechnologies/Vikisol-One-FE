@@ -56,11 +56,30 @@ export default function ReportsPage() {
   const categories = ['All', ...new Set(reports.map(r => r.category))];
   const filtered = filter === 'All' ? reports : reports.filter(r => r.category === filter);
 
-  const handleExport = () => toast.info('Report export is not available yet');
-  const handleEmail = () => toast.info('Report email delivery is not available yet');
-  const handleSchedule = () => toast.info('Scheduled reports are not available yet');
+  // A "From" date later than "To" (or either being empty) previously produced no validation
+  // message and no restriction at all - Preview would silently proceed and load an empty report
+  // (or, for the placeholder export/email/schedule actions, just do nothing useful either way).
+  const dateRangeError = !dateRange.from || !dateRange.to
+    ? 'Select both a From and To date'
+    : new Date(dateRange.from) > new Date(dateRange.to)
+      ? 'From date must be before To date'
+      : null;
+
+  const handleExport = () => {
+    if (dateRangeError) { toast.error(dateRangeError); return; }
+    toast.info('Report export is not available yet');
+  };
+  const handleEmail = () => {
+    if (dateRangeError) { toast.error(dateRangeError); return; }
+    toast.info('Report email delivery is not available yet');
+  };
+  const handleSchedule = () => {
+    if (dateRangeError) { toast.error(dateRangeError); return; }
+    toast.info('Scheduled reports are not available yet');
+  };
 
   const openPreview = async (report) => {
+    if (dateRangeError) { toast.error(dateRangeError); return; }
     setPreview(report);
     setPreviewData(null);
     setPreviewSource('mock');
@@ -94,10 +113,13 @@ export default function ReportsPage() {
       <Breadcrumb items={[{ label: 'Reports' }]} />
       <div className="flex items-center justify-between">
         <div><h1 className="text-xl font-bold text-text">Reports</h1><p className="text-sm text-text-secondary">Generate and download reports</p></div>
-        <div className="flex items-center gap-3">
-          <Input type="date" value={dateRange.from} onChange={e => setDateRange(p => ({ ...p, from: e.target.value }))} className="w-36" />
-          <span className="text-text-secondary text-sm">to</span>
-          <Input type="date" value={dateRange.to} onChange={e => setDateRange(p => ({ ...p, to: e.target.value }))} className="w-36" />
+        <div>
+          <div className="flex items-center gap-3">
+            <Input type="date" value={dateRange.from} onChange={e => setDateRange(p => ({ ...p, from: e.target.value }))} className={`w-36 ${dateRangeError ? '[&_input]:border-danger' : ''}`} />
+            <span className="text-text-secondary text-sm">to</span>
+            <Input type="date" value={dateRange.to} onChange={e => setDateRange(p => ({ ...p, to: e.target.value }))} className={`w-36 ${dateRangeError ? '[&_input]:border-danger' : ''}`} />
+          </div>
+          {dateRangeError && <p className="text-xs text-danger mt-1 text-right">{dateRangeError}</p>}
         </div>
       </div>
 
@@ -113,13 +135,13 @@ export default function ReportsPage() {
               <div><h3 className="text-sm font-semibold text-text">{r.name}</h3><p className="text-xs text-text-secondary mt-0.5">{r.description}</p></div>
             </div>
             <div className="flex gap-1.5 flex-wrap">
-              <Button size="sm" variant="ghost" icon={Eye} onClick={() => openPreview(r)}>Preview</Button>
-              <Button size="sm" variant="ghost" icon={FileText} onClick={() => handleExport(r, 'PDF')}>PDF</Button>
-              <Button size="sm" variant="ghost" icon={FileSpreadsheet} onClick={() => handleExport(r, 'Excel')}>Excel</Button>
-              <Button size="sm" variant="ghost" icon={Download} onClick={() => handleExport(r, 'CSV')}>CSV</Button>
-              <Button size="sm" variant="ghost" icon={Printer} onClick={() => handleExport(r, 'Print')}>Print</Button>
-              <Button size="sm" variant="ghost" icon={Mail} onClick={() => handleEmail(r)}>Email</Button>
-              <Button size="sm" variant="ghost" icon={Calendar} onClick={() => handleSchedule(r)}>Schedule</Button>
+              <Button size="sm" variant="ghost" icon={Eye} disabled={!!dateRangeError} onClick={() => openPreview(r)}>Preview</Button>
+              <Button size="sm" variant="ghost" icon={FileText} disabled={!!dateRangeError} onClick={() => handleExport(r, 'PDF')}>PDF</Button>
+              <Button size="sm" variant="ghost" icon={FileSpreadsheet} disabled={!!dateRangeError} onClick={() => handleExport(r, 'Excel')}>Excel</Button>
+              <Button size="sm" variant="ghost" icon={Download} disabled={!!dateRangeError} onClick={() => handleExport(r, 'CSV')}>CSV</Button>
+              <Button size="sm" variant="ghost" icon={Printer} disabled={!!dateRangeError} onClick={() => handleExport(r, 'Print')}>Print</Button>
+              <Button size="sm" variant="ghost" icon={Mail} disabled={!!dateRangeError} onClick={() => handleEmail(r)}>Email</Button>
+              <Button size="sm" variant="ghost" icon={Calendar} disabled={!!dateRangeError} onClick={() => handleSchedule(r)}>Schedule</Button>
             </div>
           </Card>
         ))}

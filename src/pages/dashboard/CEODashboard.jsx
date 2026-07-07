@@ -86,8 +86,18 @@ export default function CEODashboard() {
   }, [data.employees]);
 
   const deptData = useMemo(() => {
-    const counts = data.employees.reduce((acc, e) => { acc[e.department] = (acc[e.department] || 0) + 1; return acc; }, {});
-    return Object.entries(counts).map(([name, value], i) => ({ name, value, color: ['#FF6A00','#58A6FF','#A371F7','#2EA043','#D29922','#F85149','#8B949E','#FF8C33','#6E7681','#CC5500','#3FB950','#DA3633'][i % 12] })).sort((a, b) => b.value - a.value).slice(0, 6);
+    const colors = ['#FF6A00','#58A6FF','#A371F7','#2EA043','#D29922','#F85149','#8B949E','#FF8C33','#6E7681','#CC5500','#3FB950','#DA3633'];
+    const counts = data.employees.reduce((acc, e) => { const key = e.department || 'Unassigned'; acc[key] = (acc[key] || 0) + 1; return acc; }, {});
+    const sorted = Object.entries(counts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    // Previously silently dropped anything past the top 6 departments while the donut's center
+    // "Total" still counted every employee - the legend could never add up to that number once a
+    // company had more than 6 departments (or any employee with no department assigned). Folding
+    // the remainder into "Other" keeps the legend sum always equal to the displayed total.
+    const top = sorted.slice(0, 5);
+    const rest = sorted.slice(5).reduce((sum, d) => sum + d.value, 0);
+    const result = top.map((d, i) => ({ ...d, color: colors[i % colors.length] }));
+    if (rest > 0) result.push({ name: 'Other', value: rest, color: colors[5] });
+    return result;
   }, [data.employees]);
 
   const projectHealth = useMemo(() => {

@@ -63,6 +63,19 @@ export async function getMyPayslips({ page = 0, size = 50 } = {}) {
   };
 }
 
+// HR/Finance/CEO/Admin-only - every employee's payslips, not just the caller's own. The admin
+// Payroll page was previously (unintentionally) built on getMyPayslips above, so after "Run
+// Payroll" generated a payslip for every active employee, only the logged-in user's own record
+// was ever fetched back and shown - everyone else's payslip existed in the DB but was invisible.
+export async function getAllPayslips({ page = 0, size = 500 } = {}) {
+  const data = await api.get('/payroll/payslips', { page, size });
+  return {
+    items: (data.content || []).map(adaptPayslip),
+    totalElements: data.totalElements,
+    totalPages: data.totalPages,
+  };
+}
+
 export async function getPayslip(employeeId, month, year) {
   return adaptPayslip(await api.get(`/payroll/payslip/${employeeId}`, { month, year }));
 }

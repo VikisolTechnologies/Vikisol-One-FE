@@ -115,19 +115,24 @@ async function request(path, { method = 'GET', body, params, auth = true } = {})
     throw networkError;
   }
 
-  if (res.status === 401) {
-    if (onUnauthorized) onUnauthorized();
-    const authError = new ApiError('Session expired, please log in again', 401, null);
-    authError.category = 'authentication';
-    logError('api.auth_error', authError, { path, method });
-    throw authError;
-  }
-
   let json = null;
   try {
     json = await res.json();
   } catch {
     // no body
+  }
+
+  // "Session expired" only makes sense for a request that actually carried a token (auth=true) -
+  // e.g. login itself is auth=false and a 401 there means invalid credentials, not an expired
+  // session. Previously every 401 was rewritten to "Session expired, please log in again"
+  // unconditionally, which silently swallowed the real "Invalid email or password" message from
+  // the backend on every failed login attempt.
+  if (res.status === 401 && auth) {
+    if (onUnauthorized) onUnauthorized();
+    const authError = new ApiError('Session expired, please log in again', 401, null);
+    authError.category = 'authentication';
+    logError('api.auth_error', authError, { path, method });
+    throw authError;
   }
 
   if (!res.ok || (json && json.success === false)) {

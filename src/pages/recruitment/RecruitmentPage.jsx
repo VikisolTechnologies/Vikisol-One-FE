@@ -202,7 +202,10 @@ export default function RecruitmentPage() {
   };
 
   const stageData = stages.slice(0, 6).map(s => ({ stage: s, count: allCandidates.filter(c => c.stage === s).length }));
-  const roles = [...new Set(allCandidates.map(c => c.role))];
+  // Filter out falsy roles (a candidate with no role set) before building the dropdown - an
+  // undefined/empty entry in this Set rendered as a blank, unlabeled option that silently did
+  // nothing when selected (its value never matched any real candidate's role).
+  const roles = [...new Set(allCandidates.map(c => c.role).filter(Boolean))];
   const skills = [...new Set(allCandidates.flatMap(c => c.skills || []))].sort();
 
   const columns = [

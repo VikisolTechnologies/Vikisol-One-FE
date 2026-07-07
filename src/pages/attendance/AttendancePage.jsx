@@ -218,10 +218,14 @@ export default function AttendancePage() {
         const pct = (n) => `${((n / total) * 100).toFixed(1)}%${isRealTeamData ? '' : ' (demo data)'}`;
         return (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Labeled "Today" throughout - these KPIs and the Weekly Trend chart below are
+                deliberately different scopes (today's snapshot vs this week's Mon-Fri history),
+                not the same dataset. "Absent" without a scope read as contradicting the trend
+                chart's per-day numbers when they're simply different days. */}
             <StatCard icon={UserCheck} label="Present Today" value={present} change={pct(present)} color="success" delay={0} />
-            <StatCard icon={UserX} label="Absent" value={absent} change={pct(absent)} changeType="negative" color="danger" delay={1} />
-            <StatCard icon={Timer} label="Late Arrivals" value={late} change={pct(late)} changeType="negative" color="warning" delay={2} />
-            <StatCard icon={MapPin} label="WFH" value={wfh} change={pct(wfh)} color="info" delay={3} />
+            <StatCard icon={UserX} label="Absent Today" value={absent} change={pct(absent)} changeType="negative" color="danger" delay={1} />
+            <StatCard icon={Timer} label="Late Today" value={late} change={pct(late)} changeType="negative" color="warning" delay={2} />
+            <StatCard icon={MapPin} label="WFH Today" value={wfh} change={pct(wfh)} color="info" delay={3} />
           </div>
         );
       })()}
