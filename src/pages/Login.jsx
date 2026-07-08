@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, Eye, EyeOff, Monitor, ShieldCheck, KeyRound } from 'lucide-react';
 import { getAuthSettings } from '../api/auth';
 
-const OTP_TTL_SECONDS = 30;
+const OTP_TTL_SECONDS = 300; // 5 minutes - matches AuthService.OTP_TTL on the backend
+const OTP_RESEND_COOLDOWN_SECONDS = 30; // matches AuthService.OTP_REQUEST_COOLDOWN, decoupled from expiry
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -25,18 +26,21 @@ export default function Login() {
   const [mfaChallengeToken, setMfaChallengeToken] = useState(null);
   const [mfaCode, setMfaCode] = useState('');
 
-  // OTP Login tab state - a code is sent to `email`, then verified against it. `otpSecondsLeft`
-  // doubles as both the "code expires in..." display and the resend-cooldown gate, since the
-  // backend's request cooldown and the code's own expiry are both 30s (see AuthService.OTP_TTL).
+  // OTP Login tab state - a code is sent to `email`, then verified against it. Expiry and resend
+  // cooldown are deliberately separate timers: the code itself stays valid for 5 minutes, but a
+  // fresh one can be requested every 30 seconds well before that (matches AuthService.OTP_TTL /
+  // OTP_REQUEST_COOLDOWN on the backend).
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpSecondsLeft, setOtpSecondsLeft] = useState(0);
+  const [otpResendCooldown, setOtpResendCooldown] = useState(0);
   const otpTimerRef = useRef(null);
 
   useEffect(() => {
     if (!otpSent) return;
     otpTimerRef.current = setInterval(() => {
       setOtpSecondsLeft(s => (s <= 1 ? 0 : s - 1));
+      setOtpResendCooldown(s => (s <= 1 ? 0 : s - 1));
     }, 1000);
     return () => clearInterval(otpTimerRef.current);
   }, [otpSent]);
@@ -46,6 +50,7 @@ export default function Login() {
     setError('');
     setOtpSent(false);
     setOtpCode('');
+    setOtpResendCooldown(0);
     clearInterval(otpTimerRef.current);
   };
 
@@ -91,6 +96,7 @@ export default function Login() {
       setOtpSent(true);
       setOtpCode('');
       setOtpSecondsLeft(OTP_TTL_SECONDS);
+      setOtpResendCooldown(OTP_RESEND_COOLDOWN_SECONDS);
     } else {
       setError(result.error);
     }
@@ -149,7 +155,7 @@ export default function Login() {
                 <p className="text-sm text-text-secondary mb-6">Enter the 6-digit code from your authenticator app, or one of your backup codes.</p>
                 <form onSubmit={handleMfaSubmit} className="space-y-4">
                   <input
-                    type="text" inputMode="numeric" autoFocus value={mfaCode}
+                    type="text" inputMode="numeric" autoFocus value={mfaCode} autoComplete="one-time-code"
                     onChange={e => setMfaCode(e.target.value)}
                     placeholder="123456" maxLength={12}
                     className="w-full bg-surface-3 border border-border rounded-lg px-4 py-3 text-center text-lg tracking-[0.3em] text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all"
@@ -178,23 +184,23 @@ export default function Login() {
               <form onSubmit={otpSent ? handleVerifyOtp : handleSendOtp} className="space-y-4">
                 <div className="relative">
                   <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={otpSent} placeholder="you@vikisol.in" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all disabled:opacity-60" required />
+                  <input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} disabled={otpSent} placeholder="you@vikisol.in" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all disabled:opacity-60" required />
                 </div>
 
                 {otpSent && (
                   <div>
                     <div className="relative">
                       <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                      <input type="text" inputMode="numeric" autoFocus value={otpCode} onChange={e => setOtpCode(e.target.value)}
+                      <input type="text" inputMode="numeric" autoFocus value={otpCode} autoComplete="one-time-code" onChange={e => setOtpCode(e.target.value)}
                         placeholder="6-digit code" maxLength={6}
                         className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm tracking-[0.3em] text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
                     </div>
                     <p className="text-[11px] text-text-secondary mt-1.5">
                       {otpSecondsLeft > 0
-                        ? `Code sent to ${email} - expires in ${otpSecondsLeft}s`
+                        ? `Code sent to ${email} - expires in ${Math.floor(otpSecondsLeft / 60)}:${String(otpSecondsLeft % 60).padStart(2, '0')}`
                         : 'Code expired.'}{' '}
-                      <button type="button" onClick={handleSendOtp} disabled={otpSecondsLeft > 0 || submitting} className="text-primary hover:underline disabled:text-text-secondary disabled:no-underline disabled:cursor-not-allowed">
-                        Resend code
+                      <button type="button" onClick={handleSendOtp} disabled={otpResendCooldown > 0 || submitting} className="text-primary hover:underline disabled:text-text-secondary disabled:no-underline disabled:cursor-not-allowed">
+                        {otpResendCooldown > 0 ? `Resend code (${otpResendCooldown}s)` : 'Resend code'}
                       </button>
                     </p>
                   </div>
@@ -218,13 +224,13 @@ export default function Login() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="relative">
                 <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@vikisol.in" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
+                <input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@vikisol.in" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
               </div>
 
               <div>
                 <div className="relative">
                   <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                  <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                  <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password"
                     onKeyUp={e => setCapsLockOn(e.getModifierState && e.getModifierState('CapsLock'))}
                     placeholder="Password" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-10 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
                   <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text">

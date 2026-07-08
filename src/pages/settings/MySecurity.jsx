@@ -232,7 +232,7 @@ function MfaCard() {
 
       <Modal open={showDisable} onClose={() => setShowDisable(false)} title="Disable Two-Factor Authentication">
         <p className="text-sm text-text-secondary mb-3">Enter your password to confirm.</p>
-        <Input type="password" label="Password" value={disablePassword} onChange={e => setDisablePassword(e.target.value)} />
+        <Input type="password" autoComplete="current-password" label="Password" value={disablePassword} onChange={e => setDisablePassword(e.target.value)} />
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="secondary" onClick={() => setShowDisable(false)}>Cancel</Button>
           <Button onClick={handleDisable} disabled={busy || !disablePassword}>{busy ? 'Disabling...' : 'Disable'}</Button>

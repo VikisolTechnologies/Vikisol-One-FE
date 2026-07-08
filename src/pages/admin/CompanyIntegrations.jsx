@@ -143,7 +143,7 @@ export default function CompanyIntegrations() {
                     Enabled
                   </label>
                   {provider.fields.map(f => (
-                    <Input key={f.key} label={f.label} type={f.secret ? 'password' : 'text'}
+                    <Input key={f.key} label={f.label} type={f.secret ? 'password' : 'text'} autoComplete={f.secret ? 'off' : undefined}
                       value={form.config?.[f.key] || ''} onChange={e => setField(provider.type, f.key, e.target.value)} />
                   ))}
                   {setting?.lastError && <p className="text-xs text-danger">{setting.lastError}</p>}
