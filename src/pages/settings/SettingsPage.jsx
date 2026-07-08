@@ -645,8 +645,8 @@ export default function SettingsPage() {
             </div>
             <div className="p-4 bg-surface-3 rounded-xl">
               <p className="text-sm font-medium text-text mb-1">Session Timeout</p>
-              <Input type="number" defaultValue="30" className="mt-2" />
-              <p className="text-xs text-text-secondary mt-1">minutes of inactivity</p>
+              <p className="text-xs text-text-secondary mb-3">The real, org-wide session timeout control lives in Security Center, alongside password/lockout policy.</p>
+              <Button size="sm" onClick={() => navigate('/security-center')}>Open Security Center</Button>
             </div>
           </div></Card>
         )},
