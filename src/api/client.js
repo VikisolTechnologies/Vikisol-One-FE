@@ -73,6 +73,39 @@ export async function fetchBlob(path, body) {
   return res.blob();
 }
 
+// GET counterpart to fetchBlob - used for server-generated PDF downloads (org chart, reports)
+// where the response is a raw application/pdf stream, not the usual JSON envelope.
+export async function fetchBlobGet(path, params) {
+  const query = params ? '?' + new URLSearchParams(params).toString() : '';
+  const res = await fetch(BASE_URL + path + query, {
+    method: 'GET',
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    let message = `Request failed with status ${res.status}`;
+    try {
+      const json = await res.json();
+      message = json?.message || message;
+    } catch { /* body wasn't JSON (likely a raw file stream on success, or empty on error) */ }
+    const apiError = new ApiError(message, res.status, null);
+    logError('api.request_failed', apiError, { path });
+    throw apiError;
+  }
+  return res.blob();
+}
+
+// Triggers a browser download for an already-fetched Blob, without navigating away.
+export function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 let onUnauthorized = null;
 export function setUnauthorizedHandler(fn) {
   onUnauthorized = fn;

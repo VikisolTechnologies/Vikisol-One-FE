@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, fetchBlobGet, downloadBlob } from './client';
 
 // Maps backend DashboardStats -> shape used by dashboard-style widgets
 export function adaptDashboardStats(d) {
@@ -43,6 +43,11 @@ export function adaptAttendanceReport(a) {
 export async function getAttendanceReport(month, year) {
   const data = await api.get('/reports/attendance', { month, year });
   return (data || []).map(adaptAttendanceReport);
+}
+
+export async function downloadAttendanceReportPdf(month, year) {
+  const blob = await fetchBlobGet('/reports/attendance/pdf', { month, year });
+  downloadBlob(blob, `Attendance_Report_${month}_${year}.pdf`);
 }
 
 export function adaptPayrollReport(p) {

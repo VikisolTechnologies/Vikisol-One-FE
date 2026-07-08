@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, fetchBlobGet, downloadBlob } from './client';
 
 // Maps backend OrgChartNode -> flat employee-like shape compatible with what
 // OrgChart.jsx derives from data.employees (name, designation, department, manager, empId)
@@ -40,6 +40,11 @@ export async function getFullOrgChart() {
   const roots = (data || []).map(adaptOrgChartNode);
   const flat = roots.flatMap(r => flattenNode(r));
   return { roots, flat };
+}
+
+export async function downloadOrgChartPdf() {
+  const blob = await fetchBlobGet('/org-chart/pdf');
+  downloadBlob(blob, 'Organization_Chart.pdf');
 }
 
 export async function getOrgChartFromEmployee(employeeId) {

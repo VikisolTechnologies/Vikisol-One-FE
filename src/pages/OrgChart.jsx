@@ -11,7 +11,7 @@ import Tabs from '../components/ui/Tabs';
 import { useData } from '../context/DataContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/ui/Toast';
-import { getFullOrgChart } from '../api/orgchart';
+import { getFullOrgChart, downloadOrgChartPdf } from '../api/orgchart';
 import SensitiveValue from '../components/ui/SensitiveValue';
 
 const hierarchy = [
@@ -85,6 +85,18 @@ export default function OrgChart() {
   const [orgEmployees, setOrgEmployees] = useState(null); // null = not loaded yet, falls back to data.employees
   const [orgSource, setOrgSource] = useState('mock'); // 'mock' | 'live'
   const [orgLoading, setOrgLoading] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      await downloadOrgChartPdf();
+    } catch (err) {
+      toast.error(err.message || 'Failed to export PDF');
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -152,7 +164,7 @@ export default function OrgChart() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" icon={Download} onClick={() => toast.info('PDF export is not available yet')}>Export PDF</Button>
+          <Button variant="secondary" size="sm" icon={Download} disabled={exportingPdf} onClick={handleExportPdf}>{exportingPdf ? 'Exporting...' : 'Export PDF'}</Button>
           <Button variant="secondary" size="sm" icon={Printer} onClick={() => window.print()}>Print</Button>
         </div>
       </div>

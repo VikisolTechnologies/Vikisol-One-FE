@@ -65,9 +65,27 @@ export default function ReportsPage() {
       ? 'From date must be before To date'
       : null;
 
-  const handleExport = () => {
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  const handleExport = async (report, format) => {
     if (dateRangeError) { toast.error(dateRangeError); return; }
-    toast.info('Report export is not available yet');
+    // Only the Attendance Report has a real PDF pipeline so far (it's the only one backed by
+    // live, exportable tabular data) - other report types/formats remain a stub for now.
+    if (report && report.id === 1 && format === 'PDF') {
+      const from = new Date(dateRange.from);
+      const month = from.getMonth() + 1;
+      const year = from.getFullYear();
+      setExportingPdf(true);
+      try {
+        await reportsApi.downloadAttendanceReportPdf(month, year);
+      } catch (err) {
+        toast.error(err.message || 'Failed to export PDF');
+      } finally {
+        setExportingPdf(false);
+      }
+      return;
+    }
+    toast.info('Report export is not available yet for this report/format');
   };
   const handleEmail = () => {
     if (dateRangeError) { toast.error(dateRangeError); return; }
@@ -136,7 +154,7 @@ export default function ReportsPage() {
             </div>
             <div className="flex gap-1.5 flex-wrap">
               <Button size="sm" variant="ghost" icon={Eye} disabled={!!dateRangeError} onClick={() => openPreview(r)}>Preview</Button>
-              <Button size="sm" variant="ghost" icon={FileText} disabled={!!dateRangeError} onClick={() => handleExport(r, 'PDF')}>PDF</Button>
+              <Button size="sm" variant="ghost" icon={FileText} disabled={!!dateRangeError || exportingPdf} onClick={() => handleExport(r, 'PDF')}>PDF</Button>
               <Button size="sm" variant="ghost" icon={FileSpreadsheet} disabled={!!dateRangeError} onClick={() => handleExport(r, 'Excel')}>Excel</Button>
               <Button size="sm" variant="ghost" icon={Download} disabled={!!dateRangeError} onClick={() => handleExport(r, 'CSV')}>CSV</Button>
               <Button size="sm" variant="ghost" icon={Printer} disabled={!!dateRangeError} onClick={() => handleExport(r, 'Print')}>Print</Button>
@@ -231,7 +249,7 @@ export default function ReportsPage() {
             )}
 
             <div className="flex gap-2 justify-end">
-              <Button variant="secondary" icon={FileText} onClick={() => handleExport(preview, 'PDF')}>Download PDF</Button>
+              <Button variant="secondary" icon={FileText} disabled={exportingPdf} onClick={() => handleExport(preview, 'PDF')}>{exportingPdf ? 'Exporting...' : 'Download PDF'}</Button>
               <Button variant="secondary" icon={FileSpreadsheet} onClick={() => handleExport(preview, 'Excel')}>Download Excel</Button>
               <Button icon={Mail} onClick={() => handleEmail(preview)}>Email Report</Button>
             </div>
