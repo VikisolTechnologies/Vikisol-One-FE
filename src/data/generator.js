@@ -213,16 +213,20 @@ export function generatePayslips(employees) {
     const hra = Math.round(basic * 0.4);
     const special = Math.round(emp.ctc / 12 - basic - hra);
     const pf = Math.round(basic * 0.12);
-    const pt = 200;
-    const tax = Math.round(emp.ctc > 1000000 ? emp.ctc / 12 * 0.1 : emp.ctc > 500000 ? emp.ctc / 12 * 0.05 : 0);
     const totalEarnings = basic + hra + special;
+    // A flat professional-tax deduction charged against a zero/near-zero gross (e.g. a test
+    // account with no CTC configured) could push netPay negative - same guard already applied
+    // on the live backend's payroll run (PayrollService.java), mirrored here for the mock/demo
+    // dataset so the "Lowest Salary" stat never shows an impossible negative number.
+    const pt = totalEarnings > 0 ? 200 : 0;
+    const tax = Math.round(emp.ctc > 1000000 ? emp.ctc / 12 * 0.1 : emp.ctc > 500000 ? emp.ctc / 12 * 0.05 : 0);
     const totalDeductions = pf + pt + tax;
     return {
       id: i + 1, empId: emp.empId, empName: emp.name, department: emp.department,
       designation: emp.designation, month: 'May 2024', ctc: emp.ctc,
       earnings: [{ component: 'Basic Salary', amount: basic }, { component: 'HRA', amount: hra }, { component: 'Special Allowance', amount: special }],
       deductions: [{ component: 'Provident Fund', amount: pf }, { component: 'Professional Tax', amount: pt }, { component: 'Income Tax', amount: tax }],
-      totalEarnings, totalDeductions, netPay: totalEarnings - totalDeductions,
+      totalEarnings, totalDeductions, netPay: Math.max(0, totalEarnings - totalDeductions),
       bankAccount: emp.bankAccount, bankName: emp.bankName,
       status: pick(['Paid','Paid','Paid','Paid','Processing']),
     };

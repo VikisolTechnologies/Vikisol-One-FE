@@ -36,7 +36,7 @@ function initData() {
     announcements: generateAnnouncements(),
     notifications: generateNotifications(),
     holidays: generateHolidays(),
-    departments: ['Development','QA & Testing','Design','HR','Finance','DevOps','Data Science','Product','Marketing','IT','Management','Recruitment'],
+    departments: ['Engineering','Development','QA & Testing','Design','HR','Finance','DevOps','Data Science','Product','Marketing','IT','Management','Recruitment'],
     designations: ['Junior Developer','Developer','Senior Developer','Lead Developer','Manager','Director','VP','Architect','Engineer','Analyst','Executive','Coordinator'],
     auditLogs: Array.from({ length: 50 }, (_, i) => ({
       id: i + 1,

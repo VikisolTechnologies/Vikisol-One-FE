@@ -132,17 +132,29 @@ export default function ResourceAllocation() {
 
   const projectAllocation = useMemo(() => {
     const byProject = {};
-    // Grouped by id (falling back to name only when no id is available, e.g. demo/mock mode) -
-    // project names aren't unique, only `code` is, so two distinct projects sharing a name used
-    // to have their member counts merged into one inflated bar.
-    resources.filter(r => r.allocation > 0 && r.currentProject !== 'Bench').forEach(r => {
-      const key = r.currentProjectId ?? r.currentProject;
-      if (!byProject[key]) byProject[key] = { name: r.currentProject, client: r.projectClient, members: 0, totalAllocation: 0 };
-      byProject[key].members++;
-      byProject[key].totalAllocation += r.allocation;
-    });
+    if (membersByEmployee) {
+      // Count every active assignment an employee has, not just their single "primary" project
+      // (resources[].currentProject only tracks assignments[0]) - an employee staffed on two
+      // projects at once was only ever counted toward the first, undercounting every project
+      // that only appears as someone's second/third assignment.
+      Object.values(membersByEmployee).flat().forEach(a => {
+        const key = a.projectId ?? a.projectName;
+        if (!byProject[key]) byProject[key] = { name: a.projectName, client: a.projectClient, members: 0, totalAllocation: 0 };
+        byProject[key].members++;
+        byProject[key].totalAllocation += a.allocationPercentage || 0;
+      });
+    } else {
+      // Demo fallback: each employee has at most one assigned project, so resources[].currentProject
+      // is already an accurate 1:1 count.
+      resources.filter(r => r.allocation > 0 && r.currentProject !== 'Bench').forEach(r => {
+        const key = r.currentProjectId ?? r.currentProject;
+        if (!byProject[key]) byProject[key] = { name: r.currentProject, client: r.projectClient, members: 0, totalAllocation: 0 };
+        byProject[key].members++;
+        byProject[key].totalAllocation += r.allocation;
+      });
+    }
     return Object.values(byProject).sort((a, b) => b.members - a.members).slice(0, 10);
-  }, [resources]);
+  }, [resources, membersByEmployee]);
 
   return (
     <div className="space-y-5">

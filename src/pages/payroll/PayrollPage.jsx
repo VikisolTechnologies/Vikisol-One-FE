@@ -140,7 +140,8 @@ export default function PayrollPage() {
   };
 
   const columns = [
-    ...(!isEmployee ? [{ key: 'empName', label: 'Employee', render: (v, row) => <div><p className="font-medium text-text text-sm">{v}</p><p className="text-[10px] text-text-secondary">{row.empId} · {row.department}</p></div> }] : []),
+    ...(!isEmployee ? [{ key: 'empName', label: 'Employee', render: (v, row) => <div><p className="font-medium text-text text-sm">{v}</p><p className="text-[10px] text-text-secondary">{row.empId}</p></div> }] : []),
+    ...(!isEmployee ? [{ key: 'department', label: 'Department' }] : []),
     { key: 'month', label: 'Month', render: (v) => v || 'May 2024' },
     ...(isEmployee ? [{ key: 'designation', label: 'Designation' }] : []),
     { key: 'totalEarnings', label: 'Gross', render: (v) => <SensitiveValue type="currency" value={v} revealed={revealed} /> },
