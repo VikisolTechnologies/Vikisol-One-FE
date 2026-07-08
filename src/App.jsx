@@ -1,5 +1,6 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { DataProvider } from './context/DataContext';
@@ -58,7 +59,14 @@ function PageFallback() {
 }
 
 export default function App() {
+  // Once the app has mounted cleanly, clear the one-shot chunk-reload guard so a genuinely new
+  // stale-chunk error after a later deploy can still trigger a single auto-reload again.
+  useEffect(() => {
+    sessionStorage.removeItem('vikisol_chunk_reload_attempted');
+  }, []);
+
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
@@ -122,5 +130,6 @@ export default function App() {
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
