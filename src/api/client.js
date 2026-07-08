@@ -52,20 +52,36 @@ export async function uploadMultipart(path, formData) {
 }
 
 // Shared "POST JSON, get a blob back" path - used for PDF previews (documentStudio.js) where the
-// response is a raw file stream, not the usual { success, data } JSON envelope.
-export async function fetchBlob(path, body) {
+// response is a raw file stream, not the usual { success, data } JSON envelope. Unlike request(),
+// this used to have no silent-refresh-and-retry on a stale access token, and no retry on a CSRF
+// mismatch - both of which are far more likely to bite here than on a quick form submit, since
+// Document Studio's "Preview" is often clicked after several minutes of editing a template, well
+// past the ~15 min access-token lifetime.
+export async function fetchBlob(path, body, _retried = false) {
   const res = await fetch(BASE_URL + path, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...csrfHeader() },
     body: JSON.stringify(body),
   });
+
+  if (res.status === 401 && !_retried) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) return fetchBlob(path, body, true);
+  }
+
   if (!res.ok) {
     let message = `Request failed with status ${res.status}`;
     try {
       const json = await res.json();
       message = json?.message || message;
     } catch { /* body wasn't JSON (likely a raw file stream on success, or empty on error) */ }
+    // A CSRF-cookie mismatch is transient by nature (see the refresh-rotation race this token
+    // model is prone to) - one retry with a freshly-read cookie resolves it without surfacing an
+    // error the user can't act on, same as the 401 case above.
+    if (res.status === 403 && /csrf/i.test(message) && !_retried) {
+      return fetchBlob(path, body, true);
+    }
     const apiError = new ApiError(message, res.status, null);
     logError('api.request_failed', apiError, { path });
     throw apiError;
@@ -75,12 +91,18 @@ export async function fetchBlob(path, body) {
 
 // GET counterpart to fetchBlob - used for server-generated PDF downloads (org chart, reports)
 // where the response is a raw application/pdf stream, not the usual JSON envelope.
-export async function fetchBlobGet(path, params) {
+export async function fetchBlobGet(path, params, _retried = false) {
   const query = params ? '?' + new URLSearchParams(params).toString() : '';
   const res = await fetch(BASE_URL + path + query, {
     method: 'GET',
     credentials: 'include',
   });
+
+  if (res.status === 401 && !_retried) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) return fetchBlobGet(path, params, true);
+  }
+
   if (!res.ok) {
     let message = `Request failed with status ${res.status}`;
     try {
