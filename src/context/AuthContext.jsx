@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
-import { login as loginApi, verifyMfa as verifyMfaApi, logout as logoutApi, fetchMe } from '../api/auth';
+import { login as loginApi, verifyMfa as verifyMfaApi, requestLoginOtp, verifyLoginOtp, logout as logoutApi, fetchMe } from '../api/auth';
 import { setUnauthorizedHandler } from '../api/client';
 
 const AuthContext = createContext(null);
@@ -86,6 +86,31 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  // OTP Login - step 1: email a 6-digit code. Same success-shaped-regardless-of-account-existence
+  // contract as Forgot Password, so no meaningful error to surface here beyond a network failure.
+  const requestOtp = useCallback(async (email) => {
+    try {
+      await requestLoginOtp(email);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message || 'Could not send the code. Please try again.' };
+    }
+  }, []);
+
+  // OTP Login - step 2: verify the code and complete login exactly like completeMfaLogin above.
+  const completeOtpLogin = useCallback(async (email, code, remember = false) => {
+    try {
+      const loginData = await verifyLoginOtp(email, code, remember);
+      const me = await fetchMe();
+      const userData = toUserData(me, { passwordExpired: !!loginData.passwordExpired });
+      setUser(userData);
+      localStorage.setItem('vikisol_user', JSON.stringify(userData));
+      return { success: true, user: userData };
+    } catch (err) {
+      return { success: false, error: err.message || 'Invalid or expired code' };
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     setUser(null);
     localStorage.removeItem('vikisol_user');
@@ -105,8 +130,8 @@ export function AuthProvider({ children }) {
   // Previously a fresh object literal every render (Phase 5 finding) - with 21 consumer files,
   // this meant every one of them re-rendered on any AuthProvider re-render regardless of whether
   // the auth state they actually use changed.
-  const value = useMemo(() => ({ user, login, completeMfaLogin, logout, isAuthenticated: !!user, authLoading, clearPasswordExpired }),
-    [user, login, completeMfaLogin, logout, authLoading, clearPasswordExpired]);
+  const value = useMemo(() => ({ user, login, completeMfaLogin, requestOtp, completeOtpLogin, logout, isAuthenticated: !!user, authLoading, clearPasswordExpired }),
+    [user, login, completeMfaLogin, requestOtp, completeOtpLogin, logout, authLoading, clearPasswordExpired]);
 
   return (
     <AuthContext.Provider value={value}>

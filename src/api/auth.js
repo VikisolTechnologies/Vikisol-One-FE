@@ -12,6 +12,17 @@ export async function verifyMfa(challengeToken, code, remember = false) {
   return api.noAuth.post('/auth/mfa/verify', { challengeToken, code, remember });
 }
 
+// OTP Login (the "OTP Login" tab) - a 6-digit code emailed to the official address, valid for a
+// short window (see AuthService.OTP_TTL on the backend). requestOtp always resolves the same way
+// regardless of whether the account exists, matching Forgot Password's behavior.
+export async function requestLoginOtp(email) {
+  return api.noAuth.post('/auth/otp/request', { email });
+}
+
+export async function verifyLoginOtp(email, code, remember = false) {
+  return api.noAuth.post('/auth/otp/verify', { email, code, remember });
+}
+
 export async function fetchMe() {
   return api.get('/auth/me');
 }

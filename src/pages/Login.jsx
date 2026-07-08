@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, Eye, EyeOff, Monitor, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Monitor, ShieldCheck, KeyRound } from 'lucide-react';
 import { getAuthSettings } from '../api/auth';
+
+const OTP_TTL_SECONDS = 30;
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -13,7 +15,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState('email');
   const [remember, setRemember] = useState(false);
-  const { login, completeMfaLogin } = useAuth();
+  const { login, completeMfaLogin, requestOtp, completeOtpLogin } = useAuth();
   const navigate = useNavigate();
 
   const [submitting, setSubmitting] = useState(false);
@@ -22,6 +24,30 @@ export default function Login() {
   // 6-digit code entry screen instead of navigating away. Null means "still on the password step".
   const [mfaChallengeToken, setMfaChallengeToken] = useState(null);
   const [mfaCode, setMfaCode] = useState('');
+
+  // OTP Login tab state - a code is sent to `email`, then verified against it. `otpSecondsLeft`
+  // doubles as both the "code expires in..." display and the resend-cooldown gate, since the
+  // backend's request cooldown and the code's own expiry are both 30s (see AuthService.OTP_TTL).
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSecondsLeft, setOtpSecondsLeft] = useState(0);
+  const otpTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (!otpSent) return;
+    otpTimerRef.current = setInterval(() => {
+      setOtpSecondsLeft(s => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(otpTimerRef.current);
+  }, [otpSent]);
+
+  const switchTab = (next) => {
+    setTab(next);
+    setError('');
+    setOtpSent(false);
+    setOtpCode('');
+    clearInterval(otpTimerRef.current);
+  };
 
   // Public, unauthenticated flags - the Microsoft button should only ever look clickable if
   // BOTH the org has it turned on AND real Azure credentials are actually configured (the latter
@@ -49,6 +75,32 @@ export default function Login() {
     setError('');
     setSubmitting(true);
     const result = await completeMfaLogin(mfaChallengeToken, mfaCode, remember);
+    setSubmitting(false);
+    if (result.success) navigate('/');
+    else setError(result.error);
+  };
+
+  const handleSendOtp = async (e) => {
+    e.preventDefault();
+    if (!email) { setError('Enter your email first'); return; }
+    setError('');
+    setSubmitting(true);
+    const result = await requestOtp(email);
+    setSubmitting(false);
+    if (result.success) {
+      setOtpSent(true);
+      setOtpCode('');
+      setOtpSecondsLeft(OTP_TTL_SECONDS);
+    } else {
+      setError(result.error);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    const result = await completeOtpLogin(email, otpCode, remember);
     setSubmitting(false);
     if (result.success) navigate('/');
     else setError(result.error);
@@ -118,30 +170,69 @@ export default function Login() {
             <p className="text-sm text-text-secondary mb-6">Sign in to continue to Vikisol HRMS</p>
 
             <div className="flex bg-surface-3 rounded-lg p-1 mb-6">
-              <button onClick={() => setTab('email')} className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${tab === 'email' ? 'bg-primary text-white' : 'text-text-secondary'}`}>Email Login</button>
-              <button onClick={() => setTab('otp')} className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${tab === 'otp' ? 'bg-primary text-white' : 'text-text-secondary'}`}>OTP Login</button>
+              <button onClick={() => switchTab('email')} className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${tab === 'email' ? 'bg-primary text-white' : 'text-text-secondary'}`}>Email Login</button>
+              <button onClick={() => switchTab('otp')} className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all ${tab === 'otp' ? 'bg-primary text-white' : 'text-text-secondary'}`}>OTP Login</button>
             </div>
 
+            {tab === 'otp' ? (
+              <form onSubmit={otpSent ? handleVerifyOtp : handleSendOtp} className="space-y-4">
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} disabled={otpSent} placeholder="you@vikisol.in" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all disabled:opacity-60" required />
+                </div>
+
+                {otpSent && (
+                  <div>
+                    <div className="relative">
+                      <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                      <input type="text" inputMode="numeric" autoFocus value={otpCode} onChange={e => setOtpCode(e.target.value)}
+                        placeholder="6-digit code" maxLength={6}
+                        className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm tracking-[0.3em] text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
+                    </div>
+                    <p className="text-[11px] text-text-secondary mt-1.5">
+                      {otpSecondsLeft > 0
+                        ? `Code sent to ${email} - expires in ${otpSecondsLeft}s`
+                        : 'Code expired.'}{' '}
+                      <button type="button" onClick={handleSendOtp} disabled={otpSecondsLeft > 0 || submitting} className="text-primary hover:underline disabled:text-text-secondary disabled:no-underline disabled:cursor-not-allowed">
+                        Resend code
+                      </button>
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between text-xs">
+                  <label className="flex items-center gap-2 text-text-secondary cursor-pointer">
+                    <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} className="rounded accent-primary" />
+                    Remember me
+                  </label>
+                  <Link to="/forgot-password" className="text-primary hover:underline">Forgot Password?</Link>
+                </div>
+
+                {error && <p className="text-sm text-danger bg-danger/10 rounded-lg px-3 py-2">{error}</p>}
+
+                <button type="submit" disabled={submitting || (otpSent && otpSecondsLeft === 0)} className="w-full bg-primary hover:bg-primary-dark text-white py-3 rounded-lg font-semibold text-sm transition-all shadow-lg shadow-primary/20 active:scale-[0.98] disabled:opacity-60">
+                  {submitting ? (otpSent ? 'Verifying...' : 'Sending code...') : (otpSent ? 'Verify & Sign In' : 'Send Code')}
+                </button>
+              </form>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="relative">
                 <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
                 <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@vikisol.in" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
               </div>
 
-              {tab === 'email' && (
-                <div>
-                  <div className="relative">
-                    <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                    <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
-                      onKeyUp={e => setCapsLockOn(e.getModifierState && e.getModifierState('CapsLock'))}
-                      placeholder="Password" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-10 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
-                    <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text">
-                      {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  {capsLockOn && <p className="text-[11px] text-warning mt-1.5">Caps Lock is on</p>}
+              <div>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                  <input type={showPwd ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                    onKeyUp={e => setCapsLockOn(e.getModifierState && e.getModifierState('CapsLock'))}
+                    placeholder="Password" className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-10 py-3 text-sm text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
+                  <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text">
+                    {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
-              )}
+                {capsLockOn && <p className="text-[11px] text-warning mt-1.5">Caps Lock is on</p>}
+              </div>
 
               <div className="flex items-center justify-between text-xs">
                 <label className="flex items-center gap-2 text-text-secondary cursor-pointer">
@@ -183,6 +274,7 @@ export default function Login() {
                 )}
               </div>
             </form>
+            )}
 
             <p className="text-xs text-text-secondary text-center mt-6">
               Don't have an account? <a href="mailto:connect@vikisol.in?subject=Vikisol%20One%20-%20Account%20Request" className="text-primary hover:underline">Contact IT Admin</a>
