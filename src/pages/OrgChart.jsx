@@ -114,7 +114,7 @@ export default function OrgChart() {
     });
   };
 
-  const expandAll = () => setExpandedNodes(new Set(data.departments.map(d => `dept-${d}`)));
+  const expandAll = () => setExpandedNodes(new Set(Object.keys(grouped).map(g => `dept-${g}`)));
   const collapseAll = () => setExpandedNodes(new Set());
 
   const filteredEmployees = useMemo(() => {

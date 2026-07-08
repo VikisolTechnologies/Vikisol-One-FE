@@ -30,7 +30,7 @@ function lastNMonths(n) {
 
 export default function CEODashboard() {
   const navigate = useNavigate();
-  const { data, stats, projectsSource } = useData();
+  const { data, stats, projectsSource, ensureLoad } = useData();
   const [quickActions, setQuickActions] = useState(false);
   const [onboardingStats, setOnboardingStats] = useState(null);
   const [billableEmployeeIds, setBillableEmployeeIds] = useState(null); // null = not loaded/live yet
@@ -38,6 +38,11 @@ export default function CEODashboard() {
   useEffect(() => {
     getDashboardStats().then(setOnboardingStats).catch(() => {});
   }, []);
+
+  // Pending Approvals' "Timesheets" tile reads data.timesheets, which is otherwise only
+  // populated once some page calls ensureLoad('timesheets') - without this, the count here
+  // depended entirely on prior navigation history (mock data vs whatever a previous page loaded).
+  useEffect(() => { ensureLoad('timesheets'); }, [ensureLoad]);
 
   // Real bench/billable split: an employee is billable if they hold at least one active
   // ProjectMember row with allocationPercentage > 0. Previously this was a hardcoded 8%/72% split

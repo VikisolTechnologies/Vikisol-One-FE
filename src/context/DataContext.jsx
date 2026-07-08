@@ -922,7 +922,10 @@ export function DataProvider({ children }) {
     const onLeave = emps.filter(e => e.status === 'On Leave').length;
     const noticePeriod = emps.filter(e => e.status === 'Notice Period').length;
     const pendingLeaves = data.leaveRequests.filter(l => l.status === 'Pending').length;
+    // Live entries only ever report a 'Submitted' status ('Pending' was a mock-generator-only
+    // value that never occurs in real data, kept here for backward compat with the mock dataset).
     const pendingTimesheets = data.timesheets.filter(t => t.status === 'Pending' || t.status === 'Submitted').length;
+
     const openTickets = data.tickets.filter(t => t.status === 'Open' || t.status === 'In Progress').length;
     const activeProjects = data.projects.filter(p => p.status !== 'Completed' && p.status !== 'On Hold').length;
     const totalPayroll = data.payslips.reduce((s, p) => s + p.netPay, 0);

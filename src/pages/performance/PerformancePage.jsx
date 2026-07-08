@@ -120,7 +120,7 @@ export default function PerformancePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-text">Performance</h1>
-          {!loading && source === 'mock' && <p className="text-xs text-warning">(demo data)</p>}
+          {!loading && source === 'mock' && <p className="text-xs text-warning">(demo data — connect to live backend for real performance metrics)</p>}
           {loading && <p className="text-xs text-text-secondary">Loading from server...</p>}
         </div>
         <Button icon={Plus} size="sm" onClick={() => setShowAddGoal(true)}>Add Goal</Button>
