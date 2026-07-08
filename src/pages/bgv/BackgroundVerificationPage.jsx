@@ -180,7 +180,8 @@ export default function BackgroundVerificationPage() {
   }, [baseFiltered, statusByEmployee]);
 
   const columns = [
-    { key: 'name', label: 'Employee', render: (v, row) => <div><p className="font-medium text-text text-sm">{v}</p><p className="text-[10px] text-text-secondary">{row.empId} · {row.department}</p></div> },
+    { key: 'name', label: 'Employee', render: (v, row) => <div><p className="font-medium text-text text-sm">{v}</p><p className="text-[10px] text-text-secondary">{row.empId}</p></div> },
+    { key: 'department', label: 'Department' },
     { key: 'designation', label: 'Designation' },
     { key: 'location', label: 'Location' },
     { key: 'bgv', label: 'BGV Status', sortable: false, render: (_, row) => {

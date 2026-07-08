@@ -81,7 +81,10 @@ export default function AssessmentsPage() {
     { key: 'dateTaken', label: 'Date Taken', render: v => v ? new Date(v).toLocaleDateString() : '-' },
     { key: 'score', label: 'Score', render: (v, row) => `${v}/${row.maxScore} (${row.percentage}%)` },
     { key: 'status', label: 'Result', render: v => <Badge variant={STATUS_VARIANT[v] || 'default'}>{v.replace('_', ' ')}</Badge> },
-    { key: 'resumeUrl', label: 'Resume', render: v => v ? <a href={v} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1"><FileText size={14} />View<ExternalLink size={11} /></a> : '-' },
+    // Arena's Cloudinary account blocks inline preview of raw/PDF uploads by default ("We can't
+    // open this file" in the browser's own PDF viewer) - inserting fl_attachment forces a real
+    // download instead of an inline view, which Cloudinary allows regardless of that setting.
+    { key: 'resumeUrl', label: 'Resume', render: v => v ? <a href={v.replace('/raw/upload/', '/raw/upload/fl_attachment/')} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1"><FileText size={14} />Download<ExternalLink size={11} /></a> : '-' },
     {
       key: 'actions', label: 'Actions', sortable: false, render: (_, row) => (
         row.status === 'PASS' && !row.movedToInterview ? (

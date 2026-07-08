@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Building2, Shield, Bell, Palette, Key, Globe, Calendar, Mail, FileText, Database, Upload, RefreshCw, IndianRupee } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -513,6 +514,7 @@ export default function SettingsPage() {
   const { auditLogs, data, holidays, holidaysSource, holidaysLoading, auditLogsSource, auditLogsLoading, auditLogsError, ensureLoad, retryLoad } = useData();
   useEffect(() => { ensureLoad('auditLogs'); }, [ensureLoad]);
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isCEO = user?.role === 'ceo';
   const toast = useToast();
   const [primaryColor, setPrimaryColor] = useState('#FF6A00');
@@ -633,8 +635,8 @@ export default function SettingsPage() {
           <Card><div className="space-y-4 max-w-md">
             <div className="p-4 bg-surface-3 rounded-xl">
               <p className="text-sm font-medium text-text mb-1">Multi-Factor Authentication</p>
-              <p className="text-xs text-text-secondary mb-3">Require MFA for all users</p>
-              <Button size="sm" onClick={() => toast.info('MFA is not available yet')}>Enable MFA</Button>
+              <p className="text-xs text-text-secondary mb-3">Every user can enroll their own account in MFA from My Security - this organization-wide "require for all users" toggle isn't built yet.</p>
+              <Button size="sm" onClick={() => navigate('/my-security')}>Set Up MFA for My Account</Button>
             </div>
             <div className="p-4 bg-surface-3 rounded-xl">
               <p className="text-sm font-medium text-text mb-1">Password Policy</p>

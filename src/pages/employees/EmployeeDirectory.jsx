@@ -452,8 +452,17 @@ export default function EmployeeDirectory() {
     }
   };
 
+  // Was hardcoded to data.departments (a mock/demo list - "Development", "QA & Testing", "IT",
+  // "Management", "Recruitment"...) that didn't match any real seeded department name
+  // ("Engineering", "Human Resources", "Quality Assurance", "Sales", "Support"...), so most
+  // options here matched zero employees. Uses the live department list (same source already
+  // used for the Add/Edit/Transfer department selects) whenever connected to the real backend.
+  const departmentFilterOptions = employeesSource === 'live' && lookups.departments.length
+    ? lookups.departments.map(d => d.name)
+    : data.departments;
+
   const filterConfig = [
-    { key: 'department', label: 'Department', options: data.departments },
+    { key: 'department', label: 'Department', options: departmentFilterOptions },
     { key: 'status', label: 'Status', options: ['Active', 'On Leave', 'Notice Period', 'Suspended'] },
     { key: 'location', label: 'Location', options: ['Hyderabad', 'Bangalore', 'Pune', 'Noida', 'Chennai', 'Mumbai', 'Gurgaon', 'Remote'] },
     { key: 'employmentType', label: 'Type', options: ['Full Time', 'Contract', 'Intern'] },
@@ -902,7 +911,7 @@ export default function EmployeeDirectory() {
             <Input label="Effective Date *" type="date" value={hikeForm.effectiveDate} onChange={e => setHikeForm(p => ({ ...p, effectiveDate: e.target.value }))} />
             <Textarea label="Reason / Notes" value={hikeForm.reason} onChange={e => setHikeForm(p => ({ ...p, reason: e.target.value }))} placeholder="Annual appraisal, promotion, retention, etc." />
             <p className="text-xs text-text-secondary">The new CTC will be split using the CEO's standard breakup, and a hike letter will be emailed to {hikeEmp.email}.</p>
-            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setHikeEmp(null)}>Cancel</Button><Button onClick={handleIssueHike} disabled={hikeSubmitting}>{hikeSubmitting ? 'Sending...' : 'Issue Hike & Send Letter'}</Button></div>
+            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setHikeEmp(null)}>Cancel</Button><Button onClick={handleIssueHike} disabled={hikeSubmitting || !hikeForm.newAnnualCtc || !hikeForm.effectiveDate}>{hikeSubmitting ? 'Sending...' : 'Issue Hike & Send Letter'}</Button></div>
           </div>
         )}
       </Modal>
@@ -939,12 +948,17 @@ export default function EmployeeDirectory() {
               <p className="text-sm text-text font-medium">{currentTransferValue(transferEmp, transferForm.transferType)}</p>
             </div>
             {transferForm.transferType === 'DEPARTMENT' && (
-              <Select label="New Department *" value={transferForm.newValue} onChange={e => setTransferForm(p => ({ ...p, newValue: e.target.value }))} options={deptOptions} />
+              // Without a placeholder option, a browser shows the FIRST real option selected by
+              // default even though transferForm.newValue is still '' (no matching option value) -
+              // the dropdown visually looked "already filled in" while nothing had actually been
+              // chosen, so submitting immediately failed the required-field check despite what was
+              // on screen. The placeholder gives the empty state its own real, matching option.
+              <Select label="New Department *" value={transferForm.newValue} onChange={e => setTransferForm(p => ({ ...p, newValue: e.target.value }))} options={deptOptions} placeholder="Select department" />
             )}
             {transferForm.transferType === 'REPORTING_MANAGER' && (
               <Select label="New Reporting Manager *" value={transferForm.newValue}
                 onChange={e => setTransferForm(p => ({ ...p, newValue: e.target.value }))}
-                options={allEmps.filter(e => e.id !== transferEmp.id).map(e => ({ value: e.id, label: e.name }))} />
+                options={allEmps.filter(e => e.id !== transferEmp.id).map(e => ({ value: e.id, label: e.name }))} placeholder="Select manager" />
             )}
             {['LOCATION', 'COST_CENTER', 'BUSINESS_UNIT'].includes(transferForm.transferType) && (
               <Input label="New Value *" value={transferForm.newValue} onChange={e => setTransferForm(p => ({ ...p, newValue: e.target.value }))}
@@ -952,7 +966,7 @@ export default function EmployeeDirectory() {
             )}
             <Input label="Effective Date *" type="date" value={transferForm.effectiveDate} onChange={e => setTransferForm(p => ({ ...p, effectiveDate: e.target.value }))} />
             <Textarea label="Reason / Notes" value={transferForm.reason} onChange={e => setTransferForm(p => ({ ...p, reason: e.target.value }))} placeholder="Optional context for HR records" />
-            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setTransferEmp(null)}>Cancel</Button><Button onClick={handleInitiateTransfer} disabled={transferSubmitting}>{transferSubmitting ? 'Saving...' : 'Record Transfer'}</Button></div>
+            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setTransferEmp(null)}>Cancel</Button><Button onClick={handleInitiateTransfer} disabled={transferSubmitting || !transferForm.newValue || !transferForm.effectiveDate}>{transferSubmitting ? 'Saving...' : 'Record Transfer'}</Button></div>
           </div>
         )}
       </Modal>

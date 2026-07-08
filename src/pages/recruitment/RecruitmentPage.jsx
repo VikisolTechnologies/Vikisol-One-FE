@@ -250,7 +250,7 @@ export default function RecruitmentPage() {
     { key: 'actions', label: '', sortable: false, render: (_, row) => (
       <div className="flex gap-1">
         <button onClick={(e) => { e.stopPropagation(); setSelected(row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary"><Eye size={14} /></button>
-        <button onClick={(e) => { e.stopPropagation(); handleScheduleInterview(row); }} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary" title="Schedule Interview"><Calendar size={14} /></button>
+        <button onClick={(e) => { e.stopPropagation(); handleScheduleInterview(row); }} disabled={!row.jobPostingId} className="p-1.5 rounded-lg hover:bg-surface-3 text-text-secondary disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent" title={row.jobPostingId ? 'Schedule Interview' : 'No linked job posting - direct hires can\'t be scheduled against one'}><Calendar size={14} /></button>
         <button onClick={(e) => { e.stopPropagation(); handleDelete(row); }} className="p-1.5 rounded-lg hover:bg-danger/10 text-danger"><Trash2 size={14} /></button>
       </div>
     )},
@@ -376,7 +376,7 @@ export default function RecruitmentPage() {
                             </div>
                           )}
                         </div>
-                        <button onClick={() => handleScheduleInterview(c)} className="text-[10px] py-1.5 rounded-lg bg-info/10 text-info hover:bg-info/20 font-medium">Schedule</button>
+                        <button onClick={() => handleScheduleInterview(c)} disabled={!c.jobPostingId} title={c.jobPostingId ? undefined : 'No linked job posting'} className="text-[10px] py-1.5 rounded-lg bg-info/10 text-info hover:bg-info/20 font-medium disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-info/10">Schedule</button>
                         <button onClick={() => setSelected(c)} className="text-[10px] py-1.5 rounded-lg bg-surface-3 text-text-secondary hover:bg-surface-4 hover:text-text font-medium">Feedback</button>
                       </div>
                       {c.stage === 'HR' && !c.convertedEmployeeId && c.status !== 'PENDING_APPROVAL' && (
@@ -424,7 +424,8 @@ export default function RecruitmentPage() {
               </div>
               <div className="flex flex-col gap-2">
                 <Button size="sm" icon={PencilLine} onClick={() => setEditModalCandidate(selected)}>Edit Candidate</Button>
-                <Button size="sm" variant="secondary" icon={Calendar} onClick={() => handleScheduleInterview(selected)}>Schedule Interview</Button>
+                <Button size="sm" variant="secondary" icon={Calendar} disabled={!selected.jobPostingId} title={selected.jobPostingId ? undefined : 'This candidate has no linked job posting to schedule against'} onClick={() => handleScheduleInterview(selected)}>Schedule Interview</Button>
+                {!selected.jobPostingId && <p className="text-[10px] text-text-secondary -mt-1.5">No linked job posting (Direct Hire) - interviews can't be scheduled until one is linked.</p>}
                 <Button size="sm" variant="secondary" icon={Mail} onClick={() => toast.info('Direct email to candidates is not available yet')}>Send Email</Button>
                 {selected.stage === 'HR' && !selected.convertedEmployeeId && selected.status !== 'PENDING_APPROVAL' && (
                   <Button size="sm" variant="secondary" icon={FileText} onClick={() => openOfferModal(selected)}>{selected.status === 'REVISION_REQUESTED' ? 'Resubmit Proposal' : 'Submit for Approval'}</Button>

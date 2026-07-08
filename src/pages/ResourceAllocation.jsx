@@ -28,7 +28,7 @@ export default function ResourceAllocation() {
   useEffect(() => {
     if (projectsSource !== 'live' || data.projects.length === 0) { setMembersByEmployee(null); return; }
     let cancelled = false;
-    Promise.all(data.projects.map(p => getProjectMembers(p.id).then(members => members.map(m => ({ ...m, projectName: p.name, projectClient: p.client }))).catch(() => [])))
+    Promise.all(data.projects.map(p => getProjectMembers(p.id).then(members => members.map(m => ({ ...m, projectId: p.id, projectName: p.name, projectClient: p.client }))).catch(() => [])))
       .then(results => {
         if (cancelled) return;
         const byEmployee = {};
@@ -53,6 +53,10 @@ export default function ResourceAllocation() {
         return {
           ...emp,
           currentProject: allocation > 0 ? primary?.projectName || 'Internal' : isBench ? 'Bench' : '-',
+          // Project NAME is not unique (only `code` is) - two distinct projects can share a name,
+          // so "Top Projects by Team Size" must group by this id, not the display name, or
+          // members from different same-named projects get merged into one inflated count.
+          currentProjectId: allocation > 0 ? primary?.projectId : null,
           projectClient: allocation > 0 ? primary?.projectClient || 'Internal' : '-',
           allocation,
           billable,
@@ -71,6 +75,7 @@ export default function ResourceAllocation() {
       return {
         ...emp,
         currentProject: allocation > 0 ? assignedProject?.name || 'Internal' : isBench ? 'Bench' : '-',
+        currentProjectId: allocation > 0 ? assignedProject?.id : null,
         projectClient: allocation > 0 ? assignedProject?.client || 'Internal' : '-',
         allocation,
         billable,
@@ -127,10 +132,14 @@ export default function ResourceAllocation() {
 
   const projectAllocation = useMemo(() => {
     const byProject = {};
+    // Grouped by id (falling back to name only when no id is available, e.g. demo/mock mode) -
+    // project names aren't unique, only `code` is, so two distinct projects sharing a name used
+    // to have their member counts merged into one inflated bar.
     resources.filter(r => r.allocation > 0 && r.currentProject !== 'Bench').forEach(r => {
-      if (!byProject[r.currentProject]) byProject[r.currentProject] = { name: r.currentProject, client: r.projectClient, members: 0, totalAllocation: 0 };
-      byProject[r.currentProject].members++;
-      byProject[r.currentProject].totalAllocation += r.allocation;
+      const key = r.currentProjectId ?? r.currentProject;
+      if (!byProject[key]) byProject[key] = { name: r.currentProject, client: r.projectClient, members: 0, totalAllocation: 0 };
+      byProject[key].members++;
+      byProject[key].totalAllocation += r.allocation;
     });
     return Object.values(byProject).sort((a, b) => b.members - a.members).slice(0, 10);
   }, [resources]);

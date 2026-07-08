@@ -191,7 +191,8 @@ export default function Login() {
                   <div>
                     <div className="relative">
                       <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-                      <input type="text" inputMode="numeric" autoFocus value={otpCode} autoComplete="one-time-code" onChange={e => setOtpCode(e.target.value)}
+                      <input type="text" inputMode="numeric" pattern="[0-9]*" autoFocus value={otpCode} autoComplete="one-time-code"
+                        onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                         placeholder="6-digit code" maxLength={6}
                         className="w-full bg-surface-3 border border-border rounded-lg pl-10 pr-4 py-3 text-sm tracking-[0.3em] text-text placeholder-text-secondary/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all" required />
                     </div>
@@ -211,12 +212,13 @@ export default function Login() {
                     <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} className="rounded accent-primary" />
                     Remember me
                   </label>
-                  <Link to="/forgot-password" className="text-primary hover:underline">Forgot Password?</Link>
+                  {/* No password is involved in OTP Login, so "Forgot Password?" has nothing to
+                      recover here - it was previously shown on both tabs regardless. */}
                 </div>
 
                 {error && <p className="text-sm text-danger bg-danger/10 rounded-lg px-3 py-2">{error}</p>}
 
-                <button type="submit" disabled={submitting || (otpSent && otpSecondsLeft === 0)} className="w-full bg-primary hover:bg-primary-dark text-white py-3 rounded-lg font-semibold text-sm transition-all shadow-lg shadow-primary/20 active:scale-[0.98] disabled:opacity-60">
+                <button type="submit" disabled={submitting || (otpSent && (otpSecondsLeft === 0 || otpCode.length !== 6))} className="w-full bg-primary hover:bg-primary-dark text-white py-3 rounded-lg font-semibold text-sm transition-all shadow-lg shadow-primary/20 active:scale-[0.98] disabled:opacity-60">
                   {submitting ? (otpSent ? 'Verifying...' : 'Sending code...') : (otpSent ? 'Verify & Sign In' : 'Send Code')}
                 </button>
               </form>
