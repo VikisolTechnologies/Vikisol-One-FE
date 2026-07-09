@@ -133,6 +133,26 @@ export function setUnauthorizedHandler(fn) {
   onUnauthorized = fn;
 }
 
+// On page load, several components fire independent API calls in parallel (fetchMe, department
+// lookups, employee list, etc.). If the session is actually invalid, every one of them
+// independently retries once via the single shared refresh (deduped by refreshPromise above), and
+// if THAT fails, every single one of those N callers used to separately call onUnauthorized() -
+// firing clearSession()/logout N times in a row (seen live as "me, refresh, logout, logout,
+// logout, logout" in the network tab). logout() itself is a real mutating POST, so firing it
+// repeatedly wasn't just noisy, it multiplied exposure to any transient CSRF/network hiccup on
+// that call. This guard collapses it back down to exactly one call per real invalidation event.
+let unauthorizedFired = false;
+function fireUnauthorized() {
+  if (unauthorizedFired) return;
+  unauthorizedFired = true;
+  if (onUnauthorized) onUnauthorized();
+}
+// Called by login()/completeMfaLogin()/etc. once a new session is actually established, so a
+// later genuine expiry can trigger the handler again.
+export function resetUnauthorizedGuard() {
+  unauthorizedFired = false;
+}
+
 // Classifies a failure into the categories the request spec calls for (network, auth, authz,
 // server, timeout, validation) so callers/logs can distinguish "you're not allowed to do this"
 // from "the server is down" instead of every failure looking like an identical generic error.
@@ -207,7 +227,7 @@ async function request(path, { method = 'GET', body, params, auth = true, _retri
   }
 
   if (res.status === 401 && auth) {
-    if (onUnauthorized) onUnauthorized();
+    fireUnauthorized();
     const authError = new ApiError('Session expired, please log in again', 401, null);
     authError.category = 'authentication';
     logError('api.auth_error', authError, { path, method });
@@ -216,6 +236,16 @@ async function request(path, { method = 'GET', body, params, auth = true, _retri
 
   if (!res.ok || (json && json.success === false)) {
     const message = json?.message || `Request failed with status ${res.status}`;
+
+    // A CSRF-cookie mismatch is transient by nature (see the refresh-rotation race this
+    // double-submit model is prone to) - one retry with a freshly-read cookie resolves it
+    // silently instead of surfacing an error the user can't act on. fetchBlob already had this;
+    // the main request() path - used by every plain form submit (Add Candidate, logout, etc.) -
+    // never did, which is exactly the gap that kept letting this error resurface.
+    if (res.status === 403 && /csrf/i.test(message) && !_retried) {
+      return request(path, { method, body, params, auth, _retried: true });
+    }
+
     const apiError = new ApiError(message, res.status, json);
     apiError.category = classifyStatus(res.status);
     // 403s are routine (a role trying an action it doesn't have) - log as a warning-level event

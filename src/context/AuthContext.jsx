@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { login as loginApi, verifyMfa as verifyMfaApi, requestLoginOtp, verifyLoginOtp, logout as logoutApi, fetchMe } from '../api/auth';
-import { setUnauthorizedHandler } from '../api/client';
+import { setUnauthorizedHandler, resetUnauthorizedGuard } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -42,6 +42,7 @@ export function AuthProvider({ children }) {
         const userData = toUserData(me);
         setUser(userData);
         localStorage.setItem('vikisol_user', JSON.stringify(userData));
+        resetUnauthorizedGuard();
       })
       .catch(() => clearSession())
       .finally(() => setAuthLoading(false));
@@ -66,6 +67,7 @@ export function AuthProvider({ children }) {
       });
       setUser(userData);
       localStorage.setItem('vikisol_user', JSON.stringify(userData));
+      resetUnauthorizedGuard();
       return { success: true, user: userData };
     } catch (err) {
       return { success: false, error: err.message || 'Invalid email or password' };
@@ -80,6 +82,7 @@ export function AuthProvider({ children }) {
       const userData = toUserData(me, { passwordExpired: !!loginData.passwordExpired });
       setUser(userData);
       localStorage.setItem('vikisol_user', JSON.stringify(userData));
+      resetUnauthorizedGuard();
       return { success: true, user: userData };
     } catch (err) {
       return { success: false, error: err.message || 'Invalid or expired code' };
@@ -105,6 +108,7 @@ export function AuthProvider({ children }) {
       const userData = toUserData(me, { passwordExpired: !!loginData.passwordExpired });
       setUser(userData);
       localStorage.setItem('vikisol_user', JSON.stringify(userData));
+      resetUnauthorizedGuard();
       return { success: true, user: userData };
     } catch (err) {
       return { success: false, error: err.message || 'Invalid or expired code' };
