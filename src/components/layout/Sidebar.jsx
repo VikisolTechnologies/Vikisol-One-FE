@@ -20,7 +20,12 @@ const sections = [
     { id: 'assessments', label: 'Arena Assessments', icon: Trophy },
     { id: 'new-hires', label: 'New Hires', icon: ClipboardCheck },
     { id: 'background-verification', label: 'Background Verification', icon: ShieldCheck },
-    { id: 'my-background-verification', label: 'Background Verification', icon: ShieldCheck },
+    // Distinct page (an employee's OWN BGV status, not the admin/HR overview of everyone) that
+    // happened to share an identical label with the entry above - QA reasonably read that as a
+    // rendering bug ("duplicate menu item"), especially since which roles see which one only
+    // becomes visible once the async visibleModules permission fetch resolves, making it look
+    // like it "appears after prolonged usage" rather than being there the whole time.
+    { id: 'my-background-verification', label: 'My Background Check', icon: ShieldCheck },
     { id: 'offboarding', label: 'Offboarding', icon: UserMinus },
     { id: 'hr-tasks', label: 'HR Task Center', icon: ListChecks },
     { id: 'timesheets', label: 'Timesheets', icon: Clock },

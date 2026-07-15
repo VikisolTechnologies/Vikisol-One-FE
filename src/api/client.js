@@ -26,7 +26,13 @@ function csrfHeader() {
 // Shared multipart-upload path - previously duplicated (with slightly different error handling
 // each time) across api/documents.js, api/branding.js, and api/documentStudio.js, each
 // re-reading localStorage/rebuilding BASE_URL by hand instead of going through this module.
-export async function uploadMultipart(path, formData) {
+// Uploads (especially a BGV document or similar attachment) commonly take long enough that the
+// access token expires mid-request or between two chained calls - unlike request()/fetchBlob,
+// this had no silent-refresh-and-retry, so an upload that itself succeeded server-side could
+// still surface a raw "Network error" here if the CSRF/auth cookie needed a refresh right as it
+// finished, or if a second call chained after it (e.g. attaching the uploaded doc to a BGV check)
+// hit an expired token with nothing to recover it.
+export async function uploadMultipart(path, formData, _retried = false) {
   let res;
   try {
     res = await fetch(BASE_URL + path, {
@@ -41,9 +47,18 @@ export async function uploadMultipart(path, formData) {
     logError('api.network_error', networkError, { path, method: 'POST (multipart)' });
     throw networkError;
   }
+
+  if (res.status === 401 && !_retried) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) return uploadMultipart(path, formData, true);
+  }
+
   const json = await res.json().catch(() => null);
   if (!res.ok || (json && json.success === false)) {
     const message = json?.message || `Upload failed with status ${res.status}`;
+    if (res.status === 403 && /csrf/i.test(message) && !_retried) {
+      return uploadMultipart(path, formData, true);
+    }
     const apiError = new ApiError(message, res.status, json);
     logError('api.upload_failed', apiError, { path });
     throw apiError;
