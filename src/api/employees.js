@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, uploadMultipart } from './client';
 
 const STATUS_TO_FE = { ACTIVE: 'Active', ON_NOTICE: 'Notice Period', TERMINATED: 'Terminated', RESIGNED: 'Resigned', ABSCONDED: 'Absconded' };
 const STATUS_TO_BE = { Active: 'ACTIVE', 'Notice Period': 'ON_NOTICE', Terminated: 'TERMINATED', Resigned: 'RESIGNED', Suspended: 'ON_NOTICE' };
@@ -144,6 +144,14 @@ export async function getMyProfile() {
 }
 export function clearMyProfileCache() {
   myProfileCache = null;
+}
+
+// Expects a CSV with header row: FullName,OfficialEmail,PersonalEmail,PersonalMobile,Department,
+// Designation,Location,EmploymentType - only FullName/OfficialEmail are required per row.
+export async function bulkImportEmployees(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return uploadMultipart('/employees/bulk-import', formData);
 }
 
 export async function createEmployee(form) {

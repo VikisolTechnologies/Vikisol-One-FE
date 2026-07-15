@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { UserPlus, Download, Upload, Eye, Edit3, Trash2, MoreVertical, UserCheck, UserX, Key, RefreshCw, FileText, Briefcase, Monitor, TrendingUp, LogOut, CheckCircle2, XCircle, Clock, UserPlus as UserPlusIcon, Shield, LogIn, ClipboardList, ScrollText, ArrowRightLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -18,7 +18,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
-import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, getEmployeeTimeline, initiateTransfer, getTransferHistory, getAccountStatus, unlockAccount, validateEmployeeFields } from '../../api/employees';
+import { getEmployee, changeAccountRole, updateOnboardingChecklist, resetPassword, getEmployeeTimeline, initiateTransfer, getTransferHistory, getAccountStatus, unlockAccount, validateEmployeeFields, bulkImportEmployees } from '../../api/employees';
 import AccountStatusBadge from '../../components/ui/AccountStatusBadge';
 import { getEmployeeDocuments } from '../../api/documents';
 import { getProfileCompletion } from '../../api/onboarding';
@@ -468,6 +468,28 @@ export default function EmployeeDirectory() {
     { key: 'employmentType', label: 'Type', options: ['Full Time', 'Contract', 'Intern'] },
   ];
 
+  const importFileRef = useRef(null);
+  const [importing, setImporting] = useState(false);
+
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImporting(true);
+    try {
+      const result = await bulkImportEmployees(file);
+      if (result.failed > 0) {
+        toast.error(`${result.created} created, ${result.failed} failed - ${result.errors[0]}${result.errors.length > 1 ? ` (+${result.errors.length - 1} more)` : ''}`);
+      } else {
+        toast.success(`${result.created} employee${result.created === 1 ? '' : 's'} imported`);
+      }
+    } catch (err) {
+      toast.error(err.message || 'Bulk import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // Exports exactly what's currently visible (respects active search/filters), same plain-CSV
   // pattern DataTable's own per-table export uses elsewhere - this toolbar button just needed its
   // own handler since it sits above the table rather than inside it.
@@ -539,7 +561,8 @@ export default function EmployeeDirectory() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" icon={Upload} size="sm" onClick={() => toast.info('Bulk import is not available yet')}>Import</Button>
+          <Button variant="secondary" icon={Upload} size="sm" disabled={importing} onClick={() => importFileRef.current?.click()}>{importing ? 'Importing...' : 'Import'}</Button>
+          <input ref={importFileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleImportFile} />
           <Button variant="secondary" icon={Download} size="sm" onClick={handleExportCsv}>Export</Button>
           <Button icon={UserPlus} size="sm" onClick={() => setShowAdd(true)}>Add Employee</Button>
         </div>
