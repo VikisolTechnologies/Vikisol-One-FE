@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2, Shield, Bell, Palette, Key, Globe, Calendar, Mail, FileText, Database, Upload, RefreshCw, IndianRupee } from 'lucide-react';
 import Card from '../../components/ui/Card';
@@ -16,6 +16,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { updateSetting, getSettingsByCategory, getRolePermissionMatrix, updateRolePermissionMatrix } from '../../api/settings';
 import { getMyNotificationPreferences, updateMyNotificationPreferences } from '../../api/notifications';
+import { exportBackup, restoreBackup } from '../../api/backup';
+import { useConfirm } from '../../components/ui/ConfirmDialog';
 import { getCtcBreakupTemplate, updateCtcBreakupTemplate, getCtcCustomLabel, updateCtcCustomLabel } from '../../api/payroll';
 
 const MODULE_LABELS = {
@@ -88,6 +90,68 @@ function NotificationPreferencesSettings() {
       <div className="flex items-center justify-between p-3 bg-surface-3 rounded-lg opacity-60">
         <span className="text-sm text-text">System Alerts</span>
         <div className="w-10 h-5 rounded-full relative bg-primary"><span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white shadow" /></div>
+      </div>
+    </div></Card>
+  );
+}
+
+// Deliberately scoped to configuration data (departments, designations, leave types, holidays,
+// company/payroll settings, role permissions) - NOT raw employee/payroll records, which are too
+// risky to let a self-service Restore button silently overwrite on a live production system.
+function BackupSettings() {
+  const toast = useToast();
+  const confirm = useConfirm();
+  const [exporting, setExporting] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportBackup();
+      toast.success('Backup exported');
+    } catch (err) {
+      toast.error(err.message || 'Failed to export backup');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleRestoreFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const ok = await confirm({
+      title: 'Restore Backup?',
+      message: 'This will overwrite existing departments, designations, leave types, holidays, and settings with values from this file. This cannot be undone.',
+      type: 'danger', confirmText: 'Restore',
+    });
+    if (!ok) return;
+    setRestoring(true);
+    try {
+      await restoreBackup(file);
+      toast.success('Backup restored - reload the page to see changes everywhere');
+    } catch (err) {
+      toast.error(err.message || 'Failed to restore backup');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  return (
+    <Card><div className="space-y-4 max-w-md">
+      <div className="p-4 bg-surface-3 rounded-xl">
+        <p className="text-sm font-medium text-text mb-1">Create Backup</p>
+        <p className="text-xs text-text-secondary mb-3">Exports departments, designations, leave types, holidays, and settings as JSON (not employee/payroll records).</p>
+        <div className="flex gap-2">
+          <Button size="sm" icon={Database} onClick={handleExport} disabled={exporting}>{exporting ? 'Exporting...' : 'Create Backup'}</Button>
+          <Button size="sm" variant="secondary" icon={RefreshCw} disabled={restoring} onClick={() => fileInputRef.current?.click()}>{restoring ? 'Restoring...' : 'Restore'}</Button>
+          <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleRestoreFile} />
+        </div>
+      </div>
+      <div className="p-4 bg-surface-3 rounded-xl">
+        <p className="text-sm font-medium text-text mb-1">Auto Backup</p>
+        <p className="text-xs text-text-secondary">Scheduled auto-backups are not available yet - use Create Backup above to export on demand.</p>
       </div>
     </div></Card>
   );
@@ -737,23 +801,7 @@ export default function SettingsPage() {
             </div>
           </Card>
         )},
-        { id: 'backup', label: 'Backup', content: (
-          <Card><div className="space-y-4 max-w-md">
-            <div className="p-4 bg-surface-3 rounded-xl">
-              <p className="text-sm font-medium text-text mb-1">Create Backup</p>
-              <p className="text-xs text-text-secondary mb-3">Export all data as JSON/CSV</p>
-              <div className="flex gap-2">
-                <Button size="sm" icon={Database} onClick={() => toast.info('Backup/restore is not available yet')}>Create Backup</Button>
-                <Button size="sm" variant="secondary" icon={RefreshCw} onClick={() => toast.info('Backup/restore is not available yet')}>Restore</Button>
-              </div>
-            </div>
-            <div className="p-4 bg-surface-3 rounded-xl">
-              <p className="text-sm font-medium text-text mb-1">Auto Backup</p>
-              <p className="text-xs text-text-secondary">Daily at 2:00 AM IST</p>
-              <Badge variant="success" className="mt-2">Enabled</Badge>
-            </div>
-          </div></Card>
-        )},
+        { id: 'backup', label: 'Backup', content: <BackupSettings /> },
       ]} />
     </div>
   );
