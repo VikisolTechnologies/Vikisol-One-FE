@@ -1,4 +1,4 @@
-import { api } from './client';
+import { api, fetchBlob, downloadBlob } from './client';
 
 // Maps backend PayslipResponse -> shape the existing mock-driven UI expects (see data/generator.js generatePayslips)
 export function adaptPayslip(p) {
@@ -83,6 +83,15 @@ export async function getPayslip(employeeId, month, year) {
 // Generates a real branded payslip PDF via the Document Studio engine and returns its URL.
 export async function generatePayslipPdf(payslipId) {
   return api.post(`/payroll/payslip/${payslipId}/generate-pdf`);
+}
+
+export async function bulkDownloadPayslips(payslipIds) {
+  const blob = await fetchBlob('/payroll/payslips/bulk-download', payslipIds);
+  downloadBlob(blob, `Payslips_${new Date().toISOString().split('T')[0]}.zip`);
+}
+
+export async function bulkEmailPayslips(payslipIds) {
+  return api.post('/payroll/payslips/bulk-email', payslipIds);
 }
 
 export async function runPayroll(month, year) {

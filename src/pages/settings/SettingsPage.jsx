@@ -15,6 +15,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { updateSetting, getSettingsByCategory, getRolePermissionMatrix, updateRolePermissionMatrix } from '../../api/settings';
+import { getMyNotificationPreferences, updateMyNotificationPreferences } from '../../api/notifications';
 import { getCtcBreakupTemplate, updateCtcBreakupTemplate, getCtcCustomLabel, updateCtcCustomLabel } from '../../api/payroll';
 
 const MODULE_LABELS = {
@@ -33,6 +34,64 @@ const ROLE_LABELS = {
   CEO: 'CEO', ADMIN: 'Admin', HR_MANAGER: 'HR Manager', MANAGER: 'Manager',
   EMPLOYEE: 'Employee', RECRUITER: 'Recruiter', FINANCE: 'Finance',
 };
+
+const NOTIFICATION_TOGGLES = [
+  { key: 'emailNotifications', label: 'Email Notifications' },
+  { key: 'pushNotifications', label: 'Push Notifications' },
+  { key: 'leaveReminders', label: 'Leave Reminders' },
+  { key: 'timesheetReminders', label: 'Timesheet Reminders' },
+  { key: 'birthdayReminders', label: 'Birthday Reminders' },
+  { key: 'interviewReminders', label: 'Interview Reminders' },
+  { key: 'payrollAlerts', label: 'Payroll Alerts' },
+];
+
+function NotificationPreferencesSettings() {
+  const toast = useToast();
+  const [prefs, setPrefs] = useState(null);
+  const [saving, setSaving] = useState(null); // key currently being toggled
+
+  useEffect(() => {
+    getMyNotificationPreferences().then(setPrefs).catch(() => toast.error('Could not load notification preferences'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggle = async (key) => {
+    if (!prefs || saving) return;
+    const next = !prefs[key];
+    setSaving(key);
+    setPrefs(prev => ({ ...prev, [key]: next })); // optimistic
+    try {
+      const updated = await updateMyNotificationPreferences({ [key]: next });
+      setPrefs(updated);
+    } catch (err) {
+      setPrefs(prev => ({ ...prev, [key]: !next })); // revert on failure
+      toast.error(err.message || 'Failed to update preference');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  if (!prefs) return <Card><p className="text-sm text-text-secondary">Loading...</p></Card>;
+
+  return (
+    <Card><div className="space-y-3 max-w-md">
+      {NOTIFICATION_TOGGLES.map(({ key, label }) => (
+        <div key={key} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
+          <span className="text-sm text-text">{label}</span>
+          <button onClick={() => toggle(key)} disabled={saving === key} className={`w-10 h-5 rounded-full relative transition-colors disabled:opacity-60 ${prefs[key] ? 'bg-primary' : 'bg-surface-4'}`}>
+            <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${prefs[key] ? 'right-0.5' : 'left-0.5'}`} />
+          </button>
+        </div>
+      ))}
+      {/* System Alerts (security lockouts, session-reuse detection, etc.) aren't user-configurable
+          on purpose - always on, shown for parity with the rest of the list rather than removed. */}
+      <div className="flex items-center justify-between p-3 bg-surface-3 rounded-lg opacity-60">
+        <span className="text-sm text-text">System Alerts</span>
+        <div className="w-10 h-5 rounded-full relative bg-primary"><span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-white shadow" /></div>
+      </div>
+    </div></Card>
+  );
+}
 
 function RolePermissionsSettings() {
   const toast = useToast();
@@ -619,18 +678,7 @@ export default function SettingsPage() {
             </div>
           </Card>
         )},
-        { id: 'notifications', label: 'Notifications', content: (
-          <Card><div className="space-y-3 max-w-md">
-            {['Email Notifications', 'Push Notifications', 'Leave Reminders', 'Timesheet Reminders', 'Birthday Reminders', 'Interview Reminders', 'Payroll Alerts', 'System Alerts'].map((n, i) => (
-              <div key={n} className="flex items-center justify-between p-3 bg-surface-3 rounded-lg">
-                <span className="text-sm text-text">{n}</span>
-                <button onClick={() => toast.info('Notification preferences are not available yet')} className={`w-10 h-5 rounded-full relative ${i < 5 ? 'bg-primary' : 'bg-surface-4'}`}>
-                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow ${i < 5 ? 'right-0.5' : 'left-0.5'}`} />
-                </button>
-              </div>
-            ))}
-          </div></Card>
-        )},
+        { id: 'notifications', label: 'Notifications', content: <NotificationPreferencesSettings /> },
         { id: 'security', label: 'Security', content: (
           <Card><div className="space-y-4 max-w-md">
             <div className="p-4 bg-surface-3 rounded-xl">

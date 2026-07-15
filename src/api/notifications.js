@@ -87,3 +87,11 @@ export async function archiveNotification(id) {
 export async function unarchiveNotification(id) {
   return api.put(`/notifications/${id}/unarchive`);
 }
+
+export async function getMyNotificationPreferences() {
+  return api.get('/notifications/preferences');
+}
+
+export async function updateMyNotificationPreferences(patch) {
+  return api.put('/notifications/preferences', patch);
+}

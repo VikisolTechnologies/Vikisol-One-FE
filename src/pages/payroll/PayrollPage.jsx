@@ -11,7 +11,7 @@ import Badge from '../../components/ui/Badge';
 import Breadcrumb from '../../components/ui/Breadcrumb';
 import SearchFilter from '../../components/ui/SearchFilter';
 import { useData } from '../../context/DataContext';
-import { generatePayslipPdf } from '../../api/payroll';
+import { generatePayslipPdf, bulkDownloadPayslips, bulkEmailPayslips } from '../../api/payroll';
 import { downloadFile } from '../../api/client';
 import { usePayroll } from '../../context/PayrollEngine';
 import { useApproval } from '../../context/ApprovalEngine';
@@ -114,6 +114,37 @@ export default function PayrollPage() {
     return { label: first.month, payrollCount: filtered.length, activeDuring: activeDuring.length, newJoiners, exited };
   }, [filtered, data.employees, isEmployee]);
 
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [bulkEmailing, setBulkEmailing] = useState(false);
+
+  const handleBulkDownload = async (rows = filtered) => {
+    if (payslipsSource !== 'live') { toast.error('Connect to the live backend to bulk-download payslips'); return; }
+    if (rows.length === 0) { toast.error('No payslips to download'); return; }
+    setBulkDownloading(true);
+    try {
+      await bulkDownloadPayslips(rows.map(p => p.id));
+      toast.success(`Downloaded ${rows.length} payslip${rows.length === 1 ? '' : 's'}`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to bulk-download payslips');
+    } finally {
+      setBulkDownloading(false);
+    }
+  };
+
+  const handleBulkEmail = async (rows = filtered) => {
+    if (payslipsSource !== 'live') { toast.error('Connect to the live backend to bulk-email payslips'); return; }
+    if (rows.length === 0) { toast.error('No payslips to email'); return; }
+    setBulkEmailing(true);
+    try {
+      await bulkEmailPayslips(rows.map(p => p.id));
+      toast.success(`Emailing ${rows.length} payslip${rows.length === 1 ? '' : 's'} in the background`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to bulk-email payslips');
+    } finally {
+      setBulkEmailing(false);
+    }
+  };
+
   // Exports exactly what's currently visible (respects active search/filters), same plain-CSV
   // pattern used for the Employee Directory's toolbar Export button.
   const handleExportPayrollCsv = (rows = filtered) => {
@@ -213,8 +244,8 @@ export default function PayrollPage() {
         </div>
         {!isEmployee && (
           <div className="flex gap-2">
-            <Button variant="secondary" icon={Download} size="sm" onClick={() => toast.info('Bulk payslip download is not available yet')}>Bulk Download</Button>
-            {(isCEO || isHRManager) && <Button variant="secondary" icon={Send} size="sm" onClick={() => toast.info('Bulk payslip email is not available yet')}>Bulk Email</Button>}
+            <Button variant="secondary" icon={Download} size="sm" disabled={bulkDownloading} onClick={() => handleBulkDownload()}>{bulkDownloading ? 'Zipping...' : 'Bulk Download'}</Button>
+            {(isCEO || isHRManager) && <Button variant="secondary" icon={Send} size="sm" disabled={bulkEmailing} onClick={() => handleBulkEmail()}>{bulkEmailing ? 'Sending...' : 'Bulk Email'}</Button>}
             {isCEO && <Button variant="secondary" icon={payrollStatus === 'Locked' ? Unlock : Lock} size="sm" onClick={handleLockPayroll}>{payrollStatus === 'Locked' ? 'Unlock' : 'Lock'}</Button>}
             {(isCEO || isHRManager) && <Button icon={Calculator} size="sm" onClick={handleRunPayroll} disabled={payrollStatus === 'Locked' || runningPayroll}>{runningPayroll ? 'Running...' : 'Run Payroll'}</Button>}
           </div>
@@ -274,7 +305,7 @@ export default function PayrollPage() {
         {payslipsLoading ? <TableSkeleton rows={8} cols={6} /> : <DataTable columns={columns} data={filtered} pageSize={isEmployee ? 6 : 12} selectable={!isEmployee} selected={!isEmployee ? selectedIds : []} onSelectChange={!isEmployee ? setSelectedIds : () => {}} onRowClick={setSelected} />}
       </Card>
 
-      {!isEmployee && <BulkActions selectedCount={selectedIds.length} onExport={() => { handleExportPayrollCsv(filtered.filter(p => selectedIds.includes(p.id))); setSelectedIds([]); }} onEmail={() => { toast.info('Bulk email is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}
+      {!isEmployee && <BulkActions selectedCount={selectedIds.length} onExport={() => { handleExportPayrollCsv(filtered.filter(p => selectedIds.includes(p.id))); setSelectedIds([]); }} onEmail={() => { handleBulkEmail(filtered.filter(p => selectedIds.includes(p.id))); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}
 
       {/* Payslip Modal - styled as an actual payroll statement document, not a generic dialog */}
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Payroll Statement" size="xl">
