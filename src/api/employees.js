@@ -130,8 +130,20 @@ export async function getEmployee(id) {
   return adaptEmployee(await api.get(`/employees/${id}`));
 }
 
+// Both DashboardRouter (onboarding-completeness check) and EmployeeDashboard (summary widgets)
+// call this independently right after login, doubling a network round-trip that's on the
+// critical path to a Manager/Employee ever seeing their dashboard render. A short in-memory
+// cache (cleared on logout via clearMyProfileCache) means the second caller reuses the same
+// in-flight/just-resolved promise instead of firing its own request.
+let myProfileCache = null;
 export async function getMyProfile() {
-  return adaptEmployee(await api.get('/employees/me'));
+  if (!myProfileCache) {
+    myProfileCache = api.get('/employees/me').then(adaptEmployee).catch(err => { myProfileCache = null; throw err; });
+  }
+  return myProfileCache;
+}
+export function clearMyProfileCache() {
+  myProfileCache = null;
 }
 
 export async function createEmployee(form) {

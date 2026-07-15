@@ -267,9 +267,19 @@ export function DataProvider({ children }) {
     const start = new Date(end.getTime() - 90 * 24 * 60 * 60 * 1000);
     const startStr = start.toISOString().split('T')[0];
     const endStr = end.toISOString().split('T')[0];
-    // Try the broadest view (manager/HR/CEO "team") first, fall back to own entries only, then to mock.
+    // Try the broadest view (manager/HR/CEO "team") first, fall back to own entries only ONLY on
+    // a genuine 403 (this role truly has no team-view access) - falling back on ANY error
+    // (network blip, a transient 401 mid-token-refresh, a slow request) used to silently swap in
+    // a completely different, much smaller dataset (the caller's own handful of entries) instead
+    // of surfacing the real failure or retrying, which is why the same company-wide count could
+    // read wildly differently across reloads with no real underlying data change.
     timesheetsApi.getTeamEntries(startStr, endStr)
-      .catch(() => timesheetsApi.getMyEntries(startStr, endStr))
+      .catch((err) => {
+        if (err?.category === 'authorization' || err?.status === 403) {
+          return timesheetsApi.getMyEntries(startStr, endStr);
+        }
+        throw err;
+      })
       .then((items) => {
         setData(prev => ({ ...prev, timesheets: items }));
         setTimesheetsSource('live');

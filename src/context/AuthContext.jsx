@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import { login as loginApi, verifyMfa as verifyMfaApi, requestLoginOtp, verifyLoginOtp, logout as logoutApi, fetchMe } from '../api/auth';
 import { setUnauthorizedHandler, resetUnauthorizedGuard } from '../api/client';
+import { clearMyProfileCache } from '../api/employees';
 
 const AuthContext = createContext(null);
 
@@ -22,6 +23,7 @@ export function AuthProvider({ children }) {
   const clearSession = useCallback(() => {
     setUser(null);
     localStorage.removeItem('vikisol_user');
+    clearMyProfileCache();
     // Fire-and-forget - the session is being torn down client-side regardless of whether the
     // network call itself succeeds (e.g. the access token that would authorize it may already be
     // the exact thing that just expired).
@@ -118,6 +120,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     setUser(null);
     localStorage.removeItem('vikisol_user');
+    clearMyProfileCache();
     await logoutApi();
   }, []);
 
