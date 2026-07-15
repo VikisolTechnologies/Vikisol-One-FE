@@ -69,6 +69,16 @@ export default function HrTaskCenterPage() {
                 showSparkline={false}
               />
             ))}
+            {/* No backing data source yet (Offboarding has no exit-interview concept) - shown as
+                an honest "N/A" card here so its presence in the KPI grid matches the detailed task
+                list below instead of only appearing in one of the two places. */}
+            <StatCard
+              label="Exit Interview Pending"
+              value="N/A"
+              icon={MessageSquareOff}
+              color="default"
+              showSparkline={false}
+            />
           </div>
 
           <div className="space-y-3">

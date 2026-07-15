@@ -468,6 +468,27 @@ export default function EmployeeDirectory() {
     { key: 'employmentType', label: 'Type', options: ['Full Time', 'Contract', 'Intern'] },
   ];
 
+  // Exports exactly what's currently visible (respects active search/filters), same plain-CSV
+  // pattern DataTable's own per-table export uses elsewhere - this toolbar button just needed its
+  // own handler since it sits above the table rather than inside it.
+  const handleExportCsv = () => {
+    const headers = ['Employee ID', 'Name', 'Department', 'Designation', 'Status', 'Location', 'Joined'];
+    const rows = filtered.map(e => [e.empId, e.name, e.department, e.designation, e.status, e.location, e.joinDate]);
+    const escape = (v) => {
+      const s = v ?? '';
+      return typeof s === 'string' && (s.includes(',') || s.includes('"')) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [headers.join(','), ...rows.map(r => r.map(escape).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Employees_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filtered.length} employee${filtered.length === 1 ? '' : 's'}`);
+  };
+
   const columns = [
     { key: 'name', label: 'Employee', render: (_, row) => (
       <div className="flex items-center gap-3">
@@ -519,7 +540,7 @@ export default function EmployeeDirectory() {
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" icon={Upload} size="sm" onClick={() => toast.info('Bulk import is not available yet')}>Import</Button>
-          <Button variant="secondary" icon={Download} size="sm" onClick={() => toast.info('Export is not available yet')}>Export</Button>
+          <Button variant="secondary" icon={Download} size="sm" onClick={handleExportCsv}>Export</Button>
           <Button icon={UserPlus} size="sm" onClick={() => setShowAdd(true)}>Add Employee</Button>
         </div>
       </div>

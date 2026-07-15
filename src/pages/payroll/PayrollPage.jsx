@@ -69,7 +69,29 @@ export default function PayrollPage() {
     return matchSearch && matchDept;
   }), [allPayslips, search, filters]);
 
-  const summary = (payslipsSource === 'live' && liveSummary) || mockPayrollSummary || { totalPayroll: 0, totalGross: 0, totalDeductions: 0, avgSalary: 0, highestSalary: 0, lowestSalary: 0, employeeCount: 0 };
+  // The "Highest"/"Lowest"/"Avg Salary" stat cards previously fell back to mockPayrollSummary
+  // (computed over an entirely different, randomly-generated demo dataset) whenever `liveSummary`
+  // was null - which it always was unless someone had just clicked "Run Payroll" in this exact
+  // session, since PayrollSummaryResponse (the only thing that ever populates it) doesn't even
+  // carry highest/lowest fields. That meant the stat cards showed numbers from a dataset that had
+  // nothing to do with the "103 payslips" actually listed in the table below them. Computing
+  // directly from the live payslips being displayed keeps the two in sync.
+  const liveComputedSummary = useMemo(() => {
+    if (payslipsSource !== 'live' || allPayslips.length === 0) return null;
+    const nets = allPayslips.map(p => p.netPay);
+    const totalGross = allPayslips.reduce((s, p) => s + p.totalEarnings, 0);
+    const totalDeductions = allPayslips.reduce((s, p) => s + p.totalDeductions, 0);
+    const totalPayroll = nets.reduce((s, n) => s + n, 0);
+    return {
+      totalPayroll, totalGross, totalDeductions,
+      avgSalary: totalPayroll / nets.length,
+      highestSalary: Math.max(...nets),
+      lowestSalary: Math.min(...nets),
+      employeeCount: allPayslips.length,
+    };
+  }, [payslipsSource, allPayslips]);
+
+  const summary = liveComputedSummary || (payslipsSource === 'live' && liveSummary) || mockPayrollSummary || { totalPayroll: 0, totalGross: 0, totalDeductions: 0, avgSalary: 0, highestSalary: 0, lowestSalary: 0, employeeCount: 0 };
 
   // When the visible payslips are all for a single month (the common case - searching/filtering
   // to one month, as in the reported "March/April/May/June only have 20 records" confusion),
@@ -91,6 +113,26 @@ export default function PayrollPage() {
     });
     return { label: first.month, payrollCount: filtered.length, activeDuring: activeDuring.length, newJoiners, exited };
   }, [filtered, data.employees, isEmployee]);
+
+  // Exports exactly what's currently visible (respects active search/filters), same plain-CSV
+  // pattern used for the Employee Directory's toolbar Export button.
+  const handleExportPayrollCsv = (rows = filtered) => {
+    const headers = ['Employee', 'Employee ID', 'Department', 'Month', 'Gross', 'Deductions', 'Net Pay', 'Status'];
+    const csvRows = rows.map(p => [p.empName, p.empId, p.department, p.month, p.totalEarnings, p.totalDeductions, p.netPay, p.status]);
+    const escape = (v) => {
+      const s = v ?? '';
+      return typeof s === 'string' && (s.includes(',') || s.includes('"')) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [headers.join(','), ...csvRows.map(r => r.map(escape).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Payroll_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${rows.length} payslip${rows.length === 1 ? '' : 's'}`);
+  };
 
   const downloadPayslip = async (id) => {
     if (payslipsSource !== 'live') { toast.error('Connect to the live backend to download payslips'); return; }
@@ -202,7 +244,7 @@ export default function PayrollPage() {
           <div className="flex-1 min-w-0">
             <SearchFilter inline searchValue={search} onSearch={setSearch} placeholder="Search by employee, month, or payroll status..." filters={[
               { key: 'department', label: 'Department', options: data.departments },
-            ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => { setFilters({}); setSearch(''); }} onExport={() => toast.info('Export is not available yet')} />
+            ]} activeFilters={filters} onFilterChange={(k, v) => setFilters(p => ({ ...p, [k]: v }))} onClearFilters={() => { setFilters({}); setSearch(''); }} onExport={() => handleExportPayrollCsv(filtered)} />
           </div>
           <SensitivityToggle revealed={revealed} onToggle={toggleRevealed} />
         </div>
@@ -232,7 +274,7 @@ export default function PayrollPage() {
         {payslipsLoading ? <TableSkeleton rows={8} cols={6} /> : <DataTable columns={columns} data={filtered} pageSize={isEmployee ? 6 : 12} selectable={!isEmployee} selected={!isEmployee ? selectedIds : []} onSelectChange={!isEmployee ? setSelectedIds : () => {}} onRowClick={setSelected} />}
       </Card>
 
-      {!isEmployee && <BulkActions selectedCount={selectedIds.length} onExport={() => { toast.info('Export is not available yet'); setSelectedIds([]); }} onEmail={() => { toast.info('Bulk email is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}
+      {!isEmployee && <BulkActions selectedCount={selectedIds.length} onExport={() => { handleExportPayrollCsv(filtered.filter(p => selectedIds.includes(p.id))); setSelectedIds([]); }} onEmail={() => { toast.info('Bulk email is not available yet'); setSelectedIds([]); }} onClear={() => setSelectedIds([])} />}
 
       {/* Payslip Modal - styled as an actual payroll statement document, not a generic dialog */}
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Payroll Statement" size="xl">

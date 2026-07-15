@@ -243,6 +243,10 @@ export async function selfAssignCandidate(id) {
   return adaptCandidate(await api.put(`/recruitment/candidates/${id}/self-assign`));
 }
 
+export async function sendCandidateEmail(id, subject, message) {
+  return api.post(`/recruitment/candidates/${id}/send-email`, { subject, message });
+}
+
 // Edits Expected/Current CTC, Notice Period, Current/Preferred Location - the 5 fields tracked
 // with field-level audit history (see getCandidateFieldHistory).
 export async function updateCandidateFields(id, { expectedSalary, currentCtc, noticePeriod, currentLocation, preferredLocation }) {

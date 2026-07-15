@@ -137,15 +137,17 @@ export default function HelpCenter() {
         { id: 'guides', label: 'User Guide', content: (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
-              { icon: BookOpen, title: 'Getting Started', desc: 'Learn the basics of Vikisol HRMS' },
-              { icon: HelpCircle, title: 'Employee Self Service', desc: 'How to use ESS features' },
-              { icon: Shield, title: 'Admin Guide', desc: 'System administration and configuration' },
-              { icon: Video, title: 'Video Tutorials', desc: 'Watch step-by-step tutorials' },
-              { icon: Headphones, title: 'Contact Support', desc: 'Reach our support team' },
-              { icon: Info, title: 'Release Notes', desc: 'Latest updates and changes' },
+              { icon: BookOpen, title: 'Getting Started', desc: 'Learn the basics of Vikisol HRMS', onClick: () => toast.info('Getting Started guide is not available yet') },
+              { icon: HelpCircle, title: 'Employee Self Service', desc: 'How to use ESS features', onClick: () => toast.info('ESS guide is not available yet') },
+              { icon: Shield, title: 'Admin Guide', desc: 'System administration and configuration', onClick: () => toast.info('Admin guide is not available yet') },
+              { icon: Video, title: 'Video Tutorials', desc: 'Watch step-by-step tutorials', onClick: () => toast.info('Video tutorials are not available yet') },
+              // The one guide card that CAN be made genuinely functional right now - a real mailto,
+              // not another "coming soon" stub, since we already have a real support inbox.
+              { icon: Headphones, title: 'Contact Support', desc: 'Reach our support team', onClick: () => { window.location.href = 'mailto:connect@vikisol.in'; } },
+              { icon: Info, title: 'Release Notes', desc: 'Latest updates and changes', onClick: () => toast.info('Release notes are not available yet') },
             ].map(g => (
               <Card key={g.title} hoverable>
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 cursor-pointer" onClick={g.onClick}>
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><g.icon size={18} className="text-primary" /></div>
                   <div><h3 className="text-sm font-semibold text-text">{g.title}</h3><p className="text-xs text-text-secondary mt-0.5">{g.desc}</p></div>
                 </div>

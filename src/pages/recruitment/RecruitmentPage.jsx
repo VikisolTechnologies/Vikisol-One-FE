@@ -20,7 +20,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
 import { useConfirm } from '../../components/ui/ConfirmDialog';
 import SensitiveValue from '../../components/ui/SensitiveValue';
-import { getRecruiterDashboard, getCandidate } from '../../api/recruitment';
+import { getRecruiterDashboard, getCandidate, sendCandidateEmail } from '../../api/recruitment';
 import ScheduleInterviewModal from './ScheduleInterviewModal';
 import InterviewFeedbackModal from './InterviewFeedbackModal';
 import CandidateEditModal from './CandidateEditModal';
@@ -72,6 +72,9 @@ export default function RecruitmentPage() {
   const [scheduleModal, setScheduleModal] = useState(null); // { candidate, interview? }
   const [feedbackInterview, setFeedbackInterview] = useState(null);
   const [editModalCandidate, setEditModalCandidate] = useState(null);
+  const [emailCandidate, setEmailCandidate] = useState(null);
+  const [emailForm, setEmailForm] = useState({ subject: '', message: '' });
+  const [emailSending, setEmailSending] = useState(false);
   const [dashboardStats, setDashboardStats] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -223,6 +226,21 @@ export default function RecruitmentPage() {
       toast.success('Candidate deleted');
     } catch (err) {
       toast.error(err.message || 'Failed to delete candidate');
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailForm.subject.trim() || !emailForm.message.trim()) { toast.error('Subject and message are required'); return; }
+    setEmailSending(true);
+    try {
+      await sendCandidateEmail(emailCandidate.id, emailForm.subject.trim(), emailForm.message.trim());
+      toast.success(`Email sent to ${emailCandidate.name}`);
+      setEmailCandidate(null);
+      setEmailForm({ subject: '', message: '' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to send email');
+    } finally {
+      setEmailSending(false);
     }
   };
 
@@ -426,7 +444,7 @@ export default function RecruitmentPage() {
                 <Button size="sm" icon={PencilLine} onClick={() => setEditModalCandidate(selected)}>Edit Candidate</Button>
                 <Button size="sm" variant="secondary" icon={Calendar} disabled={!selected.jobPostingId} title={selected.jobPostingId ? undefined : 'This candidate has no linked job posting to schedule against'} onClick={() => handleScheduleInterview(selected)}>Schedule Interview</Button>
                 {!selected.jobPostingId && <p className="text-[10px] text-text-secondary -mt-1.5">No linked job posting (Direct Hire) - interviews can't be scheduled until one is linked.</p>}
-                <Button size="sm" variant="secondary" icon={Mail} onClick={() => toast.info('Direct email to candidates is not available yet')}>Send Email</Button>
+                <Button size="sm" variant="secondary" icon={Mail} onClick={() => { setEmailCandidate(selected); setEmailForm({ subject: '', message: '' }); }}>Send Email</Button>
                 {selected.stage === 'HR' && !selected.convertedEmployeeId && selected.status !== 'PENDING_APPROVAL' && (
                   <Button size="sm" variant="secondary" icon={FileText} onClick={() => openOfferModal(selected)}>{selected.status === 'REVISION_REQUESTED' ? 'Resubmit Proposal' : 'Submit for Approval'}</Button>
                 )}
@@ -573,6 +591,17 @@ export default function RecruitmentPage() {
             )}
             <p className="text-xs text-text-secondary">This submits the proposal to a manager for approval. Nothing is emailed to {offerCandidate.email} until the manager approves it.</p>
             <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOfferCandidate(null)}>Cancel</Button><Button onClick={handleProposeSelection} disabled={offerSubmitting}>{offerSubmitting ? 'Submitting...' : 'Submit for Approval'}</Button></div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!emailCandidate} onClose={() => setEmailCandidate(null)} title={`Send Email to ${emailCandidate?.name || ''}`} size="md">
+        {emailCandidate && (
+          <div className="space-y-4">
+            <p className="text-xs text-text-secondary">To: {emailCandidate.email}</p>
+            <Input label="Subject *" value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} placeholder="Email subject" />
+            <Textarea label="Message *" value={emailForm.message} onChange={e => setEmailForm(p => ({ ...p, message: e.target.value }))} placeholder="Write your message..." rows={6} />
+            <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEmailCandidate(null)}>Cancel</Button><Button onClick={handleSendEmail} disabled={emailSending}>{emailSending ? 'Sending...' : 'Send Email'}</Button></div>
           </div>
         )}
       </Modal>
