@@ -54,6 +54,7 @@ export default function PayrollPage() {
   const [downloadingPayslip, setDownloadingPayslip] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [payrollStatus, setPayrollStatus] = useState('Draft');
+  const [kpiFilter, setKpiFilter] = useState(null); // 'net'|'gross'|'deductions'|'avg'|'highest'|'lowest'|null - only highest/lowest actually filter the table
 
   const allPayslips = useMemo(() => {
     if (isEmployee) {
@@ -62,12 +63,23 @@ export default function PayrollPage() {
     return data.payslips;
   }, [data.payslips, isEmployee, user]);
 
-  const filtered = useMemo(() => allPayslips.filter(p => {
-    const s = search.toLowerCase();
-    const matchSearch = !s || p.empName.toLowerCase().includes(s) || p.empId.toLowerCase().includes(s) || (p.department || '').toLowerCase().includes(s) || (p.month || '').toLowerCase().includes(s);
-    const matchDept = !filters.department || filters.department === 'All' || p.department === filters.department;
-    return matchSearch && matchDept;
-  }), [allPayslips, search, filters]);
+  const filtered = useMemo(() => {
+    const base = allPayslips.filter(p => {
+      const s = search.toLowerCase();
+      const matchSearch = !s || p.empName.toLowerCase().includes(s) || p.empId.toLowerCase().includes(s) || (p.department || '').toLowerCase().includes(s) || (p.month || '').toLowerCase().includes(s);
+      const matchDept = !filters.department || filters.department === 'All' || p.department === filters.department;
+      return matchSearch && matchDept;
+    });
+    if (kpiFilter === 'highest' && base.length) {
+      const max = Math.max(...base.map(p => p.netPay));
+      return base.filter(p => p.netPay === max);
+    }
+    if (kpiFilter === 'lowest' && base.length) {
+      const min = Math.min(...base.map(p => p.netPay));
+      return base.filter(p => p.netPay === min);
+    }
+    return base;
+  }, [allPayslips, search, filters, kpiFilter]);
 
   // The "Highest"/"Lowest"/"Avg Salary" stat cards previously fell back to mockPayrollSummary
   // (computed over an entirely different, randomly-generated demo dataset) whenever `liveSummary`
@@ -259,14 +271,27 @@ export default function PayrollPage() {
             {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} variant="stat" />)}
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            <StatCard icon={IndianRupee} label="Total Net" value={<SensitiveValue type="currency" value={summary.totalPayroll} revealed={revealed} />} delay={0} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
-            <StatCard icon={TrendingUp} label="Total Gross" value={<SensitiveValue type="currency" value={summary.totalGross} revealed={revealed} />} color="success" delay={1} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
-            <StatCard icon={Calculator} label="Deductions" value={<SensitiveValue type="currency" value={summary.totalDeductions} revealed={revealed} />} color="warning" delay={2} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
-            <StatCard icon={IndianRupee} label="Avg Salary" value={<SensitiveValue type="currency" value={summary.avgSalary} revealed={revealed} />} color="info" delay={3} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
-            <StatCard icon={IndianRupee} label="Highest" value={<SensitiveValue type="currency" value={summary.highestSalary} revealed={revealed} />} color="primary" delay={4} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
-            <StatCard icon={IndianRupee} label="Lowest" value={<SensitiveValue type="currency" value={summary.lowestSalary} revealed={revealed} />} color="default" delay={5} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
-          </div>
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {[
+                { key: 'net', icon: IndianRupee, label: 'Total Net', value: summary.totalPayroll, color: undefined, delay: 0 },
+                { key: 'gross', icon: TrendingUp, label: 'Total Gross', value: summary.totalGross, color: 'success', delay: 1 },
+                { key: 'deductions', icon: Calculator, label: 'Deductions', value: summary.totalDeductions, color: 'warning', delay: 2 },
+                { key: 'avg', icon: IndianRupee, label: 'Avg Salary', value: summary.avgSalary, color: 'info', delay: 3 },
+                { key: 'highest', icon: IndianRupee, label: 'Highest', value: summary.highestSalary, color: 'primary', delay: 4 },
+                { key: 'lowest', icon: IndianRupee, label: 'Lowest', value: summary.lowestSalary, color: 'default', delay: 5 },
+              ].map(k => (
+                <div key={k.key} className={`rounded-xl transition-all cursor-pointer ${kpiFilter === k.key ? 'ring-2 ring-primary' : ''}`} onClick={() => setKpiFilter(prev => prev === k.key ? null : k.key)}>
+                  <StatCard icon={k.icon} label={k.label} value={<SensitiveValue type="currency" value={k.value} revealed={revealed} />} color={k.color} delay={k.delay} showSparkline={false} updatedAt={timeAgo(lastUpdated)} />
+                </div>
+              ))}
+            </div>
+            {kpiFilter && (kpiFilter === 'highest' || kpiFilter === 'lowest') && (
+              <button onClick={() => setKpiFilter(null)} className="text-xs text-primary hover:underline">
+                Showing {kpiFilter === 'highest' ? 'highest' : 'lowest'}-paid employee only &middot; Clear
+              </button>
+            )}
+          </>
         )
       )}
 

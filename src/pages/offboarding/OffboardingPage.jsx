@@ -50,6 +50,7 @@ export default function OffboardingPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('IN_PROGRESS');
   const [selectedCaseId, setSelectedCaseId] = useState(null);
+  const [kpiHighlight, setKpiHighlight] = useState(null); // 'active'|'completed'|'departments'|null
 
   const loadList = useCallback(() => {
     setLoading(true);
@@ -127,9 +128,25 @@ export default function OffboardingPage() {
 
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <StatCard label="Active Cases" value={stats.totalActive} icon={UserMinus} color="warning" />
-          <StatCard label="Completed This Month" value={stats.completedThisMonth} icon={CheckCircle2} color="success" />
-          <StatCard label="Departments Affected" value={Object.keys(stats.byStage || {}).length} icon={Users} color="default" />
+          {[
+            { key: 'active', label: 'Active Cases', value: stats.totalActive, icon: UserMinus, color: 'warning' },
+            { key: 'completed', label: 'Completed This Month', value: stats.completedThisMonth, icon: CheckCircle2, color: 'success' },
+            // Previously counted distinct entries in byStage (pipeline stages with an active case)
+            // - a real mislabel, not just missing the click-highlight below. byDepartment is the
+            // genuine per-department breakdown, computed backend-side in getDashboardStats().
+            { key: 'departments', label: 'Departments Affected', value: Object.keys(stats.byDepartment || {}).length, icon: Users, color: 'default' },
+          ].map(k => (
+            <div key={k.key} className={`rounded-xl transition-all cursor-pointer ${kpiHighlight === k.key ? 'ring-2 ring-primary' : ''}`} onClick={() => setKpiHighlight(prev => prev === k.key ? null : k.key)}>
+              <StatCard label={k.label} value={k.value} icon={k.icon} color={k.color} />
+            </div>
+          ))}
+        </div>
+      )}
+      {kpiHighlight === 'departments' && stats?.byDepartment && Object.keys(stats.byDepartment).length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(stats.byDepartment).map(([dept, count]) => (
+            <Badge key={dept} variant="default">{dept}: {count}</Badge>
+          ))}
         </div>
       )}
 
