@@ -150,6 +150,8 @@ const REQUIRED_FIELDS = {
 // ever verified a field was non-empty, so "hjhhhhLKKL57889803r4rf" satisfied "Account Number is
 // required" just fine. Each returns an error string (or null if valid) given the field's value.
 const FORMAT_VALIDATORS = {
+  personalMobile: (v) => /^\d{10}$/.test(v) ? null : 'Enter a valid 10-digit mobile number',
+  emergencyContactPhone: (v) => /^\d{10}$/.test(v) ? null : 'Enter a valid 10-digit phone number',
   bankAccount: (v) => /^\d{9,18}$/.test(v) ? null : 'Enter a valid account number (9-18 digits)',
   ifsc: (v) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v) ? null : 'Enter a valid IFSC code (e.g. HDFC0001234)',
   pan: (v) => /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v) ? null : 'Enter a valid PAN (e.g. ABCDE1234F)',
@@ -347,14 +349,14 @@ function PersonalStep({ form, errors, onChange, onSave }) {
         <Input label="Blood Group" value={form.bloodGroup} onChange={e => onChange({ bloodGroup: e.target.value })} placeholder="O+" />
         <LanguagesMultiSelect value={form.languagesKnown} onChange={v => onChange({ languagesKnown: v })} />
         <Input label="Personal Email" type="email" value={form.personalEmail} onChange={e => onChange({ personalEmail: e.target.value })} />
-        <Input label="Personal Mobile" value={form.personalMobile} onChange={e => onChange({ personalMobile: e.target.value })} error={errors.personalMobile} />
+        <Input label="Personal Mobile" value={form.personalMobile} onChange={e => onChange({ personalMobile: e.target.value.replace(/\D/g, '').slice(0, 10) })} error={errors.personalMobile} />
         <Input label="Current Address" className="col-span-2" value={form.address} onChange={e => onChange({ address: e.target.value })} error={errors.address} />
         <Input label="Permanent Address" className="col-span-2" value={form.permanentAddress} onChange={e => onChange({ permanentAddress: e.target.value })} />
       </div>
       <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider pt-2">Emergency Contact</p>
       <div className="grid grid-cols-3 gap-4">
         <Input label="Name" value={form.emergencyContactName} onChange={e => onChange({ emergencyContactName: e.target.value })} error={errors.emergencyContactName} />
-        <Input label="Phone" value={form.emergencyContactPhone} onChange={e => onChange({ emergencyContactPhone: e.target.value })} error={errors.emergencyContactPhone} />
+        <Input label="Phone" value={form.emergencyContactPhone} onChange={e => onChange({ emergencyContactPhone: e.target.value.replace(/\D/g, '').slice(0, 10) })} error={errors.emergencyContactPhone} />
         <SelectWithOther label="Relation" value={form.emergencyContactRelation} onChange={v => onChange({ emergencyContactRelation: v })} options={RELATION_OPTIONS} error={errors.emergencyContactRelation} />
       </div>
       <div className="flex justify-end"><Button onClick={onSave}>Save</Button></div>

@@ -12,6 +12,8 @@ import { updateCandidateFull, getCandidateFieldHistory } from '../../api/recruit
 const EMPLOYMENT_TYPES = ['FULL_TIME', 'PART_TIME', 'CONTRACT', 'FREELANCE', 'INTERN'];
 const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 const STAGES = ['Applied', 'Screening', 'Technical', 'Manager', 'HR', 'Offered', 'Hired', 'Rejected'];
+const PHONE_RE = /^\d{10}$/;
+const NAME_RE = /^[A-Za-z][A-Za-z .'-]*$/;
 
 // Full candidate profile editor - Personal/Professional/Recruitment tabs plus the change-history
 // view for the fields that need it, replacing what used to be a read-only details grid. Recruiter/
@@ -21,16 +23,31 @@ export default function CandidateEditModal({ open, onClose, candidate, employees
   const [form, setForm] = useState(null);
   const [history, setHistory] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (!candidate) return;
     setForm({ ...candidate });
+    setErrors({});
     getCandidateFieldHistory(candidate.id).then(setHistory).catch(() => setHistory([]));
   }, [candidate]);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
   const handleSave = async () => {
+    // Phone/location fields have no server-side format check, so a manually-typed
+    // "hjhhhhLKKL57889803r4rf" would otherwise save silently - validate before submitting.
+    const nextErrors = {};
+    if (form.phone && !PHONE_RE.test(form.phone)) nextErrors.phone = 'Enter a valid 10-digit mobile number';
+    if (form.alternateMobile && !PHONE_RE.test(form.alternateMobile)) nextErrors.alternateMobile = 'Enter a valid 10-digit mobile number';
+    if (form.city && !NAME_RE.test(form.city)) nextErrors.city = 'Enter a valid city name';
+    if (form.state && !NAME_RE.test(form.state)) nextErrors.state = 'Enter a valid state name';
+    if (form.country && !NAME_RE.test(form.country)) nextErrors.country = 'Enter a valid country name';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      toast.error('Please fix the highlighted fields');
+      return;
+    }
     setSubmitting(true);
     try {
       await updateCandidateFull(candidate.id, form);
@@ -54,12 +71,12 @@ export default function CandidateEditModal({ open, onClose, candidate, employees
             <div className="grid grid-cols-2 gap-4">
               <Input label="Full Name" value={form.name || ''} onChange={e => set('name', e.target.value)} />
               <Input label="Personal Email" type="email" value={form.email || ''} onChange={e => set('email', e.target.value)} />
-              <Input label="Personal Mobile" value={form.phone || ''} onChange={e => set('phone', e.target.value)} />
-              <Input label="Alternate Mobile" value={form.alternateMobile || ''} onChange={e => set('alternateMobile', e.target.value)} />
+              <Input label="Personal Mobile" value={form.phone || ''} onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))} error={errors.phone} />
+              <Input label="Alternate Mobile" value={form.alternateMobile || ''} onChange={e => set('alternateMobile', e.target.value.replace(/\D/g, '').slice(0, 10))} error={errors.alternateMobile} />
               <Input label="Current Address" className="col-span-2" value={form.currentAddress || ''} onChange={e => set('currentAddress', e.target.value)} />
-              <Input label="City" value={form.city || ''} onChange={e => set('city', e.target.value)} />
-              <Input label="State" value={form.state || ''} onChange={e => set('state', e.target.value)} />
-              <Input label="Country" value={form.country || ''} onChange={e => set('country', e.target.value)} />
+              <Input label="City" value={form.city || ''} onChange={e => set('city', e.target.value.replace(/[^A-Za-z .'-]/g, ''))} error={errors.city} />
+              <Input label="State" value={form.state || ''} onChange={e => set('state', e.target.value.replace(/[^A-Za-z .'-]/g, ''))} error={errors.state} />
+              <Input label="Country" value={form.country || ''} onChange={e => set('country', e.target.value.replace(/[^A-Za-z .'-]/g, ''))} error={errors.country} />
               <Input label="LinkedIn" value={form.linkedinUrl || ''} onChange={e => set('linkedinUrl', e.target.value)} placeholder="https://linkedin.com/in/..." />
               <Input label="GitHub" value={form.githubUrl || ''} onChange={e => set('githubUrl', e.target.value)} placeholder="https://github.com/..." />
               <Input label="Portfolio" value={form.portfolioUrl || ''} onChange={e => set('portfolioUrl', e.target.value)} placeholder="https://..." />
