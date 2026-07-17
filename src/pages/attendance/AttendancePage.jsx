@@ -11,6 +11,7 @@ import { useData } from '../../context/DataContext';
 import { useToast } from '../../components/ui/Toast';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { getMyAttendance, getTeamAttendance, computeLiveWorkingHours } from '../../api/attendance';
+import Skeleton from '../../components/ui/Skeleton';
 
 const ATTENDANCE_DATA = [
   { date: 'Mon', present: 210, absent: 15, late: 12, wfh: 8 },
@@ -209,7 +210,12 @@ export default function AttendancePage() {
       )}
 
       {/* Manager: Team stats */}
-      {isManager && (() => {
+      {isManager && (attendanceLoading || (isLive && !liveTeamLog)) && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="stat" />)}
+        </div>
+      )}
+      {isManager && !attendanceLoading && !(isLive && !liveTeamLog) && (() => {
         const teamData = isLive && liveTeamLog ? liveTeamLog : teamLog;
         const isRealTeamData = isLive && !!liveTeamLog;
         const total = teamData.length || 1;

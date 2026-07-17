@@ -192,7 +192,10 @@ export default function OrgChart() {
         </div>
       </div>
 
-      <div style={{ fontSize: `${zoom}%` }}>
+      {/* Cards below are built with fixed Tailwind px sizing (w-10 h-10, size={18} icons, etc.),
+          so scaling via fontSize (em-relative) barely moved anything - a real transform scale is
+          needed for Zoom In/Out to actually resize the rendered chart. */}
+      <div style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left', width: `${10000 / zoom}%` }}>
         {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([group, employees]) => {
           const nodeId = `dept-${group}`;
           const isExpanded = expandedNodes.has(nodeId);

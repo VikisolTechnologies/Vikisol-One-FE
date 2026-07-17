@@ -146,6 +146,16 @@ const REQUIRED_FIELDS = {
   bank: ['bankName', 'bankAccount', 'ifsc'],
   tax: ['pan', 'aadhar'],
 };
+// Format checks layered on top of the plain required-ness check above - previously Save/Next only
+// ever verified a field was non-empty, so "hjhhhhLKKL57889803r4rf" satisfied "Account Number is
+// required" just fine. Each returns an error string (or null if valid) given the field's value.
+const FORMAT_VALIDATORS = {
+  bankAccount: (v) => /^\d{9,18}$/.test(v) ? null : 'Enter a valid account number (9-18 digits)',
+  ifsc: (v) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v) ? null : 'Enter a valid IFSC code (e.g. HDFC0001234)',
+  pan: (v) => /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v) ? null : 'Enter a valid PAN (e.g. ABCDE1234F)',
+  aadhar: (v) => /^\d{12}$/.test(v) ? null : 'Enter a valid 12-digit Aadhaar number',
+  uan: (v) => (!v || /^\d{12}$/.test(v)) ? null : 'Enter a valid 12-digit UAN number',
+};
 const FIELD_LABELS = {
   dob: 'Date of Birth', gender: 'Gender', maritalStatus: 'Marital Status', personalMobile: 'Personal Mobile',
   address: 'Current Address', emergencyContactName: 'Emergency Contact Name', emergencyContactPhone: 'Emergency Contact Phone',
@@ -226,7 +236,15 @@ export default function OnboardingWizard() {
   if (!profile) return null;
 
   const step = STEPS[stepIndex];
-  const goNext = () => setStepIndex(i => Math.min(STEPS.length - 1, i + 1));
+  // Previously advanced unconditionally regardless of the current step's own validation - Bank/Tax
+  // details could be skipped past with invalid or missing values by clicking Next instead of Save.
+  const goNext = () => {
+    if (REQUIRED_FIELDS[step.key] && !validateStep(step.key)) {
+      toast.error('Please fill the highlighted required fields correctly before continuing');
+      return;
+    }
+    setStepIndex(i => Math.min(STEPS.length - 1, i + 1));
+  };
   const goBack = () => setStepIndex(i => Math.max(0, i - 1));
 
   const validateStep = (stepKey) => {
@@ -236,6 +254,13 @@ export default function OnboardingWizard() {
     required.forEach(field => {
       const value = draft[field];
       if (value === '' || value === null || value === undefined) stepErrors[field] = `${FIELD_LABELS[field]} is required`;
+    });
+    // Format validators run on every relevant field present in this step's draft, not just the
+    // required list, so e.g. UAN (optional) still gets checked if the employee typed something.
+    Object.keys(FORMAT_VALIDATORS).forEach(field => {
+      if (stepErrors[field] || !(field in draft) || draft[field] === '') return;
+      const formatError = FORMAT_VALIDATORS[field](draft[field]);
+      if (formatError) stepErrors[field] = formatError;
     });
     setErrors(prev => ({ ...prev, ...stepErrors, ...Object.fromEntries(required.filter(f => !stepErrors[f]).map(f => [f, undefined])) }));
     return Object.keys(stepErrors).length === 0;
@@ -342,8 +367,10 @@ function BankStep({ form, errors, onChange, onSave }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <SelectWithOther label="Bank Name" value={form.bankName} onChange={v => onChange({ bankName: v })} options={INDIAN_BANKS.map(b => ({ value: b, label: b }))} error={errors.bankName} />
-        <Input label="Account Number" value={form.bankAccount} onChange={e => onChange({ bankAccount: e.target.value })} error={errors.bankAccount} />
-        <Input label="IFSC Code" value={form.ifsc} onChange={e => onChange({ ifsc: e.target.value })} error={errors.ifsc} />
+        {/* Digits only, stripped as you type (same pattern as phone-number sanitization
+            elsewhere) - previously accepted letters/special characters with no restriction. */}
+        <Input label="Account Number" value={form.bankAccount} onChange={e => onChange({ bankAccount: e.target.value.replace(/\D/g, '').slice(0, 18) })} error={errors.bankAccount} />
+        <Input label="IFSC Code" value={form.ifsc} onChange={e => onChange({ ifsc: e.target.value.toUpperCase().slice(0, 11) })} error={errors.ifsc} />
       </div>
       <div className="flex justify-end"><Button onClick={onSave}>Save</Button></div>
     </div>
@@ -354,9 +381,9 @@ function TaxStep({ form, errors, onChange, onSave }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <Input label="PAN Number" value={form.pan} onChange={e => onChange({ pan: e.target.value })} error={errors.pan} />
-        <Input label="Aadhaar Number" value={form.aadhar} onChange={e => onChange({ aadhar: e.target.value })} error={errors.aadhar} />
-        <Input label="UAN Number" value={form.uan} onChange={e => onChange({ uan: e.target.value })} />
+        <Input label="PAN Number" value={form.pan} onChange={e => onChange({ pan: e.target.value.toUpperCase().slice(0, 10) })} error={errors.pan} />
+        <Input label="Aadhaar Number" value={form.aadhar} onChange={e => onChange({ aadhar: e.target.value.replace(/\D/g, '').slice(0, 12) })} error={errors.aadhar} />
+        <Input label="UAN Number" value={form.uan} onChange={e => onChange({ uan: e.target.value.replace(/\D/g, '').slice(0, 12) })} error={errors.uan} />
         <Input label="PF Number" value={form.pfNumber} onChange={e => onChange({ pfNumber: e.target.value })} />
         <Input label="ESI Number" value={form.esiNumber} onChange={e => onChange({ esiNumber: e.target.value })} />
       </div>
@@ -391,7 +418,12 @@ function ExpandableRow({ summary, subtitle, isOpen, onToggle, onDelete, children
 // blocked) if it doesn't, since a nominee can legitimately be added before the split is finalized.
 function NomineeStep({ employeeId, items, setItems, onChange }) {
   const toast = useToast();
-  const emptyForm = { name: '', relation: '', dateOfBirth: '', sharePercentage: 100, gender: '' };
+  // gender: null, not '' - there's no Gender input in this form at all, and the backend's Gender
+  // field is a real Java enum; Jackson can't deserialize an empty string into an enum constant, so
+  // every "Add Nominee" was silently failing with a generic "isn't in a valid format" error
+  // regardless of what the user actually typed - the nominee was never saved, which is also why
+  // the onboarding wizard correctly (if confusingly) kept reporting the section as incomplete.
+  const emptyForm = { name: '', relation: '', dateOfBirth: '', sharePercentage: 100, gender: null };
   const [form, setForm] = useState(emptyForm);
   const [openId, setOpenId] = useState(null);
   const [editForm, setEditForm] = useState(null);

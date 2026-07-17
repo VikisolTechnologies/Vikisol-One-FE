@@ -83,15 +83,18 @@ export default function Modal({ open, onClose, title, children, size = 'md' }) {
               leaves a non-identity `transform` on its animated element even after the enter
               animation settles, and Chromium mis-hit-tests scrollbar-thumb drags (though not
               wheel/keyboard scrolling) on any element that's simultaneously `overflow: auto` and
-              transformed. Splitting "animated wrapper" from "scrolling container" avoids that. */}
+              transformed. Splitting "animated wrapper" from "scrolling container" avoids that.
+              For the same reason, the dialog itself only animates opacity, never scale/y - any
+              transform on an ancestor of a native <select> makes Chromium's dropdown popup
+              unresponsive to the first click (only recovering after a reflow like a scroll). */}
           <motion.div
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby={titleId}
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             className={`relative bg-surface-2 border border-border rounded-xl ${sizes[size]} w-full max-h-[85vh] flex flex-col`}
           >
             <div className="overflow-y-auto min-h-0 rounded-xl">
